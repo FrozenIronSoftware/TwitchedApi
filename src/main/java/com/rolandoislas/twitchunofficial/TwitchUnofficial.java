@@ -9,6 +9,8 @@ import com.rolandoislas.twitchunofficial.util.ApiCache;
 import com.rolandoislas.twitchunofficial.util.Logger;
 import spark.Filter;
 
+import java.io.IOException;
+import java.util.Scanner;
 import java.util.logging.Level;
 
 import static spark.Spark.before;
@@ -22,6 +24,15 @@ public class TwitchUnofficial {
     public static ApiCache cache;
 
     public static void main(String[] args) {
+        // Test Python call
+        try {
+            Process python = new ProcessBuilder("python", "-V").start();
+            python.waitFor();
+            Scanner s = new Scanner(python.getInputStream()).useDelimiter("\\A");
+            Logger.info("======\n%s", s.next());
+        } catch (IOException | InterruptedException e) {
+            e.printStackTrace();
+        }
         Logger.setLevel(Level.ALL);
         Logger.info("Starting");
         // Parse port
