@@ -19,13 +19,17 @@ import spark.Request;
 import spark.Response;
 import spark.Spark;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
+import java.util.Scanner;
 
 import static com.rolandoislas.twitchunofficial.TwitchUnofficial.cache;
 
 public class TwitchUnofficialApi {
 
+    private static final int BAD_REQUEST = 400;
+    private static final int SERVER_ERROR =  503;
     private static TwitchClient twitch;
     private static Gson gson;
 
@@ -118,8 +122,30 @@ public class TwitchUnofficialApi {
      */
     static String getHlsData(Request request, Response response) {
         checkAuth(request);
-        // TODO
-        return "{}";
+        String username = request.queryParams("username");
+        if (username == null || username.isEmpty())
+            throw halt(BAD_REQUEST, "Missing username query parameter");
+        // Check cache
+        String requestId = ApiCache.createKey("hls", username);
+        String cachedResponse = cache.get(requestId);
+        if (cachedResponse != null)
+            return cachedResponse;
+        // Get live data
+        // Test Python call
+        try {
+            Process streamlink = new ProcessBuilder(
+                    "streamlink",
+                    "--json",
+                    String.format("twitch.tv/%s", username)).start();
+            streamlink.waitFor();
+            Scanner scanner = new Scanner(streamlink.getInputStream()).useDelimiter("\\A");
+            if (scanner.hasNext())
+                return scanner.next();
+        } catch (IOException | InterruptedException e) {
+            Logger.warn("Failed to call streamlink");
+            Logger.exception(e);
+        }
+        throw halt(SERVER_ERROR, "Failed to fetch data");
     }
 
     /**

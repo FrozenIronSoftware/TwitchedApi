@@ -6,11 +6,10 @@
 package com.rolandoislas.twitchunofficial;
 
 import com.rolandoislas.twitchunofficial.util.ApiCache;
+import com.rolandoislas.twitchunofficial.util.AuthUtil;
 import com.rolandoislas.twitchunofficial.util.Logger;
 import spark.Filter;
 
-import java.io.IOException;
-import java.util.Scanner;
 import java.util.logging.Level;
 
 import static spark.Spark.before;
@@ -24,17 +23,13 @@ public class TwitchUnofficial {
     public static ApiCache cache;
 
     public static void main(String[] args) {
-        // Test Python call
-        try {
-            Process python = new ProcessBuilder("python", "-V").start();
-            python.waitFor();
-            Scanner s = new Scanner(python.getInputStream()).useDelimiter("\\A");
-            Logger.info("======\n%s", s.next());
-        } catch (IOException | InterruptedException e) {
-            e.printStackTrace();
-        }
+        // Init logger
         Logger.setLevel(Level.ALL);
         Logger.info("Starting");
+        // Parse args
+        for (String arg : args)
+            if (arg.equalsIgnoreCase("--no-auth"))
+                AuthUtil.setAuthenticate(false);
         // Parse port
         int port = 5000;
         String portString = System.getenv("PORT");
@@ -66,7 +61,7 @@ public class TwitchUnofficial {
             before("/*", (request, response) -> response.type("application/json"));
             path("/twitch", () -> {
                 get("/streams", TwitchUnofficialApi::getStreams);
-                get("/stream/hls", TwitchUnofficialApi::getHlsData);
+                get("/hls", TwitchUnofficialApi::getHlsData);
             });
         });
         // Index
