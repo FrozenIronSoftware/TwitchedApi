@@ -36,4 +36,5 @@ jar {
     manifest {
         attributes "Main-Class": "com.rolandoislas.twitchunofficial.TwitchUnofficial"
     }
+    from {configurations.compile.collect {zipTree(it)}}
 }
