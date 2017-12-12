@@ -8,6 +8,7 @@ package com.rolandoislas.twitchunofficial;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.rolandoislas.twitchunofficial.util.ApiCache;
+import com.rolandoislas.twitchunofficial.util.AuthUtil;
 import com.rolandoislas.twitchunofficial.util.Logger;
 import me.philippheuer.twitch4j.TwitchClient;
 import me.philippheuer.twitch4j.TwitchClientBuilder;
@@ -55,8 +56,8 @@ public class TwitchUnofficialApi {
      * @param request request to check
      */
     private static void checkAuth(Request request) {
-        //if (!AuthUtil.verify(request))
-          //  unauthorized();
+        if (!AuthUtil.verify(request))
+            unauthorized();
     }
 
     /**
