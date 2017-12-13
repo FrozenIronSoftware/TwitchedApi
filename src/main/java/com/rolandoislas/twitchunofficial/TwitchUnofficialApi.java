@@ -13,11 +13,12 @@ import com.rolandoislas.twitchunofficial.util.Logger;
 import me.philippheuer.twitch4j.TwitchClient;
 import me.philippheuer.twitch4j.TwitchClientBuilder;
 import me.philippheuer.twitch4j.enums.Endpoints;
+import me.philippheuer.twitch4j.model.Community;
+import me.philippheuer.twitch4j.model.CommunityList;
 import me.philippheuer.twitch4j.model.Game;
 import me.philippheuer.twitch4j.model.Stream;
 import me.philippheuer.twitch4j.model.TopGame;
 import me.philippheuer.twitch4j.model.TopGameList;
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import spark.HaltException;
@@ -174,7 +175,13 @@ public class TwitchUnofficialApi {
         TwitchUnofficialApi.gson = new Gson();
     }
 
-    public static String getGames(Request request, Response response) {
+    /**
+     * Get a list of games
+     * @param request request
+     * @param response response
+     * @return games json
+     */
+    static String getGames(Request request, Response response) {
         checkAuth(request);
         // Parse parameters
         String limit = request.queryParamOrDefault("limit", "10");
@@ -205,6 +212,66 @@ public class TwitchUnofficialApi {
 
         // Store and return
         String json = gson.toJson(games);
+        cache.set(requestId, json);
+        return json;
+    }
+
+    /**
+     * Get top communities
+     * @param request request
+     * @param response response
+     * @return communities json
+     */
+    static String getCommunities(Request request, Response response) {
+        checkAuth(request);
+        // Params
+        Long limit = null;
+        String cursor;
+        try {
+            limit = Long.parseLong(request.queryParams("limit"));
+        }
+        catch (NumberFormatException ignore) {}
+        cursor = request.queryParams("cursor");
+        // Check cache
+        String requestId = ApiCache.createKey("communities/top", limit, cursor);
+        String cachedResponse = cache.get(requestId);
+        if (cachedResponse != null)
+            return cachedResponse;
+        // Request live
+        CommunityList communities = twitch.getCommunityEndpoint()
+                .getTopCommunities(Optional.ofNullable(limit), Optional.ofNullable(cursor));
+        if (communities == null)
+            throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
+        String json = gson.toJson(communities);
+        cache.set(requestId, json);
+        return json;
+    }
+
+    /**
+     * Get a specified community
+     * @param request request
+     * @param response response
+     * @return community json
+     */
+    static String getCommunity(Request request, Response response) {
+        checkAuth(request);
+        // Params
+        String name = request.queryParams("name");
+        String id = request.queryParams("id");
+        if ((name == null || name.isEmpty()) && (id == null || id.isEmpty()))
+            throw halt(BAD_REQUEST, "Bad Request: name or id is required");
+        // Check cache
+        String requestId = ApiCache.createKey("communities", name);
+        String cachedResponse = cache.get(requestId);
+        if (cachedResponse != null)
+            return cachedResponse;
+        // Request live
+        Community community;
+        if (name != null && !name.isEmpty())
+            community = twitch.getCommunityEndpoint().getCommunityByName(name);
+        else
+            community = twitch.getCommunityEndpoint().getCommunityById(id);
+        String json = gson.toJson(community);
         cache.set(requestId, json);
         return json;
     }

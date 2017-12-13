@@ -71,6 +71,11 @@ public class TwitchUnofficial {
             path("/twitch", () -> {
                 get("/streams", TwitchUnofficialApi::getStreams);
                 get("/games", TwitchUnofficialApi::getGames);
+                path("/communities", () -> {
+                    get("", TwitchUnofficialApi::getCommunity);
+                    get("/top", TwitchUnofficialApi::getCommunities);
+                });
+
                 get("/hls", TwitchUnofficialApi::getHlsData);
             });
         });
