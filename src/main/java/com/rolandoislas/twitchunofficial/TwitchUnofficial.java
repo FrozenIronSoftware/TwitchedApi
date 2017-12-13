@@ -5,11 +5,13 @@
 
 package com.rolandoislas.twitchunofficial;
 
+import com.google.common.collect.Lists;
 import com.rolandoislas.twitchunofficial.util.ApiCache;
 import com.rolandoislas.twitchunofficial.util.AuthUtil;
 import com.rolandoislas.twitchunofficial.util.Logger;
 import spark.Filter;
 
+import java.util.Arrays;
 import java.util.logging.Level;
 
 import static spark.Spark.before;
@@ -23,13 +25,20 @@ public class TwitchUnofficial {
     public static ApiCache cache;
 
     public static void main(String[] args) {
-        // Init logger
-        Logger.setLevel(Level.ALL);
-        Logger.info("Starting");
         // Parse args
-        for (String arg : args)
+        String logLevel = "INFO";
+        for (String arg : args) {
             if (arg.equalsIgnoreCase("--no-auth"))
                 AuthUtil.setAuthenticate(false);
+            if (arg.equalsIgnoreCase("-log")) {
+                int logIndex = Arrays.asList(args).indexOf(arg);
+                if (logIndex + 1 < args.length)
+                    logLevel = args[logIndex + 1];
+            }
+        }
+        // Init logger
+        Logger.setLevel(Level.parse(logLevel));
+        Logger.info("Starting");
         // Parse port
         int port = 5000;
         String portString = System.getenv("PORT");
