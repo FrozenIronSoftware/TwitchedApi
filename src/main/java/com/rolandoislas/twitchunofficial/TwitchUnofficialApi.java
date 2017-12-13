@@ -12,8 +12,14 @@ import com.rolandoislas.twitchunofficial.util.AuthUtil;
 import com.rolandoislas.twitchunofficial.util.Logger;
 import me.philippheuer.twitch4j.TwitchClient;
 import me.philippheuer.twitch4j.TwitchClientBuilder;
+import me.philippheuer.twitch4j.enums.Endpoints;
 import me.philippheuer.twitch4j.model.Game;
 import me.philippheuer.twitch4j.model.Stream;
+import me.philippheuer.twitch4j.model.TopGame;
+import me.philippheuer.twitch4j.model.TopGameList;
+import org.apache.commons.lang3.exception.ExceptionUtils;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestTemplate;
 import spark.HaltException;
 import spark.Request;
 import spark.Response;
@@ -30,6 +36,7 @@ public class TwitchUnofficialApi {
 
     private static final int BAD_REQUEST = 400;
     private static final int SERVER_ERROR =  503;
+    private static final int BAD_GATEWAY = 502;
     private static TwitchClient twitch;
     private static Gson gson;
 
@@ -109,6 +116,8 @@ public class TwitchUnofficialApi {
                 Optional.ofNullable(channel),
                 Optional.ofNullable(streamType)
         );
+        if (streams == null)
+            throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
         String json = gson.toJson(streams);
         cache.set(requestId, json);
         return json;
@@ -131,7 +140,6 @@ public class TwitchUnofficialApi {
         if (cachedResponse != null)
             return cachedResponse;
         // Get live data
-        // Test Python call
         try {
             Process streamlink = new ProcessBuilder(
                     "streamlink",
@@ -139,8 +147,11 @@ public class TwitchUnofficialApi {
                     String.format("twitch.tv/%s", username)).start();
             streamlink.waitFor();
             Scanner scanner = new Scanner(streamlink.getInputStream()).useDelimiter("\\A");
-            if (scanner.hasNext())
-                return scanner.next();
+            if (scanner.hasNext()) {
+                String json = scanner.next();
+                cache.set(requestId, json);
+                return json;
+            }
         } catch (IOException | InterruptedException e) {
             Logger.warn("Failed to call streamlink");
             Logger.exception(e);
@@ -161,5 +172,40 @@ public class TwitchUnofficialApi {
                 .withCredential(twitchToken)
                 .build();
         TwitchUnofficialApi.gson = new Gson();
+    }
+
+    public static String getGames(Request request, Response response) {
+        checkAuth(request);
+        // Parse parameters
+        String limit = request.queryParamOrDefault("limit", "10");
+        String offset = request.queryParamOrDefault("offset", "0");
+        // Check cache
+        String requestId = ApiCache.createKey("games", limit, offset);
+        String cachedResponse = cache.get(requestId);
+        if (cachedResponse != null)
+            return cachedResponse;
+
+        // Fetch live data
+        String requestUrl = String.format("%s/games/top?limit=%s&offset=%s", Endpoints.API.getURL(), limit, offset);
+        RestTemplate restTemplate = twitch.getRestClient().getRestTemplate();
+        // REST Request
+        List<TopGame> games = null;
+        try {
+            Logger.verbose( "Rest Request to [%s]", requestUrl);
+            TopGameList responseObject = restTemplate.getForObject(requestUrl, TopGameList.class);
+            if (responseObject != null)
+                games = responseObject.getTop();
+        }
+        catch (RestClientException e) {
+            Logger.warn("Request failed: " + e.getMessage());
+            Logger.exception(e);
+        }
+        if (games == null)
+            throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
+
+        // Store and return
+        String json = gson.toJson(games);
+        cache.set(requestId, json);
+        return json;
     }
 }

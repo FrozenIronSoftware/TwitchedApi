@@ -61,6 +61,7 @@ public class TwitchUnofficial {
             before("/*", (request, response) -> response.type("application/json"));
             path("/twitch", () -> {
                 get("/streams", TwitchUnofficialApi::getStreams);
+                get("/games", TwitchUnofficialApi::getGames);
                 get("/hls", TwitchUnofficialApi::getHlsData);
             });
         });
