@@ -5,7 +5,6 @@
 
 package com.rolandoislas.twitchunofficial;
 
-import com.google.common.collect.Lists;
 import com.rolandoislas.twitchunofficial.util.ApiCache;
 import com.rolandoislas.twitchunofficial.util.AuthUtil;
 import com.rolandoislas.twitchunofficial.util.Logger;
@@ -69,13 +68,19 @@ public class TwitchUnofficial {
         path("/api", () -> {
             before("/*", (request, response) -> response.type("application/json"));
             path("/twitch", () -> {
-                get("/streams", TwitchUnofficialApi::getStreams);
-                get("/games", TwitchUnofficialApi::getGames);
-                path("/communities", () -> {
-                    get("", TwitchUnofficialApi::getCommunity);
-                    get("/top", TwitchUnofficialApi::getCommunities);
+                // Kraken
+                path("/kraken", () -> {
+                    get("/streams", TwitchUnofficialApi::getStreamsKraken);
+                    get("/games", TwitchUnofficialApi::getGamesKraken);
+                    path("/communities", () -> {
+                        get("", TwitchUnofficialApi::getCommunityKraken);
+                        get("/top", TwitchUnofficialApi::getCommunitiesKraken);
+                    });
                 });
-
+                // Helix
+                path("/helix", () -> {
+                    get("/streams", TwitchUnofficialApi::getStreamsHelix);
+                });
                 get("/hls", TwitchUnofficialApi::getHlsData);
             });
         });

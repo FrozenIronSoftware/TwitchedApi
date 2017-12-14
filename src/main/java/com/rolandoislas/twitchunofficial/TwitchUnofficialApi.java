@@ -7,18 +7,27 @@ package com.rolandoislas.twitchunofficial;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonSyntaxException;
 import com.rolandoislas.twitchunofficial.util.ApiCache;
 import com.rolandoislas.twitchunofficial.util.AuthUtil;
 import com.rolandoislas.twitchunofficial.util.Logger;
+import com.rolandoislas.twitchunofficial.util.twitch.helix.Pagination;
+import com.rolandoislas.twitchunofficial.util.twitch.helix.User;
+import com.rolandoislas.twitchunofficial.util.twitch.helix.UserList;
 import me.philippheuer.twitch4j.TwitchClient;
 import me.philippheuer.twitch4j.TwitchClientBuilder;
+import me.philippheuer.twitch4j.auth.model.OAuthCredential;
 import me.philippheuer.twitch4j.enums.Endpoints;
+import me.philippheuer.twitch4j.exceptions.RestException;
 import me.philippheuer.twitch4j.model.Community;
 import me.philippheuer.twitch4j.model.CommunityList;
 import me.philippheuer.twitch4j.model.Game;
 import me.philippheuer.twitch4j.model.Stream;
 import me.philippheuer.twitch4j.model.TopGame;
 import me.philippheuer.twitch4j.model.TopGameList;
+import me.philippheuer.util.rest.QueryRequestInterceptor;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import spark.HaltException;
@@ -27,7 +36,10 @@ import spark.Response;
 import spark.Spark;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Scanner;
 
@@ -38,8 +50,10 @@ public class TwitchUnofficialApi {
     private static final int BAD_REQUEST = 400;
     private static final int SERVER_ERROR =  503;
     private static final int BAD_GATEWAY = 502;
+    private static final String API = "https://api.twitch.tv/helix";
     private static TwitchClient twitch;
     private static Gson gson;
+    private static OAuthCredential twitchOauth;
 
     /**
      * Send a JSON error message to the current requester
@@ -78,7 +92,7 @@ public class TwitchUnofficialApi {
      * @param response response
      * @return stream data
      */
-    static String getStreams(Request request, Response response) {
+    static String getStreamsKraken(Request request, Response response) {
         checkAuth(request);
         Long limit = null;
         Long offset = null;
@@ -103,7 +117,7 @@ public class TwitchUnofficialApi {
         channel = request.queryParams("channel");
         streamType = request.queryParams("type");
         // Check cache
-        String requestId = ApiCache.createKey("streams", limit, offset, language, game != null ? game.getName() : null,
+        String requestId = ApiCache.createKey("kraken/streams", limit, offset, language, game != null ? game.getName() : null,
                 channel, streamType);
         String cachedResponse = cache.get(requestId);
         if (cachedResponse != null)
@@ -173,6 +187,13 @@ public class TwitchUnofficialApi {
                 .withCredential(twitchToken)
                 .build();
         TwitchUnofficialApi.gson = new Gson();
+        // Set credential
+        for (Map.Entry<String, OAuthCredential>credentialEntry :
+                twitch.getCredentialManager().getOAuthCredentials().entrySet()) {
+            twitchOauth = credentialEntry.getValue();
+        }
+        if (twitchOauth == null)
+            Logger.warn("No Oauth token provided. Requests will be rate limited to 30 per minute.");
     }
 
     /**
@@ -181,13 +202,13 @@ public class TwitchUnofficialApi {
      * @param response response
      * @return games json
      */
-    static String getGames(Request request, Response response) {
+    static String getGamesKraken(Request request, Response response) {
         checkAuth(request);
         // Parse parameters
         String limit = request.queryParamOrDefault("limit", "10");
         String offset = request.queryParamOrDefault("offset", "0");
         // Check cache
-        String requestId = ApiCache.createKey("games", limit, offset);
+        String requestId = ApiCache.createKey("kraken/games", limit, offset);
         String cachedResponse = cache.get(requestId);
         if (cachedResponse != null)
             return cachedResponse;
@@ -203,7 +224,7 @@ public class TwitchUnofficialApi {
             if (responseObject != null)
                 games = responseObject.getTop();
         }
-        catch (RestClientException e) {
+        catch (RestClientException | RestException e) {
             Logger.warn("Request failed: " + e.getMessage());
             Logger.exception(e);
         }
@@ -222,7 +243,7 @@ public class TwitchUnofficialApi {
      * @param response response
      * @return communities json
      */
-    static String getCommunities(Request request, Response response) {
+    static String getCommunitiesKraken(Request request, Response response) {
         checkAuth(request);
         // Params
         Long limit = null;
@@ -233,7 +254,7 @@ public class TwitchUnofficialApi {
         catch (NumberFormatException ignore) {}
         cursor = request.queryParams("cursor");
         // Check cache
-        String requestId = ApiCache.createKey("communities/top", limit, cursor);
+        String requestId = ApiCache.createKey("kraken/communities/top", limit, cursor);
         String cachedResponse = cache.get(requestId);
         if (cachedResponse != null)
             return cachedResponse;
@@ -253,7 +274,7 @@ public class TwitchUnofficialApi {
      * @param response response
      * @return community json
      */
-    static String getCommunity(Request request, Response response) {
+    static String getCommunityKraken(Request request, Response response) {
         checkAuth(request);
         // Params
         String name = request.queryParams("name");
@@ -261,7 +282,7 @@ public class TwitchUnofficialApi {
         if ((name == null || name.isEmpty()) && (id == null || id.isEmpty()))
             throw halt(BAD_REQUEST, "Bad Request: name or id is required");
         // Check cache
-        String requestId = ApiCache.createKey("communities", name);
+        String requestId = ApiCache.createKey("kraken/communities", name);
         String cachedResponse = cache.get(requestId);
         if (cachedResponse != null)
             return cachedResponse;
@@ -274,5 +295,173 @@ public class TwitchUnofficialApi {
         String json = gson.toJson(community);
         cache.set(requestId, json);
         return json;
+    }
+
+    /**
+     * Get streams from the helix endpoint
+     * @param request request
+     * @param response response
+     * @return stream json with usernames added to each stream as "user_name"
+     */
+    static String getStreamsHelix(Request request, Response response) {
+        checkAuth(request);
+        // Params
+        String after = request.queryParams("after");
+        String before = request.queryParams("before");
+        String community = request.queryParams("community_id");
+        String first = request.queryParamOrDefault("first", "20");
+        String game = request.queryParams("game_id");
+        String language = request.queryParams("language");
+        String streamType = request.queryParamOrDefault("type", "all");
+        String userId = request.queryParams("user_id");
+        String userLogin = request.queryParams("user_login");
+        // Non-spec params
+        String offset = request.queryParams("offset");
+        if (first == null)
+            first = request.queryParams("limit");
+        // Set after based on offset
+        if (offset != null) {
+            try {
+                long offsetLong = Long.parseLong(offset);
+                long firstLong = Long.parseLong(first);
+                Pagination pagination = new Pagination(
+                        (offsetLong - 1) * firstLong,
+                        (offsetLong + 1) * firstLong
+                );
+                after = pagination.getCursor();
+            }
+            catch (NumberFormatException ignore) {}
+        }
+        // Check cache
+        String requestId = ApiCache.createKey("helix/streams", after, before, community, first, game, language,
+                streamType, userId, userLogin, offset);
+        String cachedResponse = cache.get(requestId);
+        if (cachedResponse != null)
+            return cachedResponse;
+
+        // Request live
+
+        List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streams = null;
+        // Endpoint
+        String requestUrl = String.format("%s/streams", API);
+        RestTemplate restTemplate;
+        if (twitchOauth != null)
+            restTemplate = twitch.getRestClient().getPrivilegedRestTemplate(twitchOauth);
+        else
+            restTemplate = twitch.getRestClient().getRestTemplate();
+        // Parameters
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("after", after));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("before", before));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("community_id", community));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("first", first));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("game_id", game));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("language", language));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("type", streamType));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("user_id", userId));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("user_login", userLogin));
+        // REST Request
+        try {
+            Logger.verbose( "Rest Request to [%s]", requestUrl);
+            ResponseEntity<String> responseObject = restTemplate.exchange(requestUrl, HttpMethod.GET, null, String.class);
+            try {
+                com.rolandoislas.twitchunofficial.util.twitch.helix.StreamList streamList = gson.fromJson(
+                        responseObject.getBody(),
+                        com.rolandoislas.twitchunofficial.util.twitch.helix.StreamList.class);
+                streams = streamList.getStreams();
+            }
+            catch (JsonSyntaxException ignore) {}
+        }
+        catch (RestClientException | RestException e) {
+            if (e instanceof RestException)
+                Logger.warn("Request failed: " + ((RestException) e).getRestError().getMessage());
+            else
+                Logger.warn("Request failed: " + e.getMessage());
+            Logger.exception(e);
+        }
+        if (streams == null)
+            throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
+
+        // Add user names to data
+        List<String> userIds = new ArrayList<>();
+        for (com.rolandoislas.twitchunofficial.util.twitch.helix.Stream stream : streams)
+            userIds.add(stream.getUserId());
+        Map<String, String> userNames = getUserNames(userIds);
+        for (com.rolandoislas.twitchunofficial.util.twitch.helix.Stream stream : streams) {
+            if (!userNames.containsKey(stream.getUserId()))
+                continue;
+            String userName = userNames.get(stream.getUserId());
+            stream.setUserName(userName);
+        }
+
+        // Cache and return
+        String json = gson.toJson(streams);
+        cache.set(requestId, json);
+        return json;
+    }
+
+    /**
+     * Get username for ids, checking the cache first
+     * @param userIds ids
+     * @return user names(value) and ids(key)
+     */
+    private static Map<String, String> getUserNames(List<String> userIds) {
+        // Get ids in cache
+        Map<String, String> userNameIdMap = cache.getUserNames(userIds);
+        // Find missing ids
+        List<String> missingIds = new ArrayList<>();
+        for (Map.Entry<String, String> usernameId : userNameIdMap.entrySet())
+            if (usernameId.getValue() == null)
+                missingIds.add(usernameId.getKey());
+        if (missingIds.size() == 0)
+            return userNameIdMap;
+        // Request missing ids
+        List<User> users = getUsers(userIds);
+        if (users == null)
+            throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
+        // Store missing ids
+        for (User user : users)
+            userNameIdMap.put(user.getId(), user.getDisplayName());
+        cache.setUserNames(userNameIdMap);
+        return userNameIdMap;
+    }
+
+    /**
+     * Get a users from Twitch API
+     * @param userIds id to poll
+     * @return list of users
+     */
+    private static List<User> getUsers(List<String> userIds) {
+        if (userIds.isEmpty())
+            throw halt(BAD_REQUEST, "Bad request: missing user id");
+        // Request live
+        List<User> users = null;
+        // Endpoint
+        String requestUrl = String.format("%s/users", API);
+        RestTemplate restTemplate;
+        if (twitchOauth != null)
+            restTemplate = twitch.getRestClient().getPrivilegedRestTemplate(twitchOauth);
+        else
+            restTemplate = twitch.getRestClient().getRestTemplate();
+        // Parameters
+        for (String id : userIds)
+            restTemplate.getInterceptors().add(new QueryRequestInterceptor("id", id));
+        // REST Request
+        try {
+            Logger.verbose( "Rest Request to [%s]", requestUrl);
+            ResponseEntity<String> responseObject = restTemplate.exchange(requestUrl, HttpMethod.GET, null, String.class);
+            try {
+                UserList userList = gson.fromJson(responseObject.getBody(), UserList.class);
+                users = userList.getUsers();
+            }
+            catch (JsonSyntaxException ignore) {}
+        }
+        catch (RestClientException | RestException e) {
+            if (e instanceof RestException)
+                Logger.warn("Request failed: " + ((RestException) e).getRestError().getMessage());
+            else
+                Logger.warn("Request failed: " + e.getMessage());
+            Logger.exception(e);
+        }
+        return users;
     }
 }
