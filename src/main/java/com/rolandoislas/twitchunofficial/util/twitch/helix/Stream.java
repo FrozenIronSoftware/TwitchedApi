@@ -6,6 +6,7 @@
 package com.rolandoislas.twitchunofficial.util.twitch.helix;
 
 import com.google.gson.annotations.SerializedName;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
@@ -30,6 +31,8 @@ public class Stream {
     // Non-spec fields
     @SerializedName("user_name")
     private String userName;
+    @SerializedName("game_name")
+    private String gameName;
 
     // Get/Set
 
@@ -39,5 +42,13 @@ public class Stream {
 
     public void setUserName(String userName) {
         this.userName = userName;
+    }
+
+    public String getGameId() {
+        return gameId;
+    }
+
+    public void setGameName(String gameName) {
+        this.gameName = gameName;
     }
 }

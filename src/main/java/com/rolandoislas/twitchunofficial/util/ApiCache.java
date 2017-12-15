@@ -5,7 +5,7 @@
 
 package com.rolandoislas.twitchunofficial.util;
 
-import org.jetbrains.annotations.Nullable;
+import com.rolandoislas.twitchunofficial.data.Id;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.ScanParams;
 import redis.clients.jedis.ScanResult;
@@ -19,8 +19,10 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class ApiCache {
     private static final int TIMEOUT = 60 * 3; // Seconds before a cache value should be considered invalid
-    private static final int USERNAME_TIMEOUT = 24 * 60 * 60; // 1 Day
+    private static final int USER_NAME_TIMEOUT = 24 * 60 * 60; // 1 Day
     private static final String USER_NAME_FIELD_PREFIX = "_username_";
+    private static final String GAME_NAME_FIELD_PREFIX = "_gamename_";
+    private static final int GAME_NAME_TIMEOUT = 7 * 24 * 60 * 60; // 1 Week
     private Jedis redis;
     private final ReentrantLock redisLock;
 
@@ -108,13 +110,53 @@ public class ApiCache {
      * @return map with ids as keys and user names as values - user names not in cache will be null
      */
     public Map<String, String> getUserNames(List<String> ids) {
+        return getNamesForIds(ids, Id.USER);
+    }
+
+    /**
+     * Set user names
+     * @param userNameIdMap id (key) - user name (value)
+     */
+    public void setUserNames(Map<String, String> userNameIdMap) {
+        setNames(userNameIdMap, Id.USER);
+    }
+
+    /**
+     * Get game names from Redis.
+     * Any game names that do not exist will be requested in a bulk request from twitch
+     * @param ids ids to convert to game names
+     * @return map with ids as keys and game names as values - game names not in cache will be null
+     */
+    public Map<String, String> getGameNames(List<String> ids) {
+        return getNamesForIds(ids, Id.GAME);
+    }
+
+    /**
+     * Get game or id names from Redis.
+     * Any names that do not exist will be requested in a bulk request from twitch
+     * @param ids ids to convert to names
+     * @return map with ids as keys and names as values - names not in cache will be null
+     */
+    private Map<String, String> getNamesForIds(List<String> ids, Id type) {
+        // Determine key prefix
+        String keyPrefix;
+        switch (type) {
+            case USER:
+                keyPrefix = USER_NAME_FIELD_PREFIX;
+                break;
+            case GAME:
+                keyPrefix = GAME_NAME_FIELD_PREFIX;
+                break;
+            default:
+                throw new IllegalArgumentException("Type must be GAME or USER");
+        }
         // Get ids stored on redis
         redisLock.lock();
         List<String> keys = new ArrayList<>();
         ScanResult<String> scan = null;
         ScanParams params = new ScanParams();
-        params.match(USER_NAME_FIELD_PREFIX + "*");
-        List<String> userNames = new ArrayList<>();
+        params.match(keyPrefix + "*");
+        List<String> names = new ArrayList<>();
         try {
             do {
                 scan = redis.scan(scan != null ? scan.getStringCursor() : ScanParams.SCAN_POINTER_START, params);
@@ -122,7 +164,7 @@ public class ApiCache {
             }
             while (!scan.getStringCursor().equals(ScanParams.SCAN_POINTER_START));
             if (!keys.isEmpty())
-                userNames.addAll(redis.mget(keys.toArray(new String[keys.size()])));
+                names.addAll(redis.mget(keys.toArray(new String[keys.size()])));
         }
         catch (JedisConnectionException ignore) {
             reconnect();
@@ -131,37 +173,62 @@ public class ApiCache {
             Logger.exception(e);
         }
         redisLock.unlock();
-        // Map ids to user names
-        Map<String, String> usernameIdMap = new HashMap<>();
+        // Map ids to names
+        Map<String, String> nameIdMap = new HashMap<>();
         for (String id : ids) {
-            String key = USER_NAME_FIELD_PREFIX + id;
+            String key = keyPrefix + id;
             if (!keys.contains(id)) {
-                usernameIdMap.put(id, null);
+                nameIdMap.put(id, null);
                 continue;
             }
-            String userName = userNames.get(keys.indexOf(key));
-            usernameIdMap.put(id, userName);
+            String name = names.get(keys.indexOf(key));
+            nameIdMap.put(id, name);
         }
         for (int idIndex = 0; idIndex < keys.size(); idIndex++) {
-            String id = keys.get(idIndex).replace(USER_NAME_FIELD_PREFIX, "");
+            String id = keys.get(idIndex).replace(keyPrefix, "");
             if (ids.contains(id))
-                usernameIdMap.put(id, userNames.get(idIndex));
+                nameIdMap.put(id, names.get(idIndex));
         }
-        return usernameIdMap;
+        return nameIdMap;
     }
 
     /**
      * Set user names
-     * @param userNameIdMap id (key) - user name (value)
+     * @param gameNames id (key) - user name (value)
      */
-    public void setUserNames(Map<String, String> userNameIdMap) {
+    public void setGameNames(Map<String, String> gameNames) {
+        setNames(gameNames, Id.GAME);
+    }
+
+    /**
+     * Store names in a map to their key id
+     * @param namesIdMap <id, name>
+     */
+    private void setNames(Map<String, String> namesIdMap, Id type) {
+        // Determine key prefix
+        String keyPrefix;
+        int keyTimeout;
+        switch (type) {
+            case USER:
+                keyPrefix = USER_NAME_FIELD_PREFIX;
+                keyTimeout = USER_NAME_TIMEOUT;
+                break;
+            case GAME:
+                keyPrefix = GAME_NAME_FIELD_PREFIX;
+                keyTimeout = GAME_NAME_TIMEOUT;
+                break;
+            default:
+                throw new IllegalArgumentException("Type must be GAME or USER");
+        }
         redisLock.lock();
         try {
-            for (Map.Entry<String, String> userNameId : userNameIdMap.entrySet()) {
-                String key = USER_NAME_FIELD_PREFIX + userNameId.getKey();
-                long result = redis.setnx(key, userNameId.getValue());
+            for (Map.Entry<String, String> nameId : namesIdMap.entrySet()) {
+                if (nameId.getKey() == null || nameId.getValue() == null)
+                    continue;
+                String key = keyPrefix + nameId.getKey();
+                long result = redis.setnx(key, nameId.getValue());
                 if (result == 1)
-                    redis.expire(key, USERNAME_TIMEOUT);
+                    redis.expire(key, keyTimeout);
             }
         }
         catch (JedisConnectionException ignore) {
