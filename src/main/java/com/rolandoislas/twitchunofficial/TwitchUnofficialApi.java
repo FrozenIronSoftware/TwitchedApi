@@ -189,12 +189,6 @@ public class TwitchUnofficialApi {
         if (streamlinkData == null)
             throw halt(SERVER_ERROR, "Failed to fetch data");
 
-        // Add user data
-        List<User> userData = getUsers(null, Collections.singletonList(username));
-        if (userData.isEmpty())
-            throw halt(BAD_GATEWAY, "Failed to fetch user");
-        streamlinkData.setUser(userData.get(0));
-
         // Cache and return
         String json = gson.toJson(streamlinkData);
         cache.set(requestId, json);
