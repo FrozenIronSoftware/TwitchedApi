@@ -31,4 +31,8 @@ public class User {
     public String getDisplayName() {
         return displayName;
     }
+
+    public String getLogin() {
+        return login;
+    }
 }

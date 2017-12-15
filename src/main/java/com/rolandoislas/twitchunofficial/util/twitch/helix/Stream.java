@@ -30,7 +30,7 @@ public class Stream {
 
     // Non-spec fields
     @SerializedName("user_name")
-    private String userName;
+    private UserName userName;
     @SerializedName("game_name")
     private String gameName;
 
@@ -40,7 +40,7 @@ public class Stream {
         return userId;
     }
 
-    public void setUserName(String userName) {
+    public void setUserName(UserName userName) {
         this.userName = userName;
     }
 

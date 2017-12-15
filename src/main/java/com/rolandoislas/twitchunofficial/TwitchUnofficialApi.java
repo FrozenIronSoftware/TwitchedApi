@@ -19,6 +19,7 @@ import com.rolandoislas.twitchunofficial.util.twitch.helix.GameList;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.Pagination;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.User;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.UserList;
+import com.rolandoislas.twitchunofficial.util.twitch.helix.UserName;
 import me.philippheuer.twitch4j.TwitchClient;
 import me.philippheuer.twitch4j.TwitchClientBuilder;
 import me.philippheuer.twitch4j.auth.model.OAuthCredential;
@@ -411,7 +412,7 @@ public class TwitchUnofficialApi {
         Map<String, String> gameNames = getGameNames(gameIds);
         for (com.rolandoislas.twitchunofficial.util.twitch.helix.Stream stream : streams) {
             String userName = userNames.get(stream.getUserId());
-            stream.setUserName(userName == null ? "" : userName);
+            stream.setUserName(userName == null ? new UserName() : gson.fromJson(userName, UserName.class));
             String gameName = gameNames.get(stream.getGameId());
             stream.setGameName(gameName == null ? "" : gameName);
         }
@@ -475,8 +476,12 @@ public class TwitchUnofficialApi {
             if (users == null)
                 throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
             // Store missing ids
-            for (User user : users)
-                nameIdMap.put(user.getId(), user.getDisplayName());
+            for (User user : users) {
+                JsonObject name = new JsonObject();
+                name.addProperty("display_name", user.getDisplayName());
+                name.addProperty("login", user.getLogin());
+                nameIdMap.put(user.getId(), name.toString());
+            }
             cache.setUserNames(nameIdMap);
         }
         else if (type.equals(Id.GAME)) {
