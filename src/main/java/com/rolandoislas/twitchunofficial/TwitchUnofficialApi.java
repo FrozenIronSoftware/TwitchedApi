@@ -14,6 +14,7 @@ import com.rolandoislas.twitchunofficial.data.annotation.NotCached;
 import com.rolandoislas.twitchunofficial.util.ApiCache;
 import com.rolandoislas.twitchunofficial.util.AuthUtil;
 import com.rolandoislas.twitchunofficial.util.Logger;
+import com.rolandoislas.twitchunofficial.util.twitch.streamlink.StreamlinkData;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.Game;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.GameList;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.Pagination;
@@ -45,7 +46,8 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.ArrayList;
-import java.util.Base64;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -168,23 +170,35 @@ public class TwitchUnofficialApi {
         if (cachedResponse != null)
             return cachedResponse;
         // Get live data
+        StreamlinkData streamlinkData = null;
         try {
             Process streamlink = new ProcessBuilder(
                     "streamlink",
+                    "--quiet",
                     "--json",
                     String.format("twitch.tv/%s", username)).start();
             streamlink.waitFor();
             Scanner scanner = new Scanner(streamlink.getInputStream()).useDelimiter("\\A");
-            if (scanner.hasNext()) {
-                String json = scanner.next();
-                cache.set(requestId, json);
-                return json;
-            }
-        } catch (IOException | InterruptedException e) {
+            if (scanner.hasNext())
+                streamlinkData = gson.fromJson(scanner.next(), StreamlinkData.class);
+        } catch (IOException | InterruptedException | JsonSyntaxException e) {
             Logger.warn("Failed to call streamlink");
             Logger.exception(e);
+            throw halt(SERVER_ERROR, "Failed to fetch data");
         }
-        throw halt(SERVER_ERROR, "Failed to fetch data");
+        if (streamlinkData == null)
+            throw halt(SERVER_ERROR, "Failed to fetch data");
+
+        // Add user data
+        List<User> userData = getUsers(null, Collections.singletonList(username));
+        if (userData.isEmpty())
+            throw halt(BAD_GATEWAY, "Failed to fetch user");
+        streamlinkData.setUser(userData.get(0));
+
+        // Cache and return
+        String json = gson.toJson(streamlinkData);
+        cache.set(requestId, json);
+        return json;
     }
 
     /**
@@ -412,7 +426,13 @@ public class TwitchUnofficialApi {
         Map<String, String> gameNames = getGameNames(gameIds);
         for (com.rolandoislas.twitchunofficial.util.twitch.helix.Stream stream : streams) {
             String userName = userNames.get(stream.getUserId());
-            stream.setUserName(userName == null ? new UserName() : gson.fromJson(userName, UserName.class));
+            try {
+                stream.setUserName(userName == null ? new UserName() : gson.fromJson(userName, UserName.class));
+            }
+            catch (JsonSyntaxException e) {
+                Logger.exception(e);
+                stream.setUserName(new UserName());
+            }
             String gameName = gameNames.get(stream.getGameId());
             stream.setGameName(gameName == null ? "" : gameName);
         }
@@ -472,7 +492,7 @@ public class TwitchUnofficialApi {
             return nameIdMap;
         // Request missing ids
         if (type.equals(Id.USER)) {
-            List<User> users = getUsers(ids);
+            List<User> users = getUsers(ids, null);
             if (users == null)
                 throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
             // Store missing ids
@@ -547,9 +567,9 @@ public class TwitchUnofficialApi {
      * @return list of users
      */
     @NotCached
-    private static List<User> getUsers(List<String> userIds) {
-        if (userIds.isEmpty())
-            throw halt(BAD_REQUEST, "Bad request: missing user id");
+    private static List<User> getUsers(@Nullable List<String> userIds, @Nullable List<String> userNames) {
+        if ((userIds == null || userIds.isEmpty()) && (userNames == null || userNames.isEmpty()))
+            throw halt(BAD_REQUEST, "Bad request: missing user id or user name");
         // Request live
         List<User> users = null;
         // Endpoint
@@ -560,8 +580,12 @@ public class TwitchUnofficialApi {
         else
             restTemplate = twitch.getRestClient().getRestTemplate();
         // Parameters
-        for (String id : userIds)
-            restTemplate.getInterceptors().add(new QueryRequestInterceptor("id", id));
+        if (userIds != null)
+            for (String id : userIds)
+                restTemplate.getInterceptors().add(new QueryRequestInterceptor("id", id));
+        if (userNames != null)
+            for (String name : userNames)
+                restTemplate.getInterceptors().add(new QueryRequestInterceptor("login", name));
         // REST Request
         try {
             Logger.verbose( "Rest Request to [%s]", requestUrl);
