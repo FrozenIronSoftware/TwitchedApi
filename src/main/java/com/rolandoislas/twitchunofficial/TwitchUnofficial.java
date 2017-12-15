@@ -80,6 +80,7 @@ public class TwitchUnofficial {
                 // Helix
                 path("/helix", () -> {
                     get("/streams", TwitchUnofficialApi::getStreamsHelix);
+                    get("/games", TwitchUnofficialApi::getGamesHelix);
                 });
                 get("/hls", TwitchUnofficialApi::getHlsData);
             });

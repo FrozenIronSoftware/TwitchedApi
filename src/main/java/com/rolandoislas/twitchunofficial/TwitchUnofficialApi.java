@@ -30,6 +30,7 @@ import me.philippheuer.twitch4j.model.Stream;
 import me.philippheuer.twitch4j.model.TopGame;
 import me.philippheuer.twitch4j.model.TopGameList;
 import me.philippheuer.util.rest.QueryRequestInterceptor;
+import org.jetbrains.annotations.Nullable;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestClientException;
@@ -40,6 +41,8 @@ import spark.Response;
 import spark.Spark;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -225,8 +228,10 @@ public class TwitchUnofficialApi {
             return cachedResponse;
 
         // Fetch live data
-        String requestUrl = String.format("%s/games/top?limit=%s&offset=%s", Endpoints.API.getURL(), limit, offset);
+        String requestUrl = String.format("%s/games/top", Endpoints.API.getURL());
         RestTemplate restTemplate = twitch.getRestClient().getRestTemplate();
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("limit", limit));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("offset", offset));
         // REST Request
         List<TopGame> games = null;
         try {
@@ -475,7 +480,7 @@ public class TwitchUnofficialApi {
             cache.setUserNames(nameIdMap);
         }
         else if (type.equals(Id.GAME)) {
-            List<Game> games = getGames(ids);
+            List<Game> games = getGames(ids, null);
             if (games == null)
                 throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
             // Store missing ids
@@ -492,9 +497,9 @@ public class TwitchUnofficialApi {
      * @return games
      */
     @NotCached
-    private static List<Game> getGames(List<String> ids) {
-        if (ids.isEmpty())
-            throw halt(BAD_REQUEST, "Bad request: missing game id");
+    private static List<Game> getGames(@Nullable List<String> ids, @Nullable List<String> names) {
+        if ((ids == null || ids.isEmpty()) && (names == null || names.isEmpty()))
+            throw halt(BAD_REQUEST, "Bad request: missing game id or name");
         // Request live
         List<Game> games = null;
         // Endpoint
@@ -505,8 +510,12 @@ public class TwitchUnofficialApi {
         else
             restTemplate = twitch.getRestClient().getRestTemplate();
         // Parameters
-        for (String id : ids)
-            restTemplate.getInterceptors().add(new QueryRequestInterceptor("id", id));
+        if (ids != null)
+            for (String id : ids)
+                restTemplate.getInterceptors().add(new QueryRequestInterceptor("id", id));
+        if (names != null)
+            for (String name : names)
+                restTemplate.getInterceptors().add(new QueryRequestInterceptor("name", name));
         // REST Request
         try {
             Logger.verbose( "Rest Request to [%s]", requestUrl);
@@ -566,5 +575,53 @@ public class TwitchUnofficialApi {
             Logger.exception(e);
         }
         return users;
+    }
+
+    /**
+     * Get games from the helix endpoint
+     * @param request request
+     * @param response response
+     * @return game json
+     */
+    @Cached
+    static String getGamesHelix(Request request, Response response) {
+        // Parse query params
+        List<String> ids = new ArrayList<>();
+        List<String> names = new ArrayList<>();
+        String[] queryParams = request.queryString().split("&");
+        for (String queryParam : queryParams) {
+            String[] keyValue = queryParam.split("=");
+            if (keyValue.length > 2 || keyValue.length < 1)
+                throw halt(BAD_REQUEST, "Bad query string");
+            if (keyValue.length > 1) {
+                String value = keyValue[1];
+                try {
+                    value = URLDecoder.decode(value, "utf-8");
+                }
+                catch (UnsupportedEncodingException e) {
+                    Logger.exception(e);
+                    throw halt(SERVER_ERROR, "Failed to decode params");
+                }
+                if (!ids.contains(value) && keyValue[0].equals("id"))
+                    ids.add(value);
+                else if (!names.contains(value) && keyValue[0].equals("name"))
+                    names.add(value);
+            }
+        }
+
+        // Check cache
+        ArrayList<String> req = new ArrayList<>();
+        req.addAll(ids);
+        req.addAll(names);
+        String requestId = ApiCache.createKey("helix/games", req.toArray());
+        String cachedResponse = cache.get(requestId);
+        if (cachedResponse != null)
+            return cachedResponse;
+
+        // Fetch live data
+        List<Game> games = getGames(ids, names);
+        String json = gson.toJson(games);
+        cache.set(requestId, json);
+        return json;
     }
 }
