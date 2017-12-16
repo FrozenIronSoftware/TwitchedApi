@@ -1,6 +1,7 @@
 version "1.0"
 
 apply plugin: "java"
+apply plugin: "project-report"
 
 sourceCompatibility = 1.8
 
