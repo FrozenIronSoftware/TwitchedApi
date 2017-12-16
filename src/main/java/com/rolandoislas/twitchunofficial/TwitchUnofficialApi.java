@@ -206,7 +206,7 @@ public class TwitchUnofficialApi {
         // Cache and return
         String playlistString = playlist.getBody();
         cache.set(requestId, playlistString);
-        //response.type("audio/mpegurl");
+        response.type("audio/mpegurl");
         return playlistString;
     }
 
