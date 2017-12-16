@@ -14,6 +14,7 @@ import com.rolandoislas.twitchunofficial.data.annotation.NotCached;
 import com.rolandoislas.twitchunofficial.util.ApiCache;
 import com.rolandoislas.twitchunofficial.util.AuthUtil;
 import com.rolandoislas.twitchunofficial.util.Logger;
+import com.rolandoislas.twitchunofficial.util.twitch.streamlink.StreamList;
 import com.rolandoislas.twitchunofficial.util.twitch.streamlink.StreamlinkData;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.Game;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.GameList;
@@ -161,9 +162,14 @@ public class TwitchUnofficialApi {
     @Cached
     static String getHlsData(Request request, Response response) {
         checkAuth(request);
-        String username = request.queryParams("username");
-        if (username == null || username.isEmpty())
-            throw halt(BAD_REQUEST, "Missing username query parameter");
+        response.type("audio/mpegurl");
+        if (request.splat().length < 1)
+            throw Spark.halt(404);
+        String fileName = request.splat()[0];
+        String[] split = fileName.split("\\.");
+        if (split.length < 2 || !split[1].equals("m3u8"))
+            throw Spark.halt(404);
+        String username = split[0];
         // Check cache
         String requestId = ApiCache.createKey("hls", username);
         String cachedResponse = cache.get(requestId);
@@ -189,10 +195,27 @@ public class TwitchUnofficialApi {
         if (streamlinkData == null)
             throw halt(SERVER_ERROR, "Failed to fetch data");
 
+        // Generate the master playlist
+        StreamList streamList = streamlinkData.getStreams();
+        String master = "#EXTM3U\n#EXT-X-VERSION:3\n";
+        String playlist = "#EXT-X-MEDIA:TYPE=VIDEO,GROUP-ID=\"live\",NAME=\"%s\",DEFAULT=%s\n%s\n";
+        if (streamList.get160p() != null)
+            master += String.format(playlist, "160p", "YES", streamList.get160p().getUrl());
+        if (streamList.get360p() != null)
+            master += String.format(playlist, "360p", "NO", streamList.get360p().getUrl());
+        if (streamList.get480p() != null)
+            master += String.format(playlist, "480p", "NO", streamList.get480p().getUrl());
+        if (streamList.get720p() != null)
+            master += String.format(playlist, "720p", "NO", streamList.get720p().getUrl());
+        if (streamList.get720p60() != null)
+            master += String.format(playlist, "720p60", "NO", streamList.get720p60().getUrl());
+        if (streamList.get1080p() != null)
+            master += String.format(playlist, "1080p", "NO", streamList.get1080p().getUrl());
+        if (streamList.get1080p60() != null)
+            master += String.format(playlist, "1080p60", "NO", streamList.get1080p60().getUrl());
         // Cache and return
-        String json = gson.toJson(streamlinkData);
-        cache.set(requestId, json);
-        return json;
+        cache.set(requestId, master);
+        return master;
     }
 
     /**

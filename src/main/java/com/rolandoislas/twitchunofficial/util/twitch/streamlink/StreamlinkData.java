@@ -16,4 +16,8 @@ public class StreamlinkData {
     public void setUser(User user) {
         this.user = user;
     }
+
+    public StreamList getStreams() {
+        return streams;
+    }
 }

@@ -82,7 +82,7 @@ public class TwitchUnofficial {
                     get("/streams", TwitchUnofficialApi::getStreamsHelix);
                     get("/games", TwitchUnofficialApi::getGamesHelix);
                 });
-                get("/hls", TwitchUnofficialApi::getHlsData);
+                get("/hls/*", TwitchUnofficialApi::getHlsData);
             });
         });
         // Index
