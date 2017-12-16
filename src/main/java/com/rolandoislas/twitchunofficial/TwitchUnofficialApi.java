@@ -198,21 +198,23 @@ public class TwitchUnofficialApi {
         // Generate the master playlist
         StreamList streamList = streamlinkData.getStreams();
         String master = "#EXTM3U\n#EXT-X-VERSION:3\n";
-        String playlist = "#EXT-X-MEDIA:TYPE=VIDEO,GROUP-ID=\"live\",NAME=\"%s\",DEFAULT=%s,URI=\"%s\"\n";
+        String playlist = "#EXT-X-STREAM-INF:BANDWIDTH=%d,FRAME-RATE=%d\n%s\n";
         if (streamList.get160p() != null)
-            master += String.format(playlist, "160p", "YES", streamList.get160p().getUrl());
+            master += String.format(playlist, 400 * 1000, 30, streamList.get160p().getUrl());
         if (streamList.get360p() != null)
-            master += String.format(playlist, "360p", "NO", streamList.get360p().getUrl());
+            master += String.format(playlist, 600 * 1000, 30, streamList.get360p().getUrl());
         if (streamList.get480p() != null)
-            master += String.format(playlist, "480p", "NO", streamList.get480p().getUrl());
+            master += String.format(playlist, 1000 * 1000, 30, streamList.get480p().getUrl());
+        if (streamList.get480p60() != null)
+            master += String.format(playlist, 1500 * 1000, 30, streamList.get480p60().getUrl());
         if (streamList.get720p() != null)
-            master += String.format(playlist, "720p", "NO", streamList.get720p().getUrl());
+            master += String.format(playlist, 2500 * 1000, 30, streamList.get720p().getUrl());
         if (streamList.get720p60() != null)
-            master += String.format(playlist, "720p60", "NO", streamList.get720p60().getUrl());
+            master += String.format(playlist, 3500 * 1000, 60, streamList.get720p60().getUrl());
         if (streamList.get1080p() != null)
-            master += String.format(playlist, "1080p", "NO", streamList.get1080p().getUrl());
+            master += String.format(playlist, 4000 * 1000, 30, streamList.get1080p().getUrl());
         if (streamList.get1080p60() != null)
-            master += String.format(playlist, "1080p60", "NO", streamList.get1080p60().getUrl());
+            master += String.format(playlist, 4500 * 1000, 60, streamList.get1080p60().getUrl());
         // Cache and return
         cache.set(requestId, master);
         return master;

@@ -16,6 +16,8 @@ public class StreamList {
     private Stream _360p;
     @SerializedName("480p")
     private Stream _480p;
+    @SerializedName("480p60")
+    private Stream _480p60;
     @SerializedName("720p")
     private Stream _720p;
     @SerializedName("720p90")
@@ -54,5 +56,9 @@ public class StreamList {
 
     public Stream get1080p60() {
         return _1080p60;
+    }
+
+    public Stream get480p60() {
+        return _480p60;
     }
 }
