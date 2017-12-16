@@ -198,7 +198,7 @@ public class TwitchUnofficialApi {
         // Generate the master playlist
         StreamList streamList = streamlinkData.getStreams();
         String master = "#EXTM3U\n#EXT-X-VERSION:3\n";
-        String playlist = "#EXT-X-MEDIA:TYPE=VIDEO,GROUP-ID=\"live\",NAME=\"%s\",DEFAULT=%s\n%s\n";
+        String playlist = "#EXT-X-MEDIA:TYPE=VIDEO,GROUP-ID=\"live\",NAME=\"%s\",DEFAULT=%s,URI=\"%s\"\n";
         if (streamList.get160p() != null)
             master += String.format(playlist, "160p", "YES", streamList.get160p().getUrl());
         if (streamList.get360p() != null)
