@@ -636,7 +636,7 @@ public class TwitchUnofficialApi {
         // Parse query params
         List<String> ids = new ArrayList<>();
         List<String> names = new ArrayList<>();
-        String[] queryParams = request.queryString().split("&");
+        String[] queryParams = request.queryString() != null ? request.queryString().split("&") : new String[0];
         for (String queryParam : queryParams) {
             String[] keyValue = queryParam.split("=");
             if (keyValue.length > 2 || keyValue.length < 1)
