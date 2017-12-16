@@ -55,7 +55,7 @@ import static com.rolandoislas.twitchunofficial.TwitchUnofficial.cache;
 public class TwitchUnofficialApi {
 
     private static final int BAD_REQUEST = 400;
-    private static final int SERVER_ERROR =  503;
+    private static final int SERVER_ERROR =  500;
     private static final int BAD_GATEWAY = 502;
     private static final String API = "https://api.twitch.tv/helix";
     private static final String API_HLS_TOKEN = "http://api.twitch.tv/api/channels/%s/access_token";
@@ -179,11 +179,19 @@ public class TwitchUnofficialApi {
 
         // Request channel token
         String hlsTokenUrl = String.format(API_HLS_TOKEN, username);
-        ResponseEntity<String> tokenResponse = restTemplate.exchange(hlsTokenUrl, HttpMethod.GET, null,
-                String.class);
+        ResponseEntity<String> tokenResponse = null;
+        try {
+            tokenResponse = restTemplate.exchange(hlsTokenUrl, HttpMethod.GET, null,
+                    String.class);
+        }
+        catch (RestException e) {
+            throw halt(404, "Streamer not found");
+        }
         Token token;
         try {
             token = gson.fromJson(tokenResponse.getBody(), Token.class);
+            if (token.getToken() == null || token.getSig() == null)
+                throw halt(SERVER_ERROR, "Invalid data: Twitch API may have changed");
         }
         catch (JsonSyntaxException e) {
             throw halt(BAD_GATEWAY, "Failed to parse token data.");
@@ -206,7 +214,7 @@ public class TwitchUnofficialApi {
         // Cache and return
         String playlistString = playlist.getBody();
         if (playlistString == null)
-            throw halt(404, "Streamer offline or not found");
+            return null;
         cache.set(requestId, playlistString);
         response.type("audio/mpegurl");
         return playlistString;
