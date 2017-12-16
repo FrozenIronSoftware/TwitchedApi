@@ -205,6 +205,8 @@ public class TwitchUnofficialApi {
 
         // Cache and return
         String playlistString = playlist.getBody();
+        if (playlistString == null)
+            throw halt(404, "Streamer offline or not found");
         cache.set(requestId, playlistString);
         response.type("audio/mpegurl");
         return playlistString;
