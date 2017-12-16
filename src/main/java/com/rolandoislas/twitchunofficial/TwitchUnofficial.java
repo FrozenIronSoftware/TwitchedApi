@@ -27,8 +27,7 @@ public class TwitchUnofficial {
         // Parse args
         String logLevel = "INFO";
         for (String arg : args) {
-            if (arg.equalsIgnoreCase("--no-auth") ||
-                    System.getenv().getOrDefault("TWITCH_NO_AUTH", "false").equalsIgnoreCase("true"))
+            if (arg.equalsIgnoreCase("--no-auth"))
                 AuthUtil.setAuthenticate(false);
             if (arg.equalsIgnoreCase("-log")) {
                 int logIndex = Arrays.asList(args).indexOf(arg);
@@ -36,6 +35,9 @@ public class TwitchUnofficial {
                     logLevel = args[logIndex + 1];
             }
         }
+        // No auth check
+        if (System.getenv().getOrDefault("TWITCH_NO_AUTH", "false").equalsIgnoreCase("true"))
+            AuthUtil.setAuthenticate(false);
         // Init logger
         Logger.setLevel(Level.parse(logLevel));
         Logger.info("Starting");
