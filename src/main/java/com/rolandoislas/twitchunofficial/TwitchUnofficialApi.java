@@ -14,8 +14,7 @@ import com.rolandoislas.twitchunofficial.data.annotation.NotCached;
 import com.rolandoislas.twitchunofficial.util.ApiCache;
 import com.rolandoislas.twitchunofficial.util.AuthUtil;
 import com.rolandoislas.twitchunofficial.util.Logger;
-import com.rolandoislas.twitchunofficial.util.twitch.streamlink.StreamList;
-import com.rolandoislas.twitchunofficial.util.twitch.streamlink.StreamlinkData;
+import com.rolandoislas.twitchunofficial.util.twitch.Token;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.Game;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.GameList;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.Pagination;
@@ -32,6 +31,7 @@ import me.philippheuer.twitch4j.model.CommunityList;
 import me.philippheuer.twitch4j.model.Stream;
 import me.philippheuer.twitch4j.model.TopGame;
 import me.philippheuer.twitch4j.model.TopGameList;
+import me.philippheuer.util.rest.HeaderRequestInterceptor;
 import me.philippheuer.util.rest.QueryRequestInterceptor;
 import org.jetbrains.annotations.Nullable;
 import org.springframework.http.HttpMethod;
@@ -43,16 +43,12 @@ import spark.Request;
 import spark.Response;
 import spark.Spark;
 
-import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Scanner;
 
 import static com.rolandoislas.twitchunofficial.TwitchUnofficial.cache;
 
@@ -62,6 +58,8 @@ public class TwitchUnofficialApi {
     private static final int SERVER_ERROR =  503;
     private static final int BAD_GATEWAY = 502;
     private static final String API = "https://api.twitch.tv/helix";
+    private static final String API_HLS_TOKEN = "http://api.twitch.tv/api/channels/%s/access_token";
+    private static final String API_HLS_PLAYLIST = "http://usher.twitch.tv/api/channel/hls/%s.m3u8";
     private static TwitchClient twitch;
     private static Gson gson;
     private static OAuthCredential twitchOauth;
@@ -162,13 +160,12 @@ public class TwitchUnofficialApi {
     @Cached
     static String getHlsData(Request request, Response response) {
         checkAuth(request);
-        response.type("audio/mpegurl");
         if (request.splat().length < 1)
-            throw Spark.halt(404);
+            return null;
         String fileName = request.splat()[0];
         String[] split = fileName.split("\\.");
         if (split.length < 2 || !split[1].equals("m3u8"))
-            throw Spark.halt(404);
+            return null;
         String username = split[0];
         // Check cache
         String requestId = ApiCache.createKey("hls", username);
@@ -176,48 +173,41 @@ public class TwitchUnofficialApi {
         if (cachedResponse != null)
             return cachedResponse;
         // Get live data
-        StreamlinkData streamlinkData = null;
-        try {
-            Process streamlink = new ProcessBuilder(
-                    "streamlink",
-                    "--quiet",
-                    "--json",
-                    String.format("twitch.tv/%s", username)).start();
-            streamlink.waitFor();
-            Scanner scanner = new Scanner(streamlink.getInputStream()).useDelimiter("\\A");
-            if (scanner.hasNext())
-                streamlinkData = gson.fromJson(scanner.next(), StreamlinkData.class);
-        } catch (IOException | InterruptedException | JsonSyntaxException e) {
-            Logger.warn("Failed to call streamlink");
-            Logger.exception(e);
-            throw halt(SERVER_ERROR, "Failed to fetch data");
-        }
-        if (streamlinkData == null)
-            throw halt(SERVER_ERROR, "Failed to fetch data");
 
-        // Generate the master playlist
-        StreamList streamList = streamlinkData.getStreams();
-        String master = "#EXTM3U\n#EXT-X-VERSION:3\n";
-        String playlist = "#EXT-X-STREAM-INF:BANDWIDTH=%d,FRAME-RATE=%d\n%s\n";
-        if (streamList.get160p() != null)
-            master += String.format(playlist, 400 * 1000, 30, streamList.get160p().getUrl());
-        if (streamList.get360p() != null)
-            master += String.format(playlist, 600 * 1000, 30, streamList.get360p().getUrl());
-        if (streamList.get480p() != null)
-            master += String.format(playlist, 1000 * 1000, 30, streamList.get480p().getUrl());
-        if (streamList.get480p60() != null)
-            master += String.format(playlist, 1500 * 1000, 30, streamList.get480p60().getUrl());
-        if (streamList.get720p() != null)
-            master += String.format(playlist, 2500 * 1000, 30, streamList.get720p().getUrl());
-        if (streamList.get720p60() != null)
-            master += String.format(playlist, 3500 * 1000, 60, streamList.get720p60().getUrl());
-        if (streamList.get1080p() != null)
-            master += String.format(playlist, 4000 * 1000, 30, streamList.get1080p().getUrl());
-        if (streamList.get1080p60() != null)
-            master += String.format(playlist, 4500 * 1000, 60, streamList.get1080p60().getUrl());
+        // Construct template
+        RestTemplate restTemplate = twitch.getRestClient().getRestTemplate();
+
+        // Request channel token
+        String hlsTokenUrl = String.format(API_HLS_TOKEN, username);
+        ResponseEntity<String> tokenResponse = restTemplate.exchange(hlsTokenUrl, HttpMethod.GET, null,
+                String.class);
+        Token token;
+        try {
+            token = gson.fromJson(tokenResponse.getBody(), Token.class);
+        }
+        catch (JsonSyntaxException e) {
+            throw halt(BAD_GATEWAY, "Failed to parse token data.");
+        }
+
+        // Request HLS playlist
+        String hlsPlaylistUrl = String.format(API_HLS_PLAYLIST, username);
+        restTemplate.getInterceptors().add(new HeaderRequestInterceptor("Accept", "*/*"));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("player", "twitchunofficialroku"));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("token", token.getToken()));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("sig", token.getSig()));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("p",
+                String.valueOf((int)(Math.random() * Integer.MAX_VALUE))));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("type", "any"));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("$allow_audio_only", "false"));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("allow_source", "true"));
+        ResponseEntity<String> playlist = restTemplate.exchange(hlsPlaylistUrl, HttpMethod.GET, null,
+                String.class);
+
         // Cache and return
-        cache.set(requestId, master);
-        return master;
+        String playlistString = playlist.getBody();
+        cache.set(requestId, playlistString);
+        //response.type("audio/mpegurl");
+        return playlistString;
     }
 
     /**
