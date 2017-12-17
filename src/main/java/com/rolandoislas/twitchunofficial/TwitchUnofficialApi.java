@@ -207,7 +207,7 @@ public class TwitchUnofficialApi {
                 String.valueOf((int)(Math.random() * Integer.MAX_VALUE))));
         restTemplate.getInterceptors().add(new QueryRequestInterceptor("type", "any"));
         restTemplate.getInterceptors().add(new QueryRequestInterceptor("$allow_audio_only", "false"));
-        restTemplate.getInterceptors().add(new QueryRequestInterceptor("allow_source", "true"));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("$allow_source", "false"));
         ResponseEntity<String> playlist = restTemplate.exchange(hlsPlaylistUrl, HttpMethod.GET, null,
                 String.class);
 
