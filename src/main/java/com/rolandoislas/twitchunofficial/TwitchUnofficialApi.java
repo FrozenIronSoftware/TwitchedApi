@@ -362,7 +362,7 @@ public class TwitchUnofficialApi {
         String after = request.queryParams("after");
         String before = request.queryParams("before");
         String community = request.queryParams("community_id");
-        String first = request.queryParamOrDefault("first", "20");
+        String first = request.queryParams("first");
         String game = request.queryParams("game_id");
         String language = request.queryParams("language");
         String streamType = request.queryParamOrDefault("type", "all");
@@ -371,7 +371,7 @@ public class TwitchUnofficialApi {
         // Non-spec params
         String offset = request.queryParams("offset");
         if (first == null)
-            first = request.queryParams("limit");
+            first = request.queryParamOrDefault("limit", "20");
         // Set after based on offset
         if (offset != null) {
             try {
