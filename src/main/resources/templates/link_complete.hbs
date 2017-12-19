@@ -1,0 +1,53 @@
+{{>partial/header.hbs}}
+
+{{>partial/nav.hbs}}
+
+{{#if error}}
+
+    <h1 class="title">Link Failed</h1>
+    <h2 class="sub-title">{{error}}</h2>
+
+{{else}}
+
+    <h1 class="title" id="title">Link Complete</h1>
+    <h2 class="sub-title" id="message">Your device is now linked.</h2>
+
+    <script>
+        var hash = location.hash.replace("#", "").split("&");
+        var token = null;
+        var id = null;
+        hash.forEach(function(item) {
+            var itemSplit = item.split("=");
+            if (itemSplit.length > 1) {
+                if (itemSplit[0] === "access_token")
+                    token = itemSplit[1];
+                else if (itemSplit[0] === "state")
+                    id = itemSplit[1];
+            }
+        });
+
+        var data = {token:token, id:id};
+        var request = new XMLHttpRequest();
+
+        request.onloadend = function () {
+            if (request.status === 200)
+                return;
+            var title = document.getElementById("title");
+            var message = document.getElementById("message");
+            title.innerHTML = "Link Failed";
+            if (request.responseText.indexOf("Invalid link id") !== -1)
+                message.innerHTML = "The link code has expired.";
+            else
+                message.innerHTML = request.statusText
+        };
+
+        window.onload = function () {
+            request.open("POST", "/api/link", true);
+            request.setRequestHeader("Content-Type", "application/json");
+            request.send(JSON.stringify(data));
+        };
+    </script>
+
+{{/if}}
+
+{{>partial/footer.hbs}}

@@ -7,6 +7,9 @@ package com.rolandoislas.twitchunofficial.util.twitch;
 
 import com.google.gson.annotations.SerializedName;
 
+/**
+ * Structure for a channel token returned for HLS data
+ */
 public class Token {
     private String token;
     private String sig;

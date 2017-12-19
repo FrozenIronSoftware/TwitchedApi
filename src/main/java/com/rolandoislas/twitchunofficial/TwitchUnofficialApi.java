@@ -54,14 +54,14 @@ import static com.rolandoislas.twitchunofficial.TwitchUnofficial.cache;
 
 public class TwitchUnofficialApi {
 
-    private static final int BAD_REQUEST = 400;
-    private static final int SERVER_ERROR =  500;
-    private static final int BAD_GATEWAY = 502;
+    static final int BAD_REQUEST = 400;
+    static final int SERVER_ERROR =  500;
+    static final int BAD_GATEWAY = 502;
     private static final String API = "https://api.twitch.tv/helix";
     private static final String API_HLS_TOKEN = "http://api.twitch.tv/api/channels/%s/access_token";
     private static final String API_HLS_PLAYLIST = "http://usher.twitch.tv/api/channel/hls/%s.m3u8";
-    private static TwitchClient twitch;
-    private static Gson gson;
+    static TwitchClient twitch;
+    static Gson gson;
     private static OAuthCredential twitchOauth;
 
     /**
@@ -71,7 +71,7 @@ public class TwitchUnofficialApi {
      * @return halt
      */
     @NotCached
-    private static HaltException halt(int code, String message) {
+    static HaltException halt(int code, String message) {
         JsonObject jsonObject = new JsonObject();
         JsonObject error = new JsonObject();
         error.addProperty("code", code);
@@ -93,7 +93,7 @@ public class TwitchUnofficialApi {
      * @param request request to check
      */
     @NotCached
-    private static void checkAuth(Request request) {
+    static void checkAuth(Request request) {
         if (!AuthUtil.verify(request))
             unauthorized();
     }
@@ -399,7 +399,7 @@ public class TwitchUnofficialApi {
         String requestUrl = String.format("%s/streams", API);
         RestTemplate restTemplate;
         if (twitchOauth != null)
-            restTemplate = twitch.getRestClient().getPrivilegedRestTemplate(twitchOauth);
+            restTemplate = getPrivilegedRestTemplate(twitchOauth);
         else
             restTemplate = twitch.getRestClient().getRestTemplate();
         // Parameters
@@ -460,6 +460,18 @@ public class TwitchUnofficialApi {
         String json = gson.toJson(streams);
         cache.set(requestId, json);
         return json;
+    }
+
+    /**
+     * Get a rest templates with the oauth token added as a bearer token
+     * @param oauth token to add to header
+     * @return rest templates
+     */
+    private static RestTemplate getPrivilegedRestTemplate(OAuthCredential oauth) {
+        RestTemplate restTemplate = twitch.getRestClient().getPlainRestTemplate();
+        restTemplate.getInterceptors().add(new HeaderRequestInterceptor("Authorization",
+                String.format("Bearer %s", oauth.getToken())));
+        return restTemplate;
     }
 
     /**
@@ -550,7 +562,7 @@ public class TwitchUnofficialApi {
         String requestUrl = String.format("%s/games", API);
         RestTemplate restTemplate;
         if (twitchOauth != null)
-            restTemplate = twitch.getRestClient().getPrivilegedRestTemplate(twitchOauth);
+            restTemplate = getPrivilegedRestTemplate(twitchOauth);
         else
             restTemplate = twitch.getRestClient().getRestTemplate();
         // Parameters
@@ -595,7 +607,7 @@ public class TwitchUnofficialApi {
         String requestUrl = String.format("%s/users", API);
         RestTemplate restTemplate;
         if (twitchOauth != null)
-            restTemplate = twitch.getRestClient().getPrivilegedRestTemplate(twitchOauth);
+            restTemplate = getPrivilegedRestTemplate(twitchOauth);
         else
             restTemplate = twitch.getRestClient().getRestTemplate();
         // Parameters

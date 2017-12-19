@@ -17,11 +17,12 @@ import static spark.Spark.before;
 import static spark.Spark.get;
 import static spark.Spark.path;
 import static spark.Spark.port;
+import static spark.Spark.post;
 import static spark.Spark.staticFiles;
 
 public class TwitchUnofficial {
 
-    public static ApiCache cache;
+    static ApiCache cache;
 
     public static void main(String[] args) {
         // Parse args
@@ -87,9 +88,18 @@ public class TwitchUnofficial {
                 });
                 get("/hls/*", TwitchUnofficialApi::getHlsData);
             });
+            path("/link", () -> {
+                get("", TwitchedApi::getLinkId);
+                post("", "application/json", TwitchedApi::postLinkToken);
+                get("/status", TwitchedApi::getLinkStatus);
+            });
         });
-        // Index
+        // Web
         get("/", TwitchUnofficialServer::getIndex);
+        path("/link", () -> {
+            get("", TwitchUnofficialServer::getLinkIndex);
+            get("/complete", TwitchUnofficialServer::getLinkCallback);
+        });
     }
 
     /**

@@ -1,0 +1,23 @@
+{{>partial/header.hbs}}
+
+{{>partial/nav.hbs}}
+
+<h1 class="title">Link Device</h1>
+<h2 class="sub-title">Enter the code shown on your device to continue.</h2>
+
+<div class="text">
+    <div class="text-inner">
+        <form id="link_id">
+            <input type="text" class="link-code-field" name="link_id" placeholder="Code" required="required"
+                   maxlength="6" minlength="6" pattern="[a-zA-Z0-9].*" />
+            {{#if link_invalid}}
+                <p class="error">Invalid code specified.</p>
+            {{else}}
+                <br>
+            {{/if}}
+            <input type="submit" class="link-submit" value="Submit" />
+        </form>
+    </div>
+</div>
+
+{{>partial/footer.hbs}}

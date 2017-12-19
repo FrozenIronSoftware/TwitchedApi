@@ -1,0 +1,219 @@
+/*
+ * Copyright (c) 2017 Rolando Islas. All Rights Reserved
+ *
+ */
+
+/*
+ * Font
+ */
+
+@font-face {
+    font-family: "TimeBurnerBold";
+    src: url("/font/timeburnerbold.ttf");
+}
+
+/*
+ * General
+ */
+* {
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+body {
+    background: rgb(47, 47, 47);
+}
+
+.title, .button {
+    margin: 0 auto;
+    text-align: center;
+    font-size: 100px;
+    font-family: sans-serif;
+}
+
+.timeburnerbold {
+    font-family: "TimeBurnerBold", sans-serif;
+}
+
+.title {
+    margin: 25px auto;
+    color: rgb(255, 255, 255);
+}
+
+.button {
+    width: 500px;
+    height: 100px;
+    background: rgb(199, 136, 17);
+    color: rgb(0, 0, 0);
+    margin: 10px auto;
+    border-radius: 10px;
+    line-height: 100px;
+}
+
+.button-tall {
+    height: 120px;
+    line-height: 120px;
+}
+
+.button:hover {
+    background: rgb(170, 115, 17);
+}
+
+.button-green {
+    background: rgb(44, 223, 44);
+}
+
+.button-green:hover {
+    background: rgb(34, 179, 24);
+}
+
+.button-blue {
+    background: rgb(43, 133, 223);
+}
+
+.button-blue:hover {
+    background: rgb(50, 118, 179);
+}
+
+.button-red {
+    background: rgb(223, 35, 33);
+}
+
+.button-red:hover {
+    background: rgb(179, 30, 22);
+}
+
+.button-purple {
+    background: rgb(100, 65, 164);
+}
+
+.button-purple:hover {
+    background: rgb(179, 47, 159);
+}
+
+.button a {
+    text-decoration: none;
+    color: rgb(0, 0, 0);
+    display: block;
+}
+
+.discreet {
+    color: rgb(88, 88, 88);
+    font-family: sans-serif;
+    margin: 0 auto;
+    text-align: center;
+}
+
+.sub-title {
+    color: rgb(205, 205, 205);
+    font-family: sans-serif;
+    margin: 0 auto;
+    text-align: center;
+}
+
+.text {
+    background: rgb(205, 205, 205);
+    width: 100%;
+    height: auto;
+}
+
+.text-inner {
+    color: rgb(47, 47, 47);
+    width: 50%;
+    height: auto;
+    font-family: "Times New Roman", serif ;
+    margin: 0 auto;
+}
+
+/*
+ * Nav
+ */
+.nav {
+    width: 100%;
+    height: 100px;
+    border-bottom: 1px rgb(94, 74, 119) solid;
+    background: rgb(100, 65, 164);
+    position: relative;
+}
+
+.nav-inner {
+    width: 80%;
+    height: 50px;
+    position: absolute;
+    top: 0; bottom: 0; left: 0; right: 0;
+    margin: auto;
+}
+
+.nav-logo {
+    width: 200px;
+    height: 50px;
+    background: url("/image/logo-nav.png");
+    float: left;
+    margin: 0 50px 0 0;
+}
+
+.nav ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.nav ul li {
+    margin: 0;
+    padding: 0;
+}
+
+.nav ul li a {
+    text-decoration: none;
+    color: rgb(230, 230, 230);
+    font-size: 18px;
+    line-height: 50px;
+    font-family: Helvetica sans-serif;
+}
+
+.nav ul li a:hover {
+    color: rgb(255, 255, 255);
+}
+
+/*
+ * Form
+ */
+
+#link_id {
+    padding: 20px 0;
+}
+
+.link-code-field {
+    width: 600px;
+    height: 100px;
+    margin: 0 auto;
+    color: rgb(201, 201, 201);
+    background: rgb(31, 31, 31);
+    font-size: 100px;
+    line-height: 100px;
+    text-align: center;
+    display: block;
+    padding-top: 20px;
+    text-transform: uppercase;
+}
+
+.link-submit {
+    width: 200px;
+    height: 50px;
+    margin: 0 auto;
+    display: block;
+    font-size: 40px;
+    line-height: 50px;
+    text-align: center;
+    cursor: hand;
+}
+
+.error {
+    width: 600px;
+    font-family: sans-serif;
+    margin: 20px auto;
+    text-align: center;
+    background: rgb(171, 144, 150);
+    color: rgb(0, 0, 0);
+}
