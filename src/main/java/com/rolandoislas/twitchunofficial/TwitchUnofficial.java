@@ -75,7 +75,9 @@ public class TwitchUnofficial {
                 // Kraken
                 path("/kraken", () -> {
                     get("/streams", TwitchUnofficialApi::getStreamsKraken);
-                    get("/games", TwitchUnofficialApi::getGamesKraken);
+                    path("/games", () -> {
+                        get("/top", TwitchUnofficialApi::getGamesKraken);
+                    });
                     path("/communities", () -> {
                         get("", TwitchUnofficialApi::getCommunityKraken);
                         get("/top", TwitchUnofficialApi::getCommunitiesKraken);
