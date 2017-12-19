@@ -85,6 +85,12 @@ public class TwitchUnofficial {
                 path("/helix", () -> {
                     get("/streams", TwitchUnofficialApi::getStreamsHelix);
                     get("/games", TwitchUnofficialApi::getGamesHelix);
+                    path("/users", () -> {
+                        path("/follows", () -> {
+                            get("", TwitchUnofficialApi::getUserFollowHelix);
+                            get("/streams", TwitchUnofficialApi::getUserFollowedStreamsHelix);
+                        });
+                    });
                 });
                 get("/hls/*", TwitchUnofficialApi::getHlsData);
             });

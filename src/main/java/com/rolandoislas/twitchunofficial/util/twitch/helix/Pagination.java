@@ -14,17 +14,19 @@ public class Pagination {
     private String cursor;
 
     public Pagination(@Nullable Long before, long after) {
-        JsonObject afterJson = new JsonObject();
-        afterJson.addProperty("Offset", after);
+        JsonObject afterJson = null;
         JsonObject beforeJson = null;
-        if (before != null) {
+        if (before != null && before >= 0) {
             beforeJson = new JsonObject();
             beforeJson.addProperty("Offset", before);
+            afterJson = new JsonObject();
+            afterJson.addProperty("Offset", after);
         }
         JsonObject cursorJson = new JsonObject();
         cursorJson.add("a", afterJson);
         cursorJson.add("b", beforeJson);
-        cursor = Base64.getEncoder().withoutPadding().encodeToString(cursorJson.toString().getBytes());
+        if (beforeJson != null)
+            cursor = Base64.getEncoder().withoutPadding().encodeToString(cursorJson.toString().getBytes());
     }
 
     @Override
@@ -32,6 +34,7 @@ public class Pagination {
         return new String(Base64.getDecoder().decode(cursor));
     }
 
+    @Nullable
     public String getCursor() {
         return cursor;
     }
