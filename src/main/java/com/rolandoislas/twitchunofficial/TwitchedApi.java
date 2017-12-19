@@ -62,10 +62,8 @@ class TwitchedApi {
         JsonObject ret = new JsonObject();
         // Check cache
         String requestId = ApiCache.createKey("link", type, id);
-        if (links.containsKey(requestId)) {
-            ret.addProperty("id", links.get(requestId));
-            return ret.toString();
-        }
+        if (links.containsKey(requestId))
+            links.remove(requestId);
         // Generate new ID
         String linkId;
         String usableChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
