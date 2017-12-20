@@ -1,8 +1,12 @@
-"Twitch Unofficial API" Copyright (C) 2017 Rolando Islas. All Rights Reserved.
+"Twitched" Copyright (C) 2017 Rolando Islas. All Rights Reserved.
 
+Twitched is a Roku (media player) app for connecting to Twitch (live streaming service)
+and watching live streams. The Twitched website/API serves as a proxy/cache for all request to
+Twitch.
 
+Twitched is not affiliated with Twitch Interactive, Inc. or Roku, Inc.
 
-                  "TWITCH UNOFFICIAL" LICENSE
+                        TWITCHED LICENSE
                     Version 1, December 2017
 
    TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION

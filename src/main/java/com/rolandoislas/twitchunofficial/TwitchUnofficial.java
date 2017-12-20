@@ -108,6 +108,11 @@ public class TwitchUnofficial {
             get("", TwitchUnofficialServer::getLinkIndex);
             get("/complete", TwitchUnofficialServer::getLinkCallback);
         });
+        path("/info", () -> {
+            get("", TwitchUnofficialServer::getInfoIndex);
+            get("/oss", TwitchUnofficialServer::getInfoOss);
+            get("/privacy", TwitchUnofficialServer::getInfoPrivacy);
+        });
     }
 
     /**

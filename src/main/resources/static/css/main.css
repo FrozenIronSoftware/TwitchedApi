@@ -89,7 +89,7 @@ body {
 }
 
 .button-purple:hover {
-    background: rgb(179, 47, 159);
+    background: rgb(70, 48, 117);
 }
 
 .button a {
@@ -112,6 +112,10 @@ body {
     text-align: center;
 }
 
+/**
+ * Text
+ */
+
 .text {
     background: rgb(205, 205, 205);
     width: 100%;
@@ -124,6 +128,18 @@ body {
     height: auto;
     font-family: "Times New Roman", serif ;
     margin: 0 auto;
+}
+
+.text-inner h3 {
+    margin: 20px 0;
+}
+
+.text-inner p {
+    margin: 5px;
+}
+
+.text-inner ul, .text-inner ol {
+    margin: 0 0 0 40px;
 }
 
 /*
@@ -160,16 +176,17 @@ body {
 }
 
 .nav ul li {
-    margin: 0;
+    margin: 0 0 0 10px;
     padding: 0;
+    display: inline;
 }
 
 .nav ul li a {
     text-decoration: none;
     color: rgb(230, 230, 230);
-    font-size: 18px;
+    font-size: 20px;
     line-height: 50px;
-    font-family: Helvetica sans-serif;
+    font-family: sans-serif;
 }
 
 .nav ul li a:hover {
