@@ -53,6 +53,7 @@ public class TwitchUnofficial {
             Logger.warn("Failed to parse PORT env var: %s", portString);
         }
         // Redis address
+        // FIXME add the OPENREDIS_URL url and prioritize it over REDIS_URL
         String redisServer = getenv("REDIS_URL");
         // Twitch details
         String twitchClientId = getenv("TWITCH_CLIENT_ID");
@@ -76,17 +77,21 @@ public class TwitchUnofficial {
                 path("/kraken", () -> {
                     get("/streams", TwitchUnofficialApi::getStreamsKraken);
                     path("/games", () -> {
-                        get("/top", TwitchUnofficialApi::getGamesKraken);
+                        get("/top", TwitchUnofficialApi::getTopGamesKraken);
                     });
                     path("/communities", () -> {
                         get("", TwitchUnofficialApi::getCommunityKraken);
                         get("/top", TwitchUnofficialApi::getCommunitiesKraken);
                     });
+                    get("/search", TwitchUnofficialApi::getSearchKraken);
                 });
                 // Helix
                 path("/helix", () -> {
                     get("/streams", TwitchUnofficialApi::getStreamsHelix);
-                    get("/games", TwitchUnofficialApi::getGamesHelix);
+                    path("/games", () -> {
+                        get("", TwitchUnofficialApi::getGamesHelix);
+                        get("/top", TwitchUnofficialApi::getTopGamesHelix);
+                    });
                     path("/users", () -> {
                         path("/follows", () -> {
                             get("", TwitchUnofficialApi::getUserFollowHelix);

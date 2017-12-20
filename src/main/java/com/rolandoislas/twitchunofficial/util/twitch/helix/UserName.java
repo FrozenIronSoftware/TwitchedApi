@@ -11,4 +11,13 @@ public class UserName {
     private String login;
     @SerializedName("display_name")
     private String displayName;
+
+    public UserName(String login, String displayName) {
+        this.login = login;
+        this.displayName = displayName;
+    }
+
+    public UserName() {
+
+    }
 }

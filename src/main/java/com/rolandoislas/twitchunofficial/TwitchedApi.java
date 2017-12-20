@@ -27,6 +27,7 @@ import static com.rolandoislas.twitchunofficial.TwitchUnofficialApi.halt;
 
 class TwitchedApi {
 
+    // FIXME a cache is memory needs to go. Move to Redis
     private static final Map<String, String> links;
     private static final Map<String, String> tokens;
     private static final String OAUTH_CALLBACK_PATH = "/link/complete";

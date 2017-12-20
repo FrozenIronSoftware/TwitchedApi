@@ -19,6 +19,7 @@ import com.rolandoislas.twitchunofficial.util.twitch.helix.Follow;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.FollowList;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.Game;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.GameList;
+import com.rolandoislas.twitchunofficial.util.twitch.helix.GameViewComparator;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.Pagination;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.User;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.UserList;
@@ -28,6 +29,7 @@ import me.philippheuer.twitch4j.TwitchClientBuilder;
 import me.philippheuer.twitch4j.auth.model.OAuthCredential;
 import me.philippheuer.twitch4j.enums.Endpoints;
 import me.philippheuer.twitch4j.exceptions.RestException;
+import me.philippheuer.twitch4j.model.Channel;
 import me.philippheuer.twitch4j.model.Community;
 import me.philippheuer.twitch4j.model.CommunityList;
 import me.philippheuer.twitch4j.model.Stream;
@@ -48,8 +50,11 @@ import spark.Spark;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -254,22 +259,45 @@ public class TwitchUnofficialApi {
      * @return games json
      */
     @Cached
-    static String getGamesKraken(Request request, Response response) {
+    static String getTopGamesKraken(Request request, Response response) {
         checkAuth(request);
         // Parse parameters
         String limit = request.queryParamOrDefault("limit", "10");
         String offset = request.queryParamOrDefault("offset", "0");
         // Check cache
-        String requestId = ApiCache.createKey("kraken/games", limit, offset);
+        String requestId = ApiCache.createKey("kraken/games/top", limit, offset);
         String cachedResponse = cache.get(requestId);
         if (cachedResponse != null)
             return cachedResponse;
 
+        // Request
+        @Nullable List<TopGame> games = getTopGamesKraken(limit, offset);
+
+        if (games == null)
+            throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
+
+        // Store and return
+        String json = gson.toJson(games);
+        cache.set(requestId, json);
+        return json;
+    }
+
+    /**
+     * Request top games from the Kraken end point
+     * @param limit limit
+     * @param offset offset
+     * @return top games
+     */
+    @Nullable
+    @NotCached
+    private static List<TopGame> getTopGamesKraken(@Nullable String limit, @Nullable String offset) {
         // Fetch live data
         String requestUrl = String.format("%s/games/top", Endpoints.API.getURL());
         RestTemplate restTemplate = twitch.getRestClient().getRestTemplate();
-        restTemplate.getInterceptors().add(new QueryRequestInterceptor("limit", limit));
-        restTemplate.getInterceptors().add(new QueryRequestInterceptor("offset", offset));
+        if (limit != null)
+            restTemplate.getInterceptors().add(new QueryRequestInterceptor("limit", limit));
+        if (offset != null)
+            restTemplate.getInterceptors().add(new QueryRequestInterceptor("offset", offset));
         // REST Request
         List<TopGame> games = null;
         try {
@@ -282,13 +310,7 @@ public class TwitchUnofficialApi {
             Logger.warn("Request failed: " + e.getMessage());
             Logger.exception(e);
         }
-        if (games == null)
-            throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
-
-        // Store and return
-        String json = gson.toJson(games);
-        cache.set(requestId, json);
-        return json;
+        return games;
     }
 
     /**
@@ -604,6 +626,7 @@ public class TwitchUnofficialApi {
      * @return games
      */
     @NotCached
+    @Nullable
     private static List<Game> getGames(@Nullable List<String> ids, @Nullable List<String> names) {
         if ((ids == null || ids.isEmpty()) && (names == null || names.isEmpty()))
             throw halt(BAD_REQUEST, "Bad request: missing game id or name");
@@ -902,6 +925,234 @@ public class TwitchUnofficialApi {
             throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
         // Cache and return
         String json = gson.toJson(followList.getFollows());
+        cache.set(requestId, json);
+        return json;
+    }
+
+    /**
+     * Search on the kraken endpoint
+     * This combines games, channels, and streams search endpoints
+     * Data returned is expected to be in "KRAKEN" game or community format json
+     * @param request request
+     * @param response response
+     * @return json
+     */
+    @Cached
+    static String getSearchKraken(Request request, Response response) {
+        // All
+        @Nullable String query = request.queryParams("query");
+        String type = request.queryParamOrDefault("type", "streams");
+        String limit = request.queryParamOrDefault("limit", "20");
+        String offset = request.queryParamOrDefault("offset", "0");
+        String hls = request.queryParamOrDefault("hls", "true");
+        String live = request.queryParamOrDefault("live", "false");
+        // Check params
+        if (query == null || query.isEmpty())
+            throw halt(BAD_REQUEST, "Empty query");
+        long limitLong;
+        try {
+            limitLong = Long.parseLong(limit);
+        }
+        catch (NumberFormatException e) {
+            throw halt(BAD_REQUEST, "Invalid limit");
+        }
+        // Check cache
+        String requestId = ApiCache.createKey("kraken/search", query, type, limit, offset, hls, live);
+        String cachedResponse = cache.get(requestId);
+        if (cachedResponse != null)
+            return cachedResponse;
+        // Get live data
+        String json;
+        // Used by switch case
+        ArrayList<String> userIds = new ArrayList<>();
+        List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streamsHelix = new ArrayList<>();
+        List<Game> games = new ArrayList<>();
+        switch (type) {
+            case "streams":
+                // HLS param is ignored
+                List<Stream> streams = twitch.getSearchEndpoint().getStreams(query, Optional.of(limitLong));
+                for (Stream stream : streams)
+                    userIds.add(String.valueOf(stream.getChannel().getId()));
+                if (userIds.size() > 0)
+                    streamsHelix = getStreams(
+                            null,
+                            null,
+                            null,
+                            "100",
+                            null,
+                            null,
+                            null,
+                            userIds,
+                            null
+                    );
+                json = gson.toJson(streamsHelix);
+                break;
+            case "channels":
+                // Get channels from search
+                List<Channel> channels = twitch.getSearchEndpoint().getChannels(query, Optional.of(limitLong));
+                // Get games
+                List<String> gameNames = new ArrayList<>();
+                for (Channel channel : channels)
+                    gameNames.add(String.valueOf(channel.getGame()));
+                games = getGames(null, gameNames);
+                if (games == null)
+                    throw halt(BAD_GATEWAY, "Failed to get games");
+                // Get streams
+                for (Channel channel : channels)
+                    userIds.add(String.valueOf(channel.getId()));
+                streamsHelix = getStreams(
+                        null,
+                        null,
+                        null,
+                        "100",
+                        null,
+                        null,
+                        null,
+                        userIds,
+                        null
+                );
+                // Populate Streams
+                SimpleDateFormat krakenDateFormat = new SimpleDateFormat("E MMM dd HH:mm:ss z yyyy");
+                // ISO8601
+                SimpleDateFormat hexlixDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+                channelToStream:
+                for (Channel channel : channels) {
+                    // Check if stream is live
+                    for (com.rolandoislas.twitchunofficial.util.twitch.helix.Stream stream : streamsHelix)
+                        if (String.valueOf(stream.getUserId()).equals(String.valueOf(channel.getId())))
+                            continue channelToStream;
+                    // Add stream from channel data
+                    com.rolandoislas.twitchunofficial.util.twitch.helix.Stream stream =
+                            new com.rolandoislas.twitchunofficial.util.twitch.helix.Stream();
+                    stream.setId("null"); // No stream id
+                    stream.setUserId(String.valueOf(channel.getId()));
+                    for (Game game : games)
+                        if (game.getName() != null && game.getName().equalsIgnoreCase(channel.getGame()))
+                            stream.setGameId(String.valueOf(game.getId()));
+                    if (stream.getGameId() == null)
+                        stream.setGameId("null");
+                    stream.setCommunityIds(new ArrayList<>()); // No community ids
+                    stream.setType("user"); // Set the type to user (This is not a valid Twitch API value)
+                    stream.setTitle(String.valueOf(channel.getStatus()));
+                    stream.setViewerCount(channel.getViews()); // No viewer count
+                    // Converts the time string to ISO8601
+                    String createdAt = "";
+                    try {
+                        Date krakenDate = krakenDateFormat.parse(String.valueOf(channel.getCreatedAt()));
+                        createdAt =  hexlixDateFormat.format(krakenDate);
+                    }
+                    catch (ParseException e) {
+                        e.printStackTrace();
+                    }
+                    stream.setStartedAt(createdAt);
+                    stream.setLanguage(String.valueOf(channel.getLanguage()));
+                    // This replaces Helix thumbnail size values, but the channel data has Kraken thumbnails.
+                    // Helix data can be polled, but it would be another API call.
+                    // At the moment the thumbnails are full size.
+                    stream.setThumbnailUrl(String.valueOf(channel.getVideoBanner())
+                            .replaceAll("\\d+x\\d+", "{width}x{height}"));
+                    stream.setUserName(new UserName(String.valueOf(channel.getName()),
+                            String.valueOf(channel.getDisplayName())));
+                    stream.setGameName(String.valueOf(channel.getGame()));
+                    streamsHelix.add(stream);
+                }
+                json = gson.toJson(streamsHelix);
+                break;
+            case "games":
+                // Search
+                List<me.philippheuer.twitch4j.model.Game> gamesKraken =
+                        twitch.getSearchEndpoint().getGames(query, Optional.of(live.equals("true")));
+                // Get games from the Helix endpoint
+                List<String> gameIds = new ArrayList<>();
+                if (gamesKraken != null)
+                    for (me.philippheuer.twitch4j.model.Game game : gamesKraken)
+                        gameIds.add(String.valueOf(game.getId()));
+                if (gameIds.size() > 0)
+                    games = getGames(gameIds, null);
+                // Add viewers to helix data
+                if (games != null && gamesKraken != null) {
+                    for (Game game : games)
+                        for (me.philippheuer.twitch4j.model.Game gameKraken : gamesKraken)
+                            if (String.valueOf(game.getId()).equals(String.valueOf(gameKraken.getId())))
+                                game.setViewers(gameKraken.getPopularity());
+                    games.sort(new GameViewComparator().reversed());
+                }
+                json = gson.toJson(games);
+                break;
+            default:
+                throw halt(BAD_REQUEST, "Invalid type");
+        }
+        // Cache and return
+        cache.set(requestId, json);
+        return json;
+    }
+
+    /**
+     * Get top games from the Helix end point
+     * @param request request
+     * @param response response
+     * @return json
+     */
+    @Cached
+    static String getTopGamesHelix(Request request, Response response) {
+        checkAuth(request);
+        // Params
+        String after = request.queryParams("after");
+        String before = request.queryParams("before");
+        String first = request.queryParams("first");
+        // Non-spec params
+        String offset = request.queryParams("offset");
+        if (first == null)
+            first = request.queryParamOrDefault("limit", "20");
+        // Set after based on offset
+        String afterFromOffset = getAfterFromOffset(offset, first);
+        if (afterFromOffset != null)
+            after = afterFromOffset;
+        // Check cache
+        String requestId = ApiCache.createKey("helix/games/top", after, before, first);
+        String cachedResponse = cache.get(requestId);
+        if (cachedResponse != null)
+            return cachedResponse;
+
+        // Fetch live data
+        String requestUrl = String.format("%s/games/top", API);
+        RestTemplate restTemplate = twitch.getRestClient().getRestTemplate();
+        if (after != null)
+            restTemplate.getInterceptors().add(new QueryRequestInterceptor("after", after));
+        if (before != null)
+            restTemplate.getInterceptors().add(new QueryRequestInterceptor("before", before));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("first", first));
+        // REST Request
+        List<Game> games = null;
+        try {
+            Logger.verbose( "Rest Request to [%s]", requestUrl);
+            ResponseEntity<String> responseObject = restTemplate.exchange(requestUrl, HttpMethod.GET, null,
+                    String.class);
+            try {
+                GameList gameList = gson.fromJson(responseObject.getBody(), GameList.class);
+                games = gameList.getGames();
+            }
+            catch (JsonSyntaxException e) {
+                Logger.exception(e);
+            }
+        }
+        catch (RestClientException | RestException e) {
+            Logger.warn("Request failed: " + e.getMessage());
+            Logger.exception(e);
+        }
+        if (games == null)
+            throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
+        // Add viewer info
+        List<TopGame> gamesKraken = getTopGamesKraken("100", "0");
+        if (gamesKraken != null) {
+            for (Game game : games)
+                for (TopGame gameKraken : gamesKraken)
+                    if (String.valueOf(game.getId()).equals(
+                            String.valueOf(gameKraken.getGame() != null ? gameKraken.getGame().getId() : null)))
+                        game.setViewers(gameKraken.getViewers());
+        }
+        // Store and return
+        String json = gson.toJson(games);
         cache.set(requestId, json);
         return json;
     }

@@ -13,11 +13,22 @@ public class Game {
     @SerializedName("box_art_url")
     private String boxArtUrl;
 
+    // Non-spec
+    private long viewers;
+
     public String getId() {
         return id;
     }
 
     public String getName() {
         return name;
+    }
+
+    public void setViewers(int viewers) {
+        this.viewers = viewers;
+    }
+
+    public long getViewers() {
+        return viewers;
     }
 }
