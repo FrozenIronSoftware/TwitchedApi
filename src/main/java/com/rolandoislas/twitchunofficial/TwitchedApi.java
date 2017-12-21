@@ -123,10 +123,13 @@ class TwitchedApi {
     static String redirectToTwitchOauth(String linkId, Request request, Response response) {
         String oauthUrl = "https://api.twitch.tv/kraken/oauth2/authorize?client_id=%s&redirect_uri=%s&response_type=%s" +
                 "&scope=%s&force_verify=%s&state=%s";
+        String scheme = request.scheme();
+        if (request.headers("X-Forwarded-Proto") != null)
+            scheme = request.headers("X-Forwarded-Proto");
         oauthUrl = String.format(
                 oauthUrl, 
                 TwitchUnofficialApi.twitch.getClientId(),
-                request.scheme() + "://" + request.host() + OAUTH_CALLBACK_PATH,
+                scheme + "://" + request.host() + OAUTH_CALLBACK_PATH,
                 "token",
                 "",
                 "true",
