@@ -13,7 +13,7 @@ public class AuthUtil {
     private static boolean authenticate;
 
     static {
-        ALLOWED_ID = System.getenv("ALLOWED_ROKU_ID");
+        ALLOWED_ID = System.getenv("ALLOWED_CLIENT_ID");
         authenticate = true;
     }
 
@@ -26,10 +26,10 @@ public class AuthUtil {
         if (!authenticate)
             return true;
         if (ALLOWED_ID == null || ALLOWED_ID.isEmpty()) {
-            Logger.warn("Missing environment variable: ALLOWED_ROKU_ID");
+            Logger.warn("Missing environment variable: ALLOWED_CLIENT_ID");
             return false;
         }
-        String header = request.headers("X-Roku-Reserved-Dev-Id");
+        String header = request.headers("Client-ID");
         if (header == null || !header.equals(AuthUtil.ALLOWED_ID)) {
             Logger.warn(
                     String.format(
