@@ -20,28 +20,14 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static com.rolandoislas.twitchunofficial.TwitchUnofficial.cache;
 import static com.rolandoislas.twitchunofficial.TwitchUnofficialApi.BAD_REQUEST;
 import static com.rolandoislas.twitchunofficial.TwitchUnofficialApi.checkAuth;
 import static com.rolandoislas.twitchunofficial.TwitchUnofficialApi.gson;
 import static com.rolandoislas.twitchunofficial.TwitchUnofficialApi.halt;
 
 class TwitchedApi {
-
-    // FIXME a cache is memory needs to go. Move to Redis
-    private static final Map<String, String> links;
-    private static final Map<String, String> tokens;
     private static final String OAUTH_CALLBACK_PATH = "/link/complete";
-
-    static {
-        links = ExpiringMap.builder()
-                .maxSize(1000)
-                .expiration(5, TimeUnit.MINUTES)
-                .build();
-        tokens = ExpiringMap.builder()
-                .maxSize(1000)
-                .expiration(1, TimeUnit.MINUTES)
-                .build();
-    }
 
     /**
      * Generate a new ID for a device to begin linking
@@ -62,9 +48,8 @@ class TwitchedApi {
         // Construct return json object
         JsonObject ret = new JsonObject();
         // Check cache
-        String requestId = ApiCache.createKey("link", type, id);
-        if (links.containsKey(requestId))
-            links.remove(requestId);
+        String linkCacheId = ApiCache.createKey(ApiCache.LINK_PREFIX, type, id);
+        cache.remove(linkCacheId);
         // Generate new ID
         String linkId;
         String usableChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -73,9 +58,9 @@ class TwitchedApi {
                     .mapToObj(i -> "" + usableChars.charAt(i))
                     .collect(Collectors.joining()).toUpperCase();
         }
-        while (links.containsValue(linkId));
+        while (cache.containsLinkId(linkId));
         // Store and return
-        links.put(requestId, linkId);
+        cache.set(linkCacheId, linkId);
         ret.addProperty("id", linkId);
         return ret.toString();
     }
@@ -101,14 +86,15 @@ class TwitchedApi {
         // Construct return json object
         JsonObject ret = new JsonObject();
         // Check cache for link id
-        String requestId = ApiCache.createKey("link", type, id);
-        if (!links.containsKey(requestId)) {
+        String linkCacheId = ApiCache.createKey(ApiCache.LINK_PREFIX, type, id);
+        String linkId = cache.get(linkCacheId);
+        if (linkId == null) {
             ret.addProperty("error", 404);
             return ret.toString();
         }
-        String linkId = links.get(requestId);
         // Check cache for token
-        String token = tokens.get(linkId);
+        String tokenCacheKey = ApiCache.createKey(ApiCache.TOKEN_PREFIX, linkId);
+        String token = cache.get(tokenCacheKey);
         if (token == null) {
             ret.addProperty("complete", false);
             return ret.toString();
@@ -124,7 +110,7 @@ class TwitchedApi {
      * @return is valid
      */
     static boolean isLinkCodeValid(String linkId) {
-        return links.containsValue(linkId.toUpperCase());
+        return cache.containsLinkId(linkId.toUpperCase());
     }
 
     /**
@@ -173,7 +159,8 @@ class TwitchedApi {
             throw halt(BAD_REQUEST, "Invalid link id");
         linkId = linkId.toUpperCase();
         // Save token
-        tokens.put(linkId, token);
+        String tokenCacheKey = ApiCache.createKey(ApiCache.TOKEN_PREFIX, linkId);
+        cache.set(tokenCacheKey, token);
         // Return
         return "200";
     }

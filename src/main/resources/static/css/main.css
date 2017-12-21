@@ -7,6 +7,7 @@
  * Font
  */
 
+/*noinspection CssUnknownTarget*/
 @font-face {
     font-family: "TimeBurnerBold";
     src: url("/font/timeburnerbold.ttf");
@@ -161,6 +162,7 @@ body {
     margin: auto;
 }
 
+/*noinspection CssUnknownTarget*/
 .nav-logo {
     width: 200px;
     height: 50px;
@@ -229,7 +231,7 @@ body {
 .error {
     width: 600px;
     font-family: sans-serif;
-    margin: 20px auto;
+    margin: 20px auto !important;
     text-align: center;
     background: rgb(171, 144, 150);
     color: rgb(0, 0, 0);

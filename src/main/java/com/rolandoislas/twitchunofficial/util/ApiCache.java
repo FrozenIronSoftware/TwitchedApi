@@ -6,6 +6,7 @@
 package com.rolandoislas.twitchunofficial.util;
 
 import com.rolandoislas.twitchunofficial.data.Id;
+import org.jetbrains.annotations.Nullable;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.ScanParams;
 import redis.clients.jedis.ScanResult;
@@ -13,6 +14,7 @@ import redis.clients.jedis.exceptions.JedisConnectionException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
@@ -22,6 +24,8 @@ public class ApiCache {
     private static final int USER_NAME_TIMEOUT = 24 * 60 * 60; // 1 Day
     private static final String USER_NAME_FIELD_PREFIX = "_username_";
     private static final String GAME_NAME_FIELD_PREFIX = "_gamename_";
+    public static final String LINK_PREFIX = "_link_";
+    public static final String TOKEN_PREFIX = "_token_";
     private static final int GAME_NAME_TIMEOUT = 7 * 24 * 60 * 60; // 1 Week
     private Jedis redis;
     private final ReentrantLock redisLock;
@@ -36,7 +40,7 @@ public class ApiCache {
      * @param key key to get
      * @return value of key
      */
-
+    @Nullable
     public String get(String key) {
         redisLock.lock();
         String value = null;
@@ -151,43 +155,12 @@ public class ApiCache {
                 throw new IllegalArgumentException("Type must be GAME or USER");
         }
         // Get ids stored on redis
-        redisLock.lock();
-        List<String> keys = new ArrayList<>();
-        ScanResult<String> scan = null;
-        ScanParams params = new ScanParams();
-        params.match(keyPrefix + "*");
-        List<String> names = new ArrayList<>();
-        try {
-            do {
-                scan = redis.scan(scan != null ? scan.getStringCursor() : ScanParams.SCAN_POINTER_START, params);
-                keys.addAll(scan.getResult());
-            }
-            while (!scan.getStringCursor().equals(ScanParams.SCAN_POINTER_START));
-            if (!keys.isEmpty())
-                names.addAll(redis.mget(keys.toArray(new String[keys.size()])));
-        }
-        catch (JedisConnectionException ignore) {
-            reconnect();
-        }
-        catch (Exception e) {
-            Logger.exception(e);
-        }
-        redisLock.unlock();
+        Map<String, String> cachedNames = scan(keyPrefix + "*");
         // Map ids to names
         Map<String, String> nameIdMap = new HashMap<>();
         for (String id : ids) {
             String key = keyPrefix + id;
-            if (!keys.contains(id)) {
-                nameIdMap.put(id, null);
-                continue;
-            }
-            String name = names.get(keys.indexOf(key));
-            nameIdMap.put(id, name);
-        }
-        for (int idIndex = 0; idIndex < keys.size(); idIndex++) {
-            String id = keys.get(idIndex).replace(keyPrefix, "");
-            if (ids.contains(id))
-                nameIdMap.put(id, names.get(idIndex));
+            nameIdMap.put(id, cachedNames.getOrDefault(key, null));
         }
         return nameIdMap;
     }
@@ -238,5 +211,83 @@ public class ApiCache {
             Logger.exception(e);
         }
         redisLock.unlock();
+    }
+
+    /**
+     * Attempt to remove a key
+     * Fails silently
+     * @param key key to remove
+     */
+    public Long remove(String key) {
+        redisLock.lock();
+        long ret = 0L;
+        try {
+            ret = redis.del(key);
+        }
+        catch (JedisConnectionException ignore) {
+            reconnect();
+        }
+        catch (Exception e) {
+            Logger.exception(e);
+        }
+        redisLock.unlock();
+        return ret;
+    }
+
+    /**
+     * Check if a link id exists
+     * @param linkId id to check for
+     * @return id exists in cache
+     */
+    public boolean containsLinkId(String linkId) {
+        // Check for links
+        Map<String, String> ids = scan(LINK_PREFIX + "*");
+        for (String id : ids.values())
+            if (id.equalsIgnoreCase(linkId))
+                return true;
+        // Check tokens
+        Map<String, String> tokens = scan(TOKEN_PREFIX + "*");
+        for (String tokenKey : tokens.keySet())
+            if (tokenKey.replace(TOKEN_PREFIX, "").equalsIgnoreCase(linkId))
+                return true;
+        return false;
+    }
+
+    /**
+     * Scan for keys matching a query.
+     * @param query keys must match this - can include wild cards
+     * @return map of keys and values
+     */
+    private Map<String, String> scan(String query) {
+        // Scan
+        redisLock.lock();
+        List<String> keys = new ArrayList<>();
+        ScanResult<String> scan = null;
+        ScanParams params = new ScanParams();
+        params.match(query);
+        List<String> values = new ArrayList<>();
+        try {
+            do {
+                scan = redis.scan(scan != null ? scan.getStringCursor() : ScanParams.SCAN_POINTER_START, params);
+                keys.addAll(scan.getResult());
+            }
+            while (!scan.getStringCursor().equals(ScanParams.SCAN_POINTER_START));
+            if (!keys.isEmpty())
+                values.addAll(redis.mget(keys.toArray(new String[keys.size()])));
+        }
+        catch (JedisConnectionException ignore) {
+            reconnect();
+        }
+        catch (Exception e) {
+            Logger.exception(e);
+        }
+        redisLock.unlock();
+        // Construct the map
+        Map<String, String> map = new HashMap<>();
+        Iterator<String> keysIter = keys.iterator();
+        Iterator<String> valuesIter = values.iterator();
+        while (keysIter.hasNext())
+            map.put(keysIter.next(), valuesIter.next());
+        return map;
     }
 }
