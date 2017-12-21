@@ -78,11 +78,6 @@ public class TwitchUnofficial {
             if (request.pathInfo().endsWith("/") && !request.pathInfo().equals("/"))
                 response.redirect(request.pathInfo().substring(0, request.pathInfo().length() - 1));
         });
-        // Log the X-Forwarded-Proto header
-        before((Filter) (request, response) -> {
-            Logger.info("X-Forwarded-Proto: %s", String.valueOf(request.headers("X-Forwarded-Proto")));
-            Logger.info("CF-Visitor: %s", String.valueOf(request.headers("CF-Visitor")));
-        });
         // API
         path("/api", () -> {
             before("/*", (request, response) -> response.type("application/json"));

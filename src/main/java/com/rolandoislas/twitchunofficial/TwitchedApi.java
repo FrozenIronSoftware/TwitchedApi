@@ -7,17 +7,16 @@ package com.rolandoislas.twitchunofficial;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
+import com.rolandoislas.twitchunofficial.data.json.CfVisitor;
 import com.rolandoislas.twitchunofficial.data.annotation.Cached;
 import com.rolandoislas.twitchunofficial.data.annotation.NotCached;
 import com.rolandoislas.twitchunofficial.util.ApiCache;
+import com.rolandoislas.twitchunofficial.util.Logger;
 import com.rolandoislas.twitchunofficial.util.twitch.LinkToken;
-import net.jodah.expiringmap.ExpiringMap;
 import spark.Request;
 import spark.Response;
 
-import java.util.Map;
 import java.util.Random;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static com.rolandoislas.twitchunofficial.TwitchUnofficial.cache;
@@ -126,6 +125,16 @@ class TwitchedApi {
         String scheme = request.scheme();
         if (request.headers("X-Forwarded-Proto") != null)
             scheme = request.headers("X-Forwarded-Proto");
+        if (request.headers("CF-Visitor") != null) {
+            try {
+                CfVisitor cfVisitor = gson.fromJson(request.headers("CF-Visitor"), CfVisitor.class);
+                if (cfVisitor != null && cfVisitor.getScheme() != null)
+                    scheme = cfVisitor.getScheme();
+            }
+            catch (JsonSyntaxException e) {
+                Logger.exception(e);
+            }
+        }
         oauthUrl = String.format(
                 oauthUrl, 
                 TwitchUnofficialApi.twitch.getClientId(),
