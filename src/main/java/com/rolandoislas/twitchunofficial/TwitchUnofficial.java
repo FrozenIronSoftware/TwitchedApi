@@ -53,8 +53,17 @@ public class TwitchUnofficial {
             Logger.warn("Failed to parse PORT env var: %s", portString);
         }
         // Redis address
-        // FIXME add the OPENREDIS_URL url and prioritize it over REDIS_URL
-        String redisServer = getenv("REDIS_URL");
+        String redisUrl = System.getenv("REDIS_URL");
+        String openredisUrl = System.getenv("OPENREDIS_URL");
+        String redisServer = null;
+        if (openredisUrl != null)
+            redisServer = openredisUrl;
+        else if (redisUrl != null)
+            redisServer = redisUrl;
+        else {
+            Logger.warn("Missing env: OPENREDIS_URL / REDIS_URL");
+            System.exit(1);
+        }
         // Twitch details
         String twitchClientId = getenv("TWITCH_CLIENT_ID");
         String twitchClientSecret = getenv("TWITCH_CLIENT_SECRET");
