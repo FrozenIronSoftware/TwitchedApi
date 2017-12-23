@@ -24,6 +24,7 @@ import com.rolandoislas.twitchunofficial.util.twitch.helix.Pagination;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.User;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.UserList;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.UserName;
+import com.rolandoislas.twitchunofficial.util.twitch.kraken.AppToken;
 import me.philippheuer.twitch4j.TwitchClient;
 import me.philippheuer.twitch4j.TwitchClientBuilder;
 import me.philippheuer.twitch4j.auth.model.OAuthCredential;
@@ -37,6 +38,8 @@ import me.philippheuer.twitch4j.model.TopGame;
 import me.philippheuer.twitch4j.model.TopGameList;
 import me.philippheuer.util.rest.HeaderRequestInterceptor;
 import me.philippheuer.util.rest.QueryRequestInterceptor;
+import me.philippheuer.util.rest.RestErrorHandler;
+import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.springframework.http.HttpMethod;
@@ -233,18 +236,15 @@ public class TwitchUnofficialApi {
      * Initialize the Twitch API wrapper
      * @param twitchClientId client id
      * @param twitchClientSecret secret
-     * @param twitchToken token
      */
     @NotCached
-    static void init(String twitchClientId, String twitchClientSecret, @Nullable String twitchToken) {
-        if (twitchToken == null)
-            Logger.warn("Not using a Twitch token. Rate limit will be decreased.");
+    static void init(String twitchClientId, String twitchClientSecret) {
+        TwitchUnofficialApi.gson = new Gson();
         TwitchUnofficialApi.twitch = TwitchClientBuilder.init()
                 .withClientId(twitchClientId)
                 .withClientSecret(twitchClientSecret)
-                .withCredential(twitchToken)
+                .withCredential(getAppToken(twitchClientId, twitchClientSecret))
                 .build();
-        TwitchUnofficialApi.gson = new Gson();
         // Set credential
         for (Map.Entry<String, OAuthCredential>credentialEntry :
                 twitch.getCredentialManager().getOAuthCredentials().entrySet()) {
@@ -252,6 +252,61 @@ public class TwitchUnofficialApi {
         }
         if (twitchOauth == null)
             Logger.warn("No Oauth token provided. Requests will be rate limited to 30 per minute.");
+    }
+
+    /**
+     * Request an app token
+     * @return app token
+     * @param twitchClientId client id
+     * @param twitchClientSecret secret
+     */
+    @Nullable
+    private static String getAppToken(String twitchClientId, String twitchClientSecret) {
+        // Construct template
+        RestTemplate restTemplate = new RestTemplate();
+        restTemplate.setInterceptors(new ArrayList<>());
+        restTemplate.setErrorHandler(new RestErrorHandler());
+
+        // Request app token
+        String appTokenUrl = Endpoints.API.getURL() + "/oauth2/token";
+
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("client_id", twitchClientId));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("client_secret", twitchClientSecret));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("grant_type", "client_credentials"));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("scope", ""));
+
+        ResponseEntity<String> tokenResponse = null;
+        try {
+            tokenResponse = restTemplate.exchange(appTokenUrl, HttpMethod.POST, null,
+                    String.class);
+        }
+        catch (RestException e) {
+            Logger.warn(StringUtils.repeat("=", 80));
+            Logger.warn("Failed to get Twitch app token!");
+            Logger.warn(e.getRestError().getError());
+            Logger.warn(e.getRestError().getMessage());
+            Logger.warn(StringUtils.repeat("=", 80));
+            Logger.exception(e);
+            return null;
+        }
+        AppToken token;
+        try {
+            token = gson.fromJson(tokenResponse.getBody(), AppToken.class);
+            if (token.getAccessToken() == null) {
+                Logger.warn(StringUtils.repeat("=", 80));
+                Logger.warn("Failed to get Twitch app token!");
+                Logger.warn(StringUtils.repeat("=", 80));
+                return null;
+            }
+            Logger.info("Access token expires in: %d seconds.", token.getExpiresIn());
+            return token.getAccessToken();
+        }
+        catch (JsonSyntaxException e) {
+            Logger.warn(StringUtils.repeat("=", 80));
+            Logger.warn("Failed to get Twitch app token!");
+            Logger.warn(StringUtils.repeat("=", 80));
+            return null;
+        }
     }
 
     /**

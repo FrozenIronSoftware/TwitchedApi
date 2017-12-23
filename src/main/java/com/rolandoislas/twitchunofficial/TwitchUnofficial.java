@@ -67,12 +67,11 @@ public class TwitchUnofficial {
         // Twitch details
         String twitchClientId = getenv("TWITCH_CLIENT_ID");
         String twitchClientSecret = getenv("TWITCH_CLIENT_SECRET");
-        String twitchToken = System.getenv("TWITCH_TOKEN");
         // Set values
         port(port);
         staticFiles.location("/static/");
         TwitchUnofficial.cache = new ApiCache(redisServer);
-        TwitchUnofficialApi.init(twitchClientId, twitchClientSecret, twitchToken);
+        TwitchUnofficialApi.init(twitchClientId, twitchClientSecret);
         // Redirect paths with a trailing slash
         before((Filter) (request, response) -> {
             if (request.pathInfo().endsWith("/") && !request.pathInfo().equals("/"))
