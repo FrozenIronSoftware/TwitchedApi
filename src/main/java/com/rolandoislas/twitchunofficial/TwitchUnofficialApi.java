@@ -236,7 +236,9 @@ public class TwitchUnofficialApi {
      * @param twitchToken token
      */
     @NotCached
-    static void init(String twitchClientId, String twitchClientSecret, String twitchToken) {
+    static void init(String twitchClientId, String twitchClientSecret, @Nullable String twitchToken) {
+        if (twitchToken == null)
+            Logger.warn("Not using a Twitch token. Rate limit will be decreased.");
         TwitchUnofficialApi.twitch = TwitchClientBuilder.init()
                 .withClientId(twitchClientId)
                 .withClientSecret(twitchClientSecret)

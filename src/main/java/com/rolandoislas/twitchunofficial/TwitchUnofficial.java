@@ -67,7 +67,7 @@ public class TwitchUnofficial {
         // Twitch details
         String twitchClientId = getenv("TWITCH_CLIENT_ID");
         String twitchClientSecret = getenv("TWITCH_CLIENT_SECRET");
-        String twitchToken = getenv("TWITCH_TOKEN");
+        String twitchToken = System.getenv("TWITCH_TOKEN");
         // Set values
         port(port);
         staticFiles.location("/static/");
