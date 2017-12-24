@@ -1,0 +1,83 @@
+{{>partial/header.hbs append="Extension" inc="partial/header_extension.hbs"}}
+
+{{>partial/nav.hbs}}
+
+<h1 class="title">Browser Extension</h1>
+<h2 class="sub-title">Cast from the browser to the Twitched Roku app.</h2>
+
+<div>
+    <div class="button button-tall button-green">
+        <a href="https://chrome.google.com/webstore/detail/twitched/bppjnfjndembhedknalkdlpknkoiomao"
+           id="ext-install-chrome">Chrome</a>
+    </div>
+    <!-- TODO add firefox addons URL -->
+    <div class="button button-tall button">
+        <a href="https://github.com/rolandoislas/twitched-extension/releases/download/v1.0/twitched-1.0-an.fx.xpi"
+           id="ext-install-firefox">Firefox</a>
+    </div>
+    <!-- TODO add opera addons URL -->
+    <div class="button button-tall button-red">
+        <a href="https://addons.opera.com/en/extensions/details/download-chrome-extension-9"
+           id="ext-install-opera">Opera</a>
+    </div>
+</div>
+
+<!--<h1 class="title">Screenshots</h1>
+<div class="text">
+    <div class="text-inner">
+
+    </div>
+</div>-->
+
+<script>
+    /**
+     * Handle chrome install button
+     */
+    function onChromeButtonClicked(event) {
+        if (typeof(chrome) === "undefined" || chrome === null || (typeof(opr) !== "undefined" && opr !== null))
+            return;
+        event.preventDefault();
+        chrome.webstore.install(null, function () {
+            console.log("Chrome extension install succeeded");
+        }, function (reason) {
+            console.log("Chrome extension install failed: " + reason)
+        });
+    }
+
+    /**
+     * Handle firefox install button
+     */
+    function onFirefoxButtonClicked() {
+        // TODO detect firefox and link directly to the xpi
+    }
+
+    /**
+     * Handle opera install button
+     */
+    function onOperaButtonClicked() {
+        return;
+        if (typeof(opr) === "undefined" || opr === null)
+            return;
+        event.preventDefault();
+        // TODO add opera extension id
+        opr.addons.installExtension("", function () {
+            console.log("Chrome extension install succeeded");
+        }, function (reason) {
+            console.log("Chrome extension install failed: " + reason)
+        });
+    }
+
+    /**
+     * Register events
+     */
+    window.onload = function () {
+        var chromeButton = document.getElementById("ext-install-chrome");
+        chromeButton.onclick = onChromeButtonClicked;
+        var firefoxButton = document.getElementById("ext-install-firefox");
+        firefoxButton.onclick = onFirefoxButtonClicked;
+        var operaButton = document.getElementById("ext-install-opera");
+        operaButton.onclick = onOperaButtonClicked;
+    };
+</script>
+
+{{>partial/footer.hbs}}

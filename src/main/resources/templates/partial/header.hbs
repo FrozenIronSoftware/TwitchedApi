@@ -13,5 +13,8 @@
     {{/if}}
     </title>
     <link rel="stylesheet" type="text/css" href="/css/main.css">
+    {{#if inc}}
+        {{> (lookup . "inc") }}
+    {{/if}}
 </head>
 <body>

@@ -126,4 +126,15 @@ class TwitchUnofficialServer {
         Map<String, Object> model = new HashMap<>();
         return new HandlebarsTemplateEngine().render(new ModelAndView(model, "info_privacy.hbs"));
     }
+
+    /**
+     * Get the extension page
+     * @param request request
+     * @param response response
+     * @return html
+     */
+    public static String getExtensionIndex(Request request, Response response) {
+        Map<String, Object> model = new HashMap<>();
+        return new HandlebarsTemplateEngine().render(new ModelAndView(model, "extension.hbs"));
+    }
 }
