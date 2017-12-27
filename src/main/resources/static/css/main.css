@@ -236,3 +236,16 @@ body {
     background: rgb(171, 144, 150);
     color: rgb(0, 0, 0);
 }
+
+/*
+ * Screenshots
+ */
+
+.screenshots {
+    width: 50%;
+    margin: 0 auto;
+}
+
+.screenshots img {
+    width: 100%;
+}
