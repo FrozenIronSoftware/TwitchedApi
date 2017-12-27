@@ -127,6 +127,7 @@ public class TwitchUnofficial {
             get("/privacy", TwitchUnofficialServer::getInfoPrivacy);
         });
         get("/extension", TwitchUnofficialServer::getExtensionIndex);
+        get("/support", TwitchUnofficialServer::getSupportIndex);
     }
 
     /**
