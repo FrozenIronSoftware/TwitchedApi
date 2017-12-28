@@ -128,6 +128,7 @@ public class TwitchUnofficial {
         });
         get("/extension", TwitchUnofficialServer::getExtensionIndex);
         get("/support", TwitchUnofficialServer::getSupportIndex);
+        get("/app", TwitchUnofficialServer::getAppIndex);
     }
 
     /**

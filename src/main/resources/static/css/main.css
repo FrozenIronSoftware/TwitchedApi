@@ -143,6 +143,18 @@ body {
     margin: 0 0 0 40px;
 }
 
+.text-support a {
+    font-family: sans-serif;
+    font-size: 30px;
+    margin: 20px auto;
+    text-decoration: underline;
+    color: rgb(0, 0, 0);
+}
+
+.text-support a:hover {
+    text-decoration-style: dotted;
+}
+
 /*
  * Nav
  */
