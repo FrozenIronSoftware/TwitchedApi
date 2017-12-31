@@ -101,6 +101,7 @@ public class TwitchUnofficial {
                         get("/top", TwitchUnofficialApi::getTopGamesHelix);
                     });
                     path("/users", () -> {
+                        get("", TwitchUnofficialApi::getUsersHelix);
                         path("/follows", () -> {
                             get("", TwitchUnofficialApi::getUserFollowHelix);
                             get("/streams", TwitchUnofficialApi::getUserFollowedStreamsHelix);

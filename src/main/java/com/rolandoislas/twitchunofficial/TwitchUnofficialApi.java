@@ -56,6 +56,7 @@ import java.net.URLDecoder;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -1210,6 +1211,46 @@ public class TwitchUnofficialApi {
         }
         // Store and return
         String json = gson.toJson(games);
+        cache.set(requestId, json);
+        return json;
+    }
+
+    /**
+     * Request user info from the Helix endpoint
+     * @param request request
+     * @param response response
+     * @return json
+     */
+    @Cached
+    public static String getUsersHelix(Request request, Response response) {
+        checkAuth(request);
+        // Params
+        String token = request.queryParams("token");
+        List<String> ids = new ArrayList<>();
+        List<String> logins = new ArrayList<>();
+        for (Map.Entry<String, String[]> param : request.queryMap().toMap().entrySet()) {
+            if (param.getKey().equals("id"))
+                ids.addAll(Arrays.asList(param.getValue()));
+            else if (param.getKey().equals("login"))
+                logins.addAll(Arrays.asList(param.getValue()));
+        }
+        if (token == null && ids.isEmpty() && logins.isEmpty())
+            throw halt(BAD_REQUEST, "Missing token/id/login");
+        // Check cache
+        Object[] keyParams = new Object[ids.size() + logins.size() + 1];
+        keyParams[0] = token;
+        System.arraycopy(ids.toArray(), 0, keyParams, 1, ids.size());
+        System.arraycopy(logins.toArray(), 0, keyParams, ids.size() + 1, logins.size());
+        String requestId = ApiCache.createKey("helix/users", keyParams);
+        String cachedResponse = cache.get(requestId);
+        if (cachedResponse != null)
+            return cachedResponse;
+        // Request live
+        List<User> users = getUsers(ids, logins, token);
+        if (users == null)
+            throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
+        // Cache and return
+        String json = gson.toJson(users);
         cache.set(requestId, json);
         return json;
     }
