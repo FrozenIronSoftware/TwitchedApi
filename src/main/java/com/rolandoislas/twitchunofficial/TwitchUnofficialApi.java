@@ -837,7 +837,7 @@ public class TwitchUnofficialApi {
         // Params
         String offset = request.queryParamOrDefault("offset", "0");
         String limit = request.queryParamOrDefault("limit", "20");
-        String token = request.queryParams("token");
+        String token = AuthUtil.extractTwitchToken(request);
         if (token == null || token.isEmpty())
             throw halt(BAD_REQUEST, "Empty token");
         // Check cache
@@ -1226,7 +1226,7 @@ public class TwitchUnofficialApi {
     public static String getUsersHelix(Request request, Response response) {
         checkAuth(request);
         // Params
-        String token = request.queryParams("token");
+        String token = AuthUtil.extractTwitchToken(request);
         List<String> ids = new ArrayList<>();
         List<String> logins = new ArrayList<>();
         for (Map.Entry<String, String[]> param : request.queryMap().toMap().entrySet()) {

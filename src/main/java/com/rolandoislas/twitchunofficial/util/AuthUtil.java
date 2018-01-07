@@ -5,6 +5,7 @@
 
 package com.rolandoislas.twitchunofficial.util;
 
+import org.jetbrains.annotations.Nullable;
 import spark.Request;
 
 
@@ -51,5 +52,21 @@ public class AuthUtil {
         if (!authenticate)
             Logger.warn("Requests will not be authenticated!");
         AuthUtil.authenticate = authenticate;
+    }
+
+    /**
+     * Extract a Twitch token from a request.
+     * Checks the headers first, then falls back to the queries
+     * @param request request
+     * @return token if found
+     */
+    @Nullable
+    public static String extractTwitchToken(Request request) {
+        String token = request.headers("Twitch-Token");
+        // This is here to support versions that use the query param.
+        // New versions should not use this as it is a security risk when the request URL is logged.
+        if (token == null || token.isEmpty())
+            token = request.queryParams("token");
+        return token;
     }
 }
