@@ -997,6 +997,7 @@ public class TwitchUnofficialApi {
      */
     @Cached
     static String getSearchKraken(Request request, Response response) {
+        checkAuth(request);
         // All
         @Nullable String query = request.queryParams("query");
         String type = request.queryParamOrDefault("type", "streams");
