@@ -71,8 +71,8 @@ public class TwitchUnofficialApi {
     static final int SERVER_ERROR =  500;
     static final int BAD_GATEWAY = 502;
     private static final String API = "https://api.twitch.tv/helix";
-    private static final String API_HLS_TOKEN = "http://api.twitch.tv/api/channels/%s/access_token";
-    private static final String API_HLS_PLAYLIST = "http://usher.twitch.tv/api/channel/hls/%s.m3u8";
+    private static final String API_RAW = "https://api.twitch.tv/api";
+    private static final String API_USHER = "https://usher.ttvnw.net";
     static TwitchClient twitch;
     static Gson gson;
     private static OAuthCredential twitchOauth;
@@ -191,14 +191,58 @@ public class TwitchUnofficialApi {
         RestTemplate restTemplate = twitch.getRestClient().getRestTemplate();
 
         // Request channel token
-        String hlsTokenUrl = String.format(API_HLS_TOKEN, username);
-        ResponseEntity<String> tokenResponse = null;
+        Token token = getVideoAccessToken(Token.TYPE.CHANNEL, username);
+
+        // Request HLS playlist
+        String hlsPlaylistUrl = String.format(API_USHER + "/api/channel/hls/%s.m3u8", username);
+        restTemplate.getInterceptors().add(new HeaderRequestInterceptor("Accept", "*/*"));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("player", "twitchunofficialroku"));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("token", token.getToken()));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("sig", token.getSig()));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("p",
+                String.valueOf((int)(Math.random() * Integer.MAX_VALUE))));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("type", "any"));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("$allow_audio_only", "false"));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("$allow_source", "false"));
+        ResponseEntity<String> playlist = restTemplate.exchange(hlsPlaylistUrl, HttpMethod.GET, null,
+                String.class);
+
+        // Cache and return
+        String playlistString = playlist.getBody();
+        if (playlistString == null)
+            return null;
+        cache.set(requestId, playlistString);
+        response.type("audio/mpegurl");
+        return playlistString;
+    }
+
+    /**
+     * Get an access token for a channel stream or a VOD
+     * @param type type of stream to get
+     * @return token
+     */
+    @NotNull
+    private static Token getVideoAccessToken(Token.TYPE type, String id) {
+        String url;
+        switch (type) {
+            case CHANNEL:
+                url = "/channels/%s/access_token";
+                break;
+            case VOD:
+                url = "/vods/%s/access_token";
+                break;
+            default:
+                throw new RuntimeException("Invalid type specified");
+        }
+        String hlsTokenUrl = String.format(API_RAW + url, id);
+        RestTemplate restTemplate = twitch.getRestClient().getRestTemplate();
+        ResponseEntity<String> tokenResponse;
         try {
             tokenResponse = restTemplate.exchange(hlsTokenUrl, HttpMethod.GET, null,
                     String.class);
         }
         catch (RestException e) {
-            throw halt(404, "Streamer not found");
+            throw halt(404, "Not found");
         }
         Token token;
         try {
@@ -209,13 +253,39 @@ public class TwitchUnofficialApi {
         catch (JsonSyntaxException e) {
             throw halt(BAD_GATEWAY, "Failed to parse token data.");
         }
+        return token;
+    }
+
+    /**
+     * Return a master playlist for a VOD
+     * @param request request
+     * @param response response
+     * @return m3u8
+     */
+    public static String getVodData(Request request, Response response) {
+        checkAuth(request);
+        if (request.splat().length < 1)
+            return null;
+        String fileName = request.splat()[0];
+        String[] split = fileName.split("\\.");
+        if (split.length < 2 || !split[1].equals("m3u8"))
+            return null;
+        String vodId = split[0];
+        // Check cache
+        String requestId = ApiCache.createKey("vod", vodId);
+        String cachedResponse = cache.get(requestId);
+        if (cachedResponse != null)
+            return cachedResponse;
+        // Fetch live data
+        RestTemplate restTemplate = twitch.getRestClient().getRestTemplate();
+        // Request VOD token
+        Token token = getVideoAccessToken(Token.TYPE.VOD, vodId);
 
         // Request HLS playlist
-        String hlsPlaylistUrl = String.format(API_HLS_PLAYLIST, username);
+        String hlsPlaylistUrl = String.format(API_USHER + "/vod/%s.m3u8", vodId);
         restTemplate.getInterceptors().add(new HeaderRequestInterceptor("Accept", "*/*"));
-        restTemplate.getInterceptors().add(new QueryRequestInterceptor("player", "twitchunofficialroku"));
-        restTemplate.getInterceptors().add(new QueryRequestInterceptor("token", token.getToken()));
-        restTemplate.getInterceptors().add(new QueryRequestInterceptor("sig", token.getSig()));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("nauth", token.getToken()));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("nauthsig", token.getSig()));
         restTemplate.getInterceptors().add(new QueryRequestInterceptor("p",
                 String.valueOf((int)(Math.random() * Integer.MAX_VALUE))));
         restTemplate.getInterceptors().add(new QueryRequestInterceptor("type", "any"));

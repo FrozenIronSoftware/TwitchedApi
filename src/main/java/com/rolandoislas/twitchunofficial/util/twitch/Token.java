@@ -23,4 +23,6 @@ public class Token {
     public String getSig() {
         return sig;
     }
+
+    public enum TYPE {VOD, CHANNEL}
 }
