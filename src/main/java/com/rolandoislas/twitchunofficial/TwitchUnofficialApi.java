@@ -63,11 +63,13 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static com.rolandoislas.twitchunofficial.TwitchUnofficial.cache;
 
 public class TwitchUnofficialApi {
-
+    private static final Pattern DURATION_REGEX = Pattern.compile("(?:(\\d+)d)?(?:(\\d+)h)?(?:(\\d+)m)?(?:(\\d+)s)");
     static final int BAD_REQUEST = 400;
     static final int SERVER_ERROR =  500;
     static final int BAD_GATEWAY = 502;
@@ -1466,6 +1468,28 @@ public class TwitchUnofficialApi {
             try {
                 StreamList streamList = gson.fromJson(responseObject.getBody(), StreamList.class);
                 videos = streamList.getStreams();
+                // Convert the duration string to seconds
+                for (com.rolandoislas.twitchunofficial.util.twitch.helix.Stream video : videos) {
+                    if (video.getDuration() == null)
+                        continue;
+                    Matcher matcher = DURATION_REGEX.matcher(video.getDuration());
+                    if (!matcher.matches())
+                        continue;
+                    long durationSeconds = 0;
+                    // Seconds
+                    if (matcher.groupCount() >= 4)
+                        durationSeconds += parseLong(matcher.group(4));
+                    // Minutes
+                    if (matcher.groupCount() >= 3)
+                        durationSeconds += parseLong(matcher.group(3)) * 60;
+                    // Hours
+                    if (matcher.groupCount() >= 2)
+                        durationSeconds += parseLong(matcher.group(2)) * 60 * 60;
+                    // Days
+                    if (matcher.groupCount() >= 1)
+                        durationSeconds += parseLong(matcher.group(1)) * 24 * 60 * 60;
+                    video.setDurationSeconds(durationSeconds);
+                }
             }
             catch (JsonSyntaxException e) {
                 Logger.exception(e);
@@ -1476,5 +1500,20 @@ public class TwitchUnofficialApi {
             Logger.exception(e);
         }
         return videos;
+    }
+
+    /**
+     * Safely parse an long
+     * @param number string to parse
+     * @return parsed long or 0 on failure
+     */
+    private static long parseLong(@Nullable String number) {
+        long parsedLong = 0;
+        try {
+            if (number != null)
+                parsedLong = Long.parseLong(number);
+        }
+        catch (NumberFormatException ignore) {}
+        return parsedLong;
     }
 }

@@ -30,11 +30,25 @@ public class Stream {
     @SerializedName("thumbnail_url")
     private String thumbnailUrl;
 
+    // VOD fields
+    String description;
+    @SerializedName("created_at")
+    private String createdAt;
+    @SerializedName("published_at")
+    private String publishedAt;
+    private String url;
+    private String viewable;
+    @SerializedName("view_count")
+    private long viewCount;
+    private String duration;
+
     // Non-spec fields
     @SerializedName("user_name")
     private UserName userName;
     @SerializedName("game_name")
     private String gameName;
+    @SerializedName("duration_seconds")
+    private long durationSeconds;
 
     // Get/Set
 
@@ -92,5 +106,13 @@ public class Stream {
 
     public void setThumbnailUrl(String thumbnailUrl) {
         this.thumbnailUrl = thumbnailUrl;
+    }
+
+    public String getDuration() {
+        return duration;
+    }
+
+    public void setDurationSeconds(long durationSeconds) {
+        this.durationSeconds = durationSeconds;
     }
 }
