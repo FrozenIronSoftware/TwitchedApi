@@ -1103,6 +1103,8 @@ public class TwitchUnofficialApi {
             case "streams":
                 // HLS param is ignored
                 List<Stream> streams = twitch.getSearchEndpoint().getStreams(query, Optional.of(limitLong));
+                if (streams == null)
+                    throw halt(BAD_GATEWAY, "Failed to get streams");
                 for (Stream stream : streams)
                     userIds.add(String.valueOf(stream.getChannel().getId()));
                 if (userIds.size() > 0)
@@ -1122,6 +1124,8 @@ public class TwitchUnofficialApi {
             case "channels":
                 // Get channels from search
                 List<Channel> channels = twitch.getSearchEndpoint().getChannels(query, Optional.of(limitLong));
+                if (channels == null)
+                    throw halt(BAD_GATEWAY, "Failed to get channels");
                 // Get games
                 List<String> gameNames = new ArrayList<>();
                 for (Channel channel : channels)
