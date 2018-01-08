@@ -107,6 +107,7 @@ public class TwitchUnofficial {
                             get("/streams", TwitchUnofficialApi::getUserFollowedStreamsHelix);
                         });
                     });
+                    get("/videos", TwitchUnofficialApi::getVideosHelix);
                 });
                 get("/hls/*", TwitchUnofficialApi::getHlsData);
                 get("/vod/*", TwitchUnofficialApi::getVodData);

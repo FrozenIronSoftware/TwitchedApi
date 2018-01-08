@@ -21,6 +21,7 @@ import com.rolandoislas.twitchunofficial.util.twitch.helix.Game;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.GameList;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.GameViewComparator;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.Pagination;
+import com.rolandoislas.twitchunofficial.util.twitch.helix.StreamList;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.User;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.UserList;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.UserName;
@@ -1245,7 +1246,11 @@ public class TwitchUnofficialApi {
 
         // Fetch live data
         String requestUrl = String.format("%s/games/top", API);
-        RestTemplate restTemplate = twitch.getRestClient().getRestTemplate();
+        RestTemplate restTemplate;
+        if (twitchOauth != null)
+            restTemplate = getPrivilegedRestTemplate(twitchOauth);
+        else
+            restTemplate = twitch.getRestClient().getRestTemplate();
         if (after != null)
             restTemplate.getInterceptors().add(new QueryRequestInterceptor("after", after));
         if (before != null)
@@ -1324,5 +1329,152 @@ public class TwitchUnofficialApi {
         String json = gson.toJson(users);
         cache.set(requestId, json);
         return json;
+    }
+
+    /**
+     * Request videos (VODs) from the helix endpoint
+     * @param request request
+     * @param response response
+     * @return video json
+     */
+    @Cached
+    public static String getVideosHelix(Request request, Response response) {
+        checkAuth(request);
+        // Parse query params
+        String userId = request.queryParams("user_id");
+        String gameId = request.queryParams("game_id");
+        String after = request.queryParams("after");
+        String before = request.queryParams("before");
+        String first = request.queryParams("first");
+        String language = request.queryParams("language");
+        String period = request.queryParams("period");
+        String sort = request.queryParams("sort");
+        String type = request.queryParams("type");
+        List<String> ids = new ArrayList<>();
+        String[] queryParams = request.queryString() != null ? request.queryString().split("&") : new String[0];
+        for (String queryParam : queryParams) {
+            String[] keyValue = queryParam.split("=");
+            if (keyValue.length > 2 || keyValue.length < 1)
+                throw halt(BAD_REQUEST, "Bad query string");
+            if (keyValue.length > 1) {
+                String value = keyValue[1];
+                try {
+                    value = URLDecoder.decode(value, "utf-8");
+                }
+                catch (UnsupportedEncodingException e) {
+                    Logger.exception(e);
+                    throw halt(SERVER_ERROR, "Failed to decode params");
+                }
+                if (!ids.contains(value) && keyValue[0].equals("id"))
+                    ids.add(value);
+            }
+        }
+        // Additional params
+        if (first == null || first.isEmpty())
+            first = request.queryParams("limit");
+        // Check params
+        if ((userId == null || userId.isEmpty()) && (gameId == null || gameId.isEmpty()) && ids.isEmpty())
+            throw halt(BAD_REQUEST, "Missing user_id, game_id, or id");
+        // Check cache
+        List<String> params = new ArrayList<>(ids);
+        params.add(userId);
+        params.add(gameId);
+        params.add(after);
+        params.add(before);
+        params.add(first);
+        params.add(language);
+        params.add(period);
+        params.add(sort);
+        params.add(type);
+        String requestId = ApiCache.createKey("helix/videos", params.toArray());
+        String cachedResponse = cache.get(requestId);
+        if (cachedResponse != null)
+            return cachedResponse;
+        // Request live data
+        List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> videos = getVideos(ids, userId, gameId, after,
+                before, first, language, period, sort, type);
+        if (videos == null)
+            throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
+        // Cache and return
+        String json = gson.toJson(videos);
+        cache.set(requestId, json);
+        return json;
+    }
+
+    /**
+     * Request videos from the Helix API
+     * @param ids video ids
+     * @param userId user id
+     * @param gameId game id
+     * @param after cursor
+     * @param before cursor
+     * @param first limit per page
+     * @param language language
+     * @param period time period - all, day, month, week
+     * @param sort sort method - time, trending, views
+     * @param type type - all, upload, archive, highlight
+     * @return list of videos
+     */
+    @NotCached
+    @Nullable
+    private static List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> getVideos(
+            @Nullable List<String> ids,
+            @Nullable String userId,
+            @Nullable String gameId,
+            @Nullable String after,
+            @Nullable String before,
+            @Nullable String first,
+            @Nullable String language,
+            @Nullable String period,
+            @Nullable String sort,
+            @Nullable String type) {
+        // Rest template
+        RestTemplate restTemplate;
+        if (twitchOauth != null)
+            restTemplate = getPrivilegedRestTemplate(twitchOauth);
+        else
+            restTemplate = twitch.getRestClient().getRestTemplate();
+        // Rest URL
+        String requestUrl = String.format("%s/videos", API);
+        if (ids != null)
+            for (String id : ids)
+                restTemplate.getInterceptors().add(new QueryRequestInterceptor("id", id));
+        if (userId != null)
+            restTemplate.getInterceptors().add(new QueryRequestInterceptor("user_id", userId));
+        if (gameId != null)
+            restTemplate.getInterceptors().add(new QueryRequestInterceptor("game_id", gameId));
+        if (after != null)
+            restTemplate.getInterceptors().add(new QueryRequestInterceptor("after", after));
+        if (before != null)
+            restTemplate.getInterceptors().add(new QueryRequestInterceptor("before", before));
+        if (first != null)
+            restTemplate.getInterceptors().add(new QueryRequestInterceptor("first", first));
+        if (language != null)
+            restTemplate.getInterceptors().add(new QueryRequestInterceptor("language", language));
+        if (period != null)
+            restTemplate.getInterceptors().add(new QueryRequestInterceptor("period", period));
+        if (sort != null)
+            restTemplate.getInterceptors().add(new QueryRequestInterceptor("sort", sort));
+        if (type != null)
+            restTemplate.getInterceptors().add(new QueryRequestInterceptor("type", type));
+        // REST Request
+        List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> videos = null;
+        try {
+            Logger.verbose( "Rest Request to [%s]", requestUrl);
+            ResponseEntity<String> responseObject = restTemplate.exchange(requestUrl, HttpMethod.GET, null,
+                    String.class);
+            try {
+                StreamList streamList = gson.fromJson(responseObject.getBody(), StreamList.class);
+                videos = streamList.getStreams();
+            }
+            catch (JsonSyntaxException e) {
+                Logger.exception(e);
+            }
+        }
+        catch (RestClientException | RestException e) {
+            Logger.warn("Request failed: " + e.getMessage());
+            Logger.exception(e);
+        }
+        return videos;
     }
 }
