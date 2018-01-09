@@ -59,6 +59,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -1061,6 +1062,8 @@ public class TwitchUnofficialApi {
         String first = request.queryParams("first");
         String fromId = request.queryParams("from_id");
         String toId = request.queryParams("to_id");
+        String fromLogin = request.queryParams("from_login");
+        String toLogin = request.queryParams("to_login");
         // Non-spec params
         String offset = request.queryParams("offset");
         if (first == null)
@@ -1069,6 +1072,17 @@ public class TwitchUnofficialApi {
         String afterFromOffset = getAfterFromOffset(offset, first);
         if (afterFromOffset != null)
             after = afterFromOffset;
+        // Convert logins to ids
+        if (fromLogin != null) {
+            List<User> users = getUsers(null, Collections.singletonList(fromLogin), null);
+            if (users.size() == 1)
+                fromId = users.get(0).getId();
+        }
+        if (toLogin != null) {
+            List<User> users = getUsers(null, Collections.singletonList(toLogin), null);
+            if (users.size() == 1)
+                toId = users.get(0).getId();
+        }
         // Check cache
         String requestId = ApiCache.createKey("helix/user/follows", after, before, first, fromId, toId);
         String cachedResponse = cache.get(requestId);
