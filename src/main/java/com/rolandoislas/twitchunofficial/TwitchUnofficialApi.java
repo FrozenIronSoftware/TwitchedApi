@@ -26,6 +26,7 @@ import com.rolandoislas.twitchunofficial.util.twitch.helix.User;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.UserList;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.UserName;
 import com.rolandoislas.twitchunofficial.util.twitch.kraken.AppToken;
+import com.rolandoislas.twitchunofficial.util.twitch.kraken.Video;
 import me.philippheuer.twitch4j.TwitchClient;
 import me.philippheuer.twitch4j.TwitchClientBuilder;
 import me.philippheuer.twitch4j.auth.model.OAuthCredential;
@@ -664,14 +665,14 @@ public class TwitchUnofficialApi {
         try {
             userNames = getUserNames(userIds);
         }
-        catch (HaltException e) {
+        catch (HaltException | RestException e) {
             userNames = new HashMap<>();
         }
         Map<String, String> gameNames;
         try {
             gameNames = getGameNames(gameIds);
         }
-        catch (HaltException e) {
+        catch (HaltException | RestException e) {
             gameNames = new HashMap<>();
         }
         for (com.rolandoislas.twitchunofficial.util.twitch.helix.Stream stream : streams) {
@@ -1424,10 +1425,48 @@ public class TwitchUnofficialApi {
                 before, first, language, period, sort, type);
         if (videos == null)
             throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
+        // Add game to video from Kraken endpoint
+        // Only do this for a single video
+        if (ids.size() == 1 && videos.size() == 1) {
+            @Nullable Video video = getVideoKraken(ids.get(0));
+            @Nullable List<Game> games = null;
+            if (video != null && video.getGame() != null && !video.getGame().isEmpty())
+                games = getGames(null, new ArrayList<>(Collections.singleton(video.getGame())));
+            if (games != null && games.size() == 1) {
+                videos.get(0).setGameId(games.get(0).getId());
+                videos.get(0).setGameName(games.get(0).getName());
+            }
+        }
         // Cache and return
         String json = gson.toJson(videos);
         cache.set(requestId, json);
         return json;
+    }
+
+    /**
+     * Get a single video by ID from the Kraken endpoint
+     * @param id video id
+     * @return video
+     */
+    @Nullable
+    @NotCached
+    private static Video getVideoKraken(String id) {
+        // Endpoint
+        String requestUrl = String.format("%s/videos/%s", Endpoints.API.getURL(), id);
+        RestTemplate restTemplate = twitch.getRestClient().getRestTemplate();
+        // REST Request
+        try {
+            Logger.verbose("Rest Request to [%s]", requestUrl);
+            return restTemplate.getForObject(requestUrl, Video.class);
+        }
+        catch (RestException e) {
+            Logger.extra("RestException: " + e.getRestError().toString());
+            Logger.exception(e);
+        }
+        catch (Exception e) {
+            Logger.exception(e);
+        }
+        return null;
     }
 
     /**

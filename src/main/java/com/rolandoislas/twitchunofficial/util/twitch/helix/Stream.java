@@ -115,4 +115,8 @@ public class Stream {
     public void setDurationSeconds(long durationSeconds) {
         this.durationSeconds = durationSeconds;
     }
+
+    public String getId() {
+        return id;
+    }
 }
