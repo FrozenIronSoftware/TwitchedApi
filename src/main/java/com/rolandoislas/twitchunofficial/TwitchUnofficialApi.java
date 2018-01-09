@@ -60,6 +60,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -642,18 +643,42 @@ public class TwitchUnofficialApi {
             throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
 
         // Add user names and game names to data
+        addNamesToStreams(streams);
+
+        return streams;
+    }
+
+    /**
+     * Add user names and game names to a list of streams
+     * @param streams stream list
+     */
+    private static void addNamesToStreams(List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream>
+                                                      streams) {
         List<String> gameIds = new ArrayList<>();
         List<String> userIds = new ArrayList<>();
         for (com.rolandoislas.twitchunofficial.util.twitch.helix.Stream stream : streams) {
             userIds.add(stream.getUserId());
             gameIds.add(stream.getGameId());
         }
-        Map<String, String> userNames = getUserNames(userIds);
-        Map<String, String> gameNames = getGameNames(gameIds);
+        Map<String, String> userNames;
+        try {
+            userNames = getUserNames(userIds);
+        }
+        catch (HaltException e) {
+            userNames = new HashMap<>();
+        }
+        Map<String, String> gameNames;
+        try {
+            gameNames = getGameNames(gameIds);
+        }
+        catch (HaltException e) {
+            gameNames = new HashMap<>();
+        }
         for (com.rolandoislas.twitchunofficial.util.twitch.helix.Stream stream : streams) {
             String userName = userNames.get(stream.getUserId());
             try {
-                stream.setUserName(userName == null ? new UserName() : gson.fromJson(userName, UserName.class));
+                stream.setUserName(userName == null || userName.isEmpty() ?
+                        new UserName() : gson.fromJson(userName, UserName.class));
             }
             catch (JsonSyntaxException e) {
                 Logger.exception(e);
@@ -662,8 +687,6 @@ public class TwitchUnofficialApi {
             String gameName = gameNames.get(stream.getGameId());
             stream.setGameName(gameName == null ? "" : gameName);
         }
-
-        return streams;
     }
 
     /**
@@ -1503,6 +1526,8 @@ public class TwitchUnofficialApi {
             Logger.warn("Request failed: " + e.getMessage());
             Logger.exception(e);
         }
+        if (videos != null)
+            addNamesToStreams(videos);
         return videos;
     }
 
