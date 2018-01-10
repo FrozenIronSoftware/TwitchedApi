@@ -1624,7 +1624,23 @@ public class TwitchUnofficialApi {
         if (users.size() != 1)
             throw halt(BAD_REQUEST, "Invalid token");
         oauth.setUserId(parseLong(users.get(0).getId()));
-        twitch.getUserEndpoint().followChannel(oauth, followIdLong, Optional.of(false));
+
+        // Endpoint
+        String requestUrl = String.format("%s/users/%s/follows/channels/%s", Endpoints.API.getURL(), oauth.getUserId(),
+                followIdLong);
+        RestTemplate restTemplate = twitch.getRestClient().getPrivilegedRestTemplate(oauth);
+
+        // REST Request
+        try {
+            Logger.verbose("Rest Request to [%s]", requestUrl);
+            restTemplate.put(requestUrl, "");
+        }
+        catch (RestException e) {
+            Logger.extra("RestException: " + e.getRestError().toString());
+        }
+        catch (Exception e) {
+            Logger.exception(e);
+        }
         return "{}";
     }
 
