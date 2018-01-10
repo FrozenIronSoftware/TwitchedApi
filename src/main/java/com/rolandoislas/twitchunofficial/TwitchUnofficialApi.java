@@ -1619,7 +1619,12 @@ public class TwitchUnofficialApi {
         if (token == null)
             throw halt(BAD_REQUEST, "No token");
         // Follow
-        twitch.getUserEndpoint().followChannel(new OAuthCredential(token), followIdLong, Optional.of(false));
+        OAuthCredential oauth = new OAuthCredential(token);
+        List<User> users = getUsers(null, null, token);
+        if (users.size() != 1)
+            throw halt(BAD_REQUEST, "Invalid token");
+        oauth.setUserId(parseLong(users.get(0).getId()));
+        twitch.getUserEndpoint().followChannel(oauth, followIdLong, Optional.of(false));
         return "{}";
     }
 
@@ -1641,7 +1646,12 @@ public class TwitchUnofficialApi {
         if (token == null)
             throw halt(BAD_REQUEST, "No token");
         // Unfollow
-        twitch.getUserEndpoint().unfollowChannel(new OAuthCredential(token), followIdLong);
+        OAuthCredential oauth = new OAuthCredential(token);
+        List<User> users = getUsers(null, null, token);
+        if (users.size() != 1)
+            throw halt(BAD_REQUEST, "Invalid token");
+        oauth.setUserId(parseLong(users.get(0).getId()));
+        twitch.getUserEndpoint().unfollowChannel(oauth, followIdLong);
         return "{}";
     }
 }
