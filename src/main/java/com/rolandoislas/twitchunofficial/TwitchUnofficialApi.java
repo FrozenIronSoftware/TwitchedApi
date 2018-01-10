@@ -1617,7 +1617,7 @@ public class TwitchUnofficialApi {
             throw halt(BAD_REQUEST, "No token");
         // Follow
         twitch.getUserEndpoint().followChannel(new OAuthCredential(token), followIdLong, Optional.of(false));
-        return "";
+        return "{}";
     }
 
     /**
@@ -1638,6 +1638,6 @@ public class TwitchUnofficialApi {
             throw halt(BAD_REQUEST, "No token");
         // Unfollow
         twitch.getUserEndpoint().unfollowChannel(new OAuthCredential(token), followIdLong);
-        return "";
+        return "{}";
     }
 }
