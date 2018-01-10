@@ -1598,4 +1598,46 @@ public class TwitchUnofficialApi {
         catch (NumberFormatException ignore) {}
         return parsedLong;
     }
+
+    /**
+     * Follow a channel
+     * @param request request
+     * @param response response
+     * @return empty html
+     */
+    public static String followKraken(Request request, Response response) {
+        checkAuth(request);
+        // Params
+        String id = request.queryParams("id");
+        long followIdLong = parseLong(id);
+        if (followIdLong == 0)
+            throw halt(BAD_REQUEST, "No id");
+        @Nullable String token = AuthUtil.extractTwitchToken(request);
+        if (token == null)
+            throw halt(BAD_REQUEST, "No token");
+        // Follow
+        twitch.getUserEndpoint().followChannel(new OAuthCredential(token), followIdLong, Optional.of(false));
+        return "";
+    }
+
+    /**
+     * Unfollow channel
+     * @param request request
+     * @param response response
+     * @return empty html
+     */
+    public static String unfollowKraken(Request request, Response response) {
+        checkAuth(request);
+        // Params
+        String id = request.queryParams("id");
+        long followIdLong = parseLong(id);
+        if (followIdLong == 0)
+            throw halt(BAD_REQUEST, "No id");
+        @Nullable String token = AuthUtil.extractTwitchToken(request);
+        if (token == null)
+            throw halt(BAD_REQUEST, "No token");
+        // Unfollow
+        twitch.getUserEndpoint().unfollowChannel(new OAuthCredential(token), followIdLong);
+        return "";
+    }
 }

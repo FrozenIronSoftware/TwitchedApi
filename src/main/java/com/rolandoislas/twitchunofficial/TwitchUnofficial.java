@@ -92,6 +92,12 @@ public class TwitchUnofficial {
                         get("/top", TwitchUnofficialApi::getCommunitiesKraken);
                     });
                     get("/search", TwitchUnofficialApi::getSearchKraken);
+                    path("/users", () -> {
+                        path("/follows", () -> {
+                            get("/follow", TwitchUnofficialApi::followKraken);
+                            get("/unfollow", TwitchUnofficialApi::unfollowKraken);
+                        });
+                    });
                 });
                 // Helix
                 path("/helix", () -> {
