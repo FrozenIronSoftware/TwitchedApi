@@ -1064,6 +1064,7 @@ public class TwitchUnofficialApi {
         String toId = request.queryParams("to_id");
         String fromLogin = request.queryParams("from_login");
         String toLogin = request.queryParams("to_login");
+        String noCache = request.queryParams("no_cache");
         // Non-spec params
         String offset = request.queryParams("offset");
         if (first == null)
@@ -1086,7 +1087,7 @@ public class TwitchUnofficialApi {
         // Check cache
         String requestId = ApiCache.createKey("helix/user/follows", after, before, first, fromId, toId);
         String cachedResponse = cache.get(requestId);
-        if (cachedResponse != null)
+        if (cachedResponse != null && (noCache == null || !noCache.equals("true")))
             return cachedResponse;
         // Get data
         FollowList followList = getUserFollows(after, before, first, fromId, toId);
@@ -1094,7 +1095,8 @@ public class TwitchUnofficialApi {
             throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
         // Cache and return
         String json = gson.toJson(followList.getFollows());
-        cache.set(requestId, json);
+        if (noCache == null || !noCache.equals("true"))
+            cache.set(requestId, json);
         return json;
     }
 
@@ -1605,6 +1607,7 @@ public class TwitchUnofficialApi {
      * @param response response
      * @return empty html
      */
+    @NotCached
     public static String followKraken(Request request, Response response) {
         checkAuth(request);
         // Params
@@ -1626,6 +1629,7 @@ public class TwitchUnofficialApi {
      * @param response response
      * @return empty html
      */
+    @NotCached
     public static String unfollowKraken(Request request, Response response) {
         checkAuth(request);
         // Params
