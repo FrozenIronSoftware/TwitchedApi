@@ -115,8 +115,8 @@ public class TwitchUnofficial {
                     });
                     get("/videos", TwitchUnofficialApi::getVideosHelix);
                 });
-                get("/hls/*", TwitchUnofficialApi::getHlsData);
-                get("/vod/*", TwitchUnofficialApi::getVodData);
+                get("/hls/*/*", TwitchUnofficialApi::getHlsData);
+                get("/vod/*/*", TwitchUnofficialApi::getVodData);
             });
             path("/link", () -> {
                 get("", TwitchedApi::getLinkId);

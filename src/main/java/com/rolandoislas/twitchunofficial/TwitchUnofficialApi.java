@@ -179,9 +179,10 @@ public class TwitchUnofficialApi {
     @Cached
     static String getHlsData(Request request, Response response) {
         checkAuth(request);
-        if (request.splat().length < 1)
+        if (request.splat().length < 2)
             return null;
-        String fileName = request.splat()[0];
+        int fps = (int) parseLong(request.splat()[0]);
+        String fileName = request.splat()[1];
         String[] split = fileName.split("\\.");
         if (split.length < 2 || !split[1].equals("m3u8"))
             return null;
@@ -218,7 +219,7 @@ public class TwitchUnofficialApi {
         String playlistString = playlist.getBody();
         if (playlistString == null)
             return null;
-        playlistString = cleanMasterPlaylist(playlistString, limitFps);
+        playlistString = cleanMasterPlaylist(playlistString, fps < 60);
         // Cache and return
         cache.set(requestId, playlistString);
         response.type("audio/mpegurl");
@@ -273,14 +274,14 @@ public class TwitchUnofficialApi {
      */
     public static String getVodData(Request request, Response response) {
         checkAuth(request);
-        if (request.splat().length < 1)
+        if (request.splat().length < 2)
             return null;
-        String fileName = request.splat()[0];
+        int fps = (int) parseLong(request.splat()[0]);
+        String fileName = request.splat()[1];
         String[] split = fileName.split("\\.");
         if (split.length < 2 || !split[1].equals("m3u8"))
             return null;
         String vodId = split[0];
-        boolean limitFps = request.queryParamOrDefault("limit_fps", "false").equals("true");
         // Check cache
         String requestId = ApiCache.createKey("vod", vodId);
         String cachedResponse = cache.get(requestId);
@@ -308,7 +309,7 @@ public class TwitchUnofficialApi {
         String playlistString = playlist.getBody();
         if (playlistString == null)
             return null;
-        playlistString = cleanMasterPlaylist(playlistString, limitFps);
+        playlistString = cleanMasterPlaylist(playlistString, fps < 60);
         // Cache and return
         cache.set(requestId, playlistString);
         response.type("audio/mpegurl");
