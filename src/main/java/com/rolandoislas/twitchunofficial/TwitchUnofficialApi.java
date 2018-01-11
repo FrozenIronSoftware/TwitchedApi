@@ -1014,7 +1014,8 @@ public class TwitchUnofficialApi {
             throw halt(BAD_REQUEST, "User token invalid");
         String fromId = fromUsers.get(0).getId();
         // Get follows
-        FollowList userFollows = getUserFollows(null, null, "100",
+        // FIXME all follows will need to be polled in order to show accurate live channels
+        FollowList userFollows = getUserFollows(getAfterFromOffset(offset, limit), null, limit,
                 fromId, null);
         if (userFollows == null || userFollows.getFollows() == null)
             throw halt(SERVER_ERROR, "Failed to connect to Twitch API");
@@ -1023,7 +1024,7 @@ public class TwitchUnofficialApi {
             if (follow.getToId() != null)
                 followIds.add(follow.getToId());
         @NotNull List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streams =
-                getStreams(getAfterFromOffset("0", "100"), null, null, "100",
+                getStreams(getAfterFromOffset("0", limit), null, null, limit,
                         null, null, null, followIds, null);
         // Cache and return
         String json = gson.toJson(streams);
@@ -1734,5 +1735,56 @@ public class TwitchUnofficialApi {
         oauth.setUserId(parseLong(users.get(0).getId()));
         twitch.getUserEndpoint().unfollowChannel(oauth, followIdLong);
         return "{}";
+    }
+
+    /**
+     * Get user follows as streams from the kraken endpoint
+     * @param request request
+     * @param response response
+     * @return json
+     */
+    public static String getUserFollowedStreamsKraken(Request request, Response response) {
+        checkAuth(request);
+        // Params
+        String offset = request.queryParamOrDefault("offset", "0");
+        String limit = request.queryParamOrDefault("limit", "20");
+        String direction = request.queryParamOrDefault("direction", "desc");
+        String sortBy = request.queryParamOrDefault("sortby", "last_broadcast");
+        String token = AuthUtil.extractTwitchToken(request);
+        if (token == null || token.isEmpty())
+            throw halt(BAD_REQUEST, "Empty token");
+        // Check cache
+        String requestId = ApiCache.createKey("kraken/user/follows/streams", offset, limit, token);
+        String cachedResponse = cache.get(requestId);
+        if (cachedResponse != null)
+            return cachedResponse;
+        // Calculate the from id from the token
+        List<User> fromUsers = getUsers(null, null, token);
+        if (fromUsers.size() == 0)
+            throw halt(BAD_REQUEST, "User token invalid");
+        String fromId = fromUsers.get(0).getId();
+        // Get follows
+        List<me.philippheuer.twitch4j.model.Follow> userFollows = twitch.getUserEndpoint().getUserFollows(
+                parseLong(fromId),
+                Optional.of(parseLong(limit)),
+                Optional.of(parseLong(offset)),
+                Optional.of(direction),
+                Optional.of(sortBy)
+        );
+        if (userFollows == null)
+            throw halt(SERVER_ERROR, "Failed to connect to Twitch API");
+        for (me.philippheuer.twitch4j.model.Follow follow : userFollows)
+            System.out.println(follow.getChannel().getName());
+        List<String> followIds = new ArrayList<>();
+        for (me.philippheuer.twitch4j.model.Follow follow : userFollows)
+            if (follow.getChannel().getId() != null)
+                followIds.add(String.valueOf(follow.getChannel().getId()));
+        @NotNull List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streams =
+                getStreams(getAfterFromOffset("0", limit), null, null, limit,
+                        null, null, null, followIds, null);
+        // Cache and return
+        String json = gson.toJson(streams);
+        cache.set(requestId, json);
+        return json;
     }
 }

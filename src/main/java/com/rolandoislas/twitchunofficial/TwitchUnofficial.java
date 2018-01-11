@@ -96,6 +96,7 @@ public class TwitchUnofficial {
                         path("/follows", () -> {
                             get("/follow", TwitchUnofficialApi::followKraken);
                             get("/unfollow", TwitchUnofficialApi::unfollowKraken);
+                            get("/streams", TwitchUnofficialApi::getUserFollowedStreamsKraken);
                         });
                     });
                 });
