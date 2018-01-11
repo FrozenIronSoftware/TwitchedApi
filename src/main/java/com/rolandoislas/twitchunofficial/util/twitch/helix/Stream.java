@@ -119,4 +119,8 @@ public class Stream {
     public String getId() {
         return id;
     }
+
+    public long getViewerCount() {
+        return viewerCount;
+    }
 }

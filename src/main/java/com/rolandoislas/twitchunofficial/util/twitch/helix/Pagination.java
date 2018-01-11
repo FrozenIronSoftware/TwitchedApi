@@ -31,7 +31,10 @@ public class Pagination {
 
     @Override
     public String toString() {
-        return new String(Base64.getDecoder().decode(cursor));
+        if (cursor != null)
+            return new String(Base64.getDecoder().decode(cursor));
+        else
+            return "";
     }
 
     @Nullable

@@ -23,6 +23,7 @@ import com.rolandoislas.twitchunofficial.util.twitch.helix.GameList;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.GameViewComparator;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.Pagination;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.StreamList;
+import com.rolandoislas.twitchunofficial.util.twitch.helix.StreamViewComparator;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.User;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.UserList;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.UserName;
@@ -591,8 +592,28 @@ public class TwitchUnofficialApi {
         String game = request.queryParams("game_id");
         String language = request.queryParams("language");
         String streamType = request.queryParamOrDefault("type", "all");
-        String userId = request.queryParams("user_id");
-        String userLogin = request.queryParams("user_login");
+        List<String> userIds = new ArrayList<>();
+        List<String> userLogins = new ArrayList<>();
+        String[] queryParams = request.queryString() != null ? request.queryString().split("&") : new String[0];
+        for (String queryParam : queryParams) {
+            String[] keyValue = queryParam.split("=");
+            if (keyValue.length > 2 || keyValue.length < 1)
+                throw halt(BAD_REQUEST, "Bad query string");
+            if (keyValue.length > 1) {
+                String value = keyValue[1];
+                try {
+                    value = URLDecoder.decode(value, "utf-8");
+                }
+                catch (UnsupportedEncodingException e) {
+                    Logger.exception(e);
+                    throw halt(SERVER_ERROR, "Failed to decode params");
+                }
+                if (!userIds.contains(value) && keyValue[0].equals("user_id"))
+                    userIds.add(value);
+                else if (!userLogins.contains(value) && keyValue[0].equals("user_login"))
+                    userLogins.add(value);
+            }
+        }
         // Non-spec params
         String offset = request.queryParams("offset");
         if (first == null)
@@ -602,8 +623,18 @@ public class TwitchUnofficialApi {
         if (afterFromOffset != null)
             after = afterFromOffset;
         // Check cache
-        String requestId = ApiCache.createKey("helix/streams", after, before, community, first, game, language,
-                streamType, userId, userLogin, offset);
+        List<Object> requestParams = new ArrayList<>();
+        requestParams.add(after);
+        requestParams.add(before);
+        requestParams.add(community);
+        requestParams.add(first);
+        requestParams.add(game);
+        requestParams.add(language);
+        requestParams.add(streamType);
+        requestParams.addAll(userIds);
+        requestParams.addAll(userLogins);
+        requestParams.add(offset);
+        String requestId = ApiCache.createKey("helix/streams", requestParams);
         String cachedResponse = cache.get(requestId);
         if (cachedResponse != null)
             return cachedResponse;
@@ -617,8 +648,8 @@ public class TwitchUnofficialApi {
                 Collections.singletonList(game),
                 Collections.singletonList(language),
                 streamType,
-                Collections.singletonList(userId),
-                Collections.singletonList(userLogin)
+                userIds,
+                userLogins
         );
 
         // Cache and return
@@ -697,7 +728,9 @@ public class TwitchUnofficialApi {
                         com.rolandoislas.twitchunofficial.util.twitch.helix.StreamList.class);
                 streams = streamList.getStreams();
             }
-            catch (JsonSyntaxException ignore) {}
+            catch (JsonSyntaxException e) {
+                Logger.exception(e);
+            }
         }
         catch (RestClientException | RestException e) {
             if (e instanceof RestException)
@@ -1014,18 +1047,26 @@ public class TwitchUnofficialApi {
             throw halt(BAD_REQUEST, "User token invalid");
         String fromId = fromUsers.get(0).getId();
         // Get follows
-        // FIXME all follows will need to be polled in order to show accurate live channels
-        FollowList userFollows = getUserFollows(getAfterFromOffset(offset, limit), null, limit,
-                fromId, null);
-        if (userFollows == null || userFollows.getFollows() == null)
-            throw halt(SERVER_ERROR, "Failed to connect to Twitch API");
+        List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streams = new ArrayList<>();
         List<String> followIds = new ArrayList<>();
-        for (Follow follow : userFollows.getFollows())
-            if (follow.getToId() != null)
-                followIds.add(follow.getToId());
-        @NotNull List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streams =
-                getStreams(getAfterFromOffset("0", limit), null, null, limit,
-                        null, null, null, followIds, null);
+        long offsetLong = parseLong(offset);
+        do {
+            FollowList userFollows = getUserFollows(getAfterFromOffset(String.valueOf(offsetLong), "100"),
+                    null, "100", fromId, null, true);
+            if (userFollows == null || userFollows.getFollows() == null)
+                throw halt(SERVER_ERROR, "Failed to connect to Twitch API");
+            followIds.clear();
+            for (Follow follow : userFollows.getFollows())
+                if (follow.getToId() != null)
+                    followIds.add(follow.getToId());
+            if (followIds.size() > 0)
+                streams.addAll(getStreams(getAfterFromOffset("0", "100"), null, null, "100",
+                                null, null, null, followIds, null));
+            offsetLong += 100;
+        }
+        while (followIds.size() == 100);
+        streams.sort(new StreamViewComparator().reversed());
+        streams = streams.subList(0, Math.min((int) parseLong(limit), streams.size()));
         // Cache and return
         String json = gson.toJson(streams);
         cache.set(requestId, json);
@@ -1039,14 +1080,29 @@ public class TwitchUnofficialApi {
      * @param first limit
      * @param fromId user id
      * @param toId user id
+     * @param loadCache load results from cache
      * @return follow list
      */
-    @NotCached
+    @Cached
     @Nullable
     private static FollowList getUserFollows(@Nullable String after, @Nullable String before, @Nullable String first,
-                                             @Nullable String fromId, @Nullable String toId) {
+                                             @Nullable String fromId, @Nullable String toId, boolean loadCache) {
        if ((fromId == null || fromId.isEmpty()) && (toId == null || toId.isEmpty()))
            throw halt(BAD_REQUEST, "Missing to or from id");
+
+        // Check cache
+        String requestId = ApiCache.createKey(":helix/user/follows", after, before, first, fromId, toId);
+        if (loadCache) {
+            String cachedResponse = cache.get(requestId);
+            if (cachedResponse != null) {
+                try {
+                    return gson.fromJson(cachedResponse, FollowList.class);
+                }
+                catch (JsonSyntaxException e) {
+                    Logger.exception(e);
+                }
+            }
+        }
         // Request live
 
         // Endpoint
@@ -1073,7 +1129,9 @@ public class TwitchUnofficialApi {
             ResponseEntity<String> responseObject = restTemplate.exchange(requestUrl, HttpMethod.GET, null,
                     String.class);
             try {
-                return gson.fromJson(responseObject.getBody(), FollowList.class);
+                String json = responseObject.getBody();
+                cache.set(requestId, json);
+                return gson.fromJson(json, FollowList.class);
             }
             catch (JsonSyntaxException e) {
                 Logger.exception(e);
@@ -1151,18 +1209,20 @@ public class TwitchUnofficialApi {
                 toId = users.get(0).getId();
         }
         // Check cache
+        boolean loadCache = (noCache == null || !noCache.equals("true"));
         String requestId = ApiCache.createKey("helix/user/follows", after, before, first, fromId, toId);
-        String cachedResponse = cache.get(requestId);
-        if (cachedResponse != null && (noCache == null || !noCache.equals("true")))
-            return cachedResponse;
+        if (loadCache) {
+            String cachedResponse = cache.get(requestId);
+            if (cachedResponse != null)
+                return cachedResponse;
+        }
         // Get data
-        FollowList followList = getUserFollows(after, before, first, fromId, toId);
+        FollowList followList = getUserFollows(after, before, first, fromId, toId, loadCache);
         if (followList == null)
             throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
         // Cache and return
         String json = gson.toJson(followList.getFollows());
-        if (noCache == null || !noCache.equals("true"))
-            cache.set(requestId, json);
+        cache.set(requestId, json);
         return json;
     }
 
