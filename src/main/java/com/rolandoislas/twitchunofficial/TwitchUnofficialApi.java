@@ -179,15 +179,18 @@ public class TwitchUnofficialApi {
     @Cached
     static String getHlsData(Request request, Response response) {
         checkAuth(request);
-        if (request.splat().length < 2)
+        if (request.splat().length < 1)
             return null;
-        int fps = (int) parseLong(request.splat()[0]);
-        String fileName = request.splat()[1];
+        int fps = 60;
+        String fileName = request.splat()[0];
+        if (request.splat().length >= 2) {
+            fps = (int) parseLong(request.splat()[0]);
+            fileName = request.splat()[1];
+        }
         String[] split = fileName.split("\\.");
         if (split.length < 2 || !split[1].equals("m3u8"))
             return null;
         String username = split[0];
-        boolean limitFps = request.queryParamOrDefault("limit_fps", "false").equals("true");
         // Check cache
         String requestId = ApiCache.createKey("hls", username);
         String cachedResponse = cache.get(requestId);
@@ -274,10 +277,14 @@ public class TwitchUnofficialApi {
      */
     public static String getVodData(Request request, Response response) {
         checkAuth(request);
-        if (request.splat().length < 2)
+        if (request.splat().length < 1)
             return null;
-        int fps = (int) parseLong(request.splat()[0]);
-        String fileName = request.splat()[1];
+        int fps = 60;
+        String fileName = request.splat()[0];
+        if (request.splat().length >= 2) {
+            fps = (int) parseLong(request.splat()[0]);
+            fileName = request.splat()[1];
+        }
         String[] split = fileName.split("\\.");
         if (split.length < 2 || !split[1].equals("m3u8"))
             return null;
