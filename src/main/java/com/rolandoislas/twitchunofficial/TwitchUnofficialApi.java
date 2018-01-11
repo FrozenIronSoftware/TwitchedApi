@@ -182,7 +182,7 @@ public class TwitchUnofficialApi {
         checkAuth(request);
         if (request.splat().length < 1)
             return null;
-        int fps = 60;
+        int fps = 30;
         String fileName = request.splat()[0];
         if (request.splat().length >= 2) {
             fps = (int) parseLong(request.splat()[0]);
@@ -280,7 +280,7 @@ public class TwitchUnofficialApi {
         checkAuth(request);
         if (request.splat().length < 1)
             return null;
-        int fps = 60;
+        int fps = 30;
         String fileName = request.splat()[0];
         if (request.splat().length >= 2) {
             fps = (int) parseLong(request.splat()[0]);
@@ -327,7 +327,7 @@ public class TwitchUnofficialApi {
     /**
      * Parse a master playlist file, removing entries based on parameters
      *
-     * @param playlistString
+     * @param playlistString raw playlist string
      * @param limitFps if true only 30 FPS entries and/or source are left
      *                 if 60fps streams are the only option, they will be added regardless
      * @return clean master playlist
