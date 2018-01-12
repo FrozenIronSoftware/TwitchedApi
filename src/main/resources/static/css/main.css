@@ -26,6 +26,11 @@ body {
     background: rgb(47, 47, 47);
 }
 
+hr {
+    border: 1px inset;
+    margin: 10px 0;
+}
+
 .title, .button {
     margin: 0 auto;
     text-align: center;
