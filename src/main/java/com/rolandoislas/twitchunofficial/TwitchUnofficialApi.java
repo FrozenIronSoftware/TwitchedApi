@@ -1049,12 +1049,13 @@ public class TwitchUnofficialApi {
         // Get follows
         List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streams = new ArrayList<>();
         List<String> followIds = new ArrayList<>();
-        long offsetLong = parseLong(offset);
+        String pagination = null;
         do {
-            FollowList userFollows = getUserFollows(getAfterFromOffset(String.valueOf(offsetLong), "100"),
+            FollowList userFollows = getUserFollows(pagination,
                     null, "100", fromId, null, true);
             if (userFollows == null || userFollows.getFollows() == null)
                 throw halt(SERVER_ERROR, "Failed to connect to Twitch API");
+            pagination = userFollows.getPagination() != null ? userFollows.getPagination().getCursor() : null;
             followIds.clear();
             for (Follow follow : userFollows.getFollows())
                 if (follow.getToId() != null)
@@ -1062,9 +1063,8 @@ public class TwitchUnofficialApi {
             if (followIds.size() > 0)
                 streams.addAll(getStreams(getAfterFromOffset("0", "100"), null, null, "100",
                                 null, null, null, followIds, null));
-            offsetLong += 100;
         }
-        while (followIds.size() == 100);
+        while (followIds.size() == 100 && pagination != null);
         streams.sort(new StreamViewComparator().reversed());
         streams = streams.subList(0, Math.min((int) parseLong(limit), streams.size()));
         // Cache and return

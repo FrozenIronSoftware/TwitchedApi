@@ -21,4 +21,8 @@ public class FollowList {
     public List<Follow> getFollows() {
         return follows;
     }
+
+    public Pagination getPagination() {
+        return pagination;
+    }
 }
