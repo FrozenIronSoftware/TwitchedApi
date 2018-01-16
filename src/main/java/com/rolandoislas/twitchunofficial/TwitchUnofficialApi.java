@@ -214,8 +214,8 @@ public class TwitchUnofficialApi {
         restTemplate.getInterceptors().add(new QueryRequestInterceptor("p",
                 String.valueOf((int)(Math.random() * Integer.MAX_VALUE))));
         restTemplate.getInterceptors().add(new QueryRequestInterceptor("type", "any"));
-        restTemplate.getInterceptors().add(new QueryRequestInterceptor("$allow_audio_only", "false"));
-        restTemplate.getInterceptors().add(new QueryRequestInterceptor("$allow_source", "false"));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("allow_audio_only", "false"));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("allow_source", "true"));
         ResponseEntity<String> playlist = restTemplate.exchange(hlsPlaylistUrl, HttpMethod.GET, null,
                 String.class);
 
@@ -308,8 +308,8 @@ public class TwitchUnofficialApi {
         restTemplate.getInterceptors().add(new QueryRequestInterceptor("p",
                 String.valueOf((int)(Math.random() * Integer.MAX_VALUE))));
         restTemplate.getInterceptors().add(new QueryRequestInterceptor("type", "any"));
-        restTemplate.getInterceptors().add(new QueryRequestInterceptor("$allow_audio_only", "false"));
-        restTemplate.getInterceptors().add(new QueryRequestInterceptor("$allow_source", "false"));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("allow_audio_only", "false"));
+        restTemplate.getInterceptors().add(new QueryRequestInterceptor("allow_source", "true"));
         ResponseEntity<String> playlist = restTemplate.exchange(hlsPlaylistUrl, HttpMethod.GET, null,
                 String.class);
 
