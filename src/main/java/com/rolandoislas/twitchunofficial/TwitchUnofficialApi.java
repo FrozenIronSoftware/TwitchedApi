@@ -8,6 +8,7 @@ package com.rolandoislas.twitchunofficial;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
+import com.google.gson.reflect.TypeToken;
 import com.rolandoislas.twitchunofficial.data.Id;
 import com.rolandoislas.twitchunofficial.data.Playlist;
 import com.rolandoislas.twitchunofficial.data.annotation.Cached;
@@ -1058,9 +1059,10 @@ public class TwitchUnofficialApi {
                 throw halt(BAD_REQUEST, "User token invalid");
             fromId = fromUsers.get(0).getId();
         }
+        response.header("Twitch-User-ID", fromId);
         // Get follows
         List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streams =
-                getUserFollowedStreamsWithTimeout(fromId, 10000);
+                getUserFollowedStreamsWithTimeout(fromId, 15000);
         // Sort streams
         streams.sort(new StreamViewComparator().reversed());
         streams = streams.subList(0, Math.min((int) parseLong(limit), streams.size()));
@@ -1097,10 +1099,49 @@ public class TwitchUnofficialApi {
                     followIds.add(follow.getToId());
             if (followIds.size() > 0) {
                 for (int followIndex = 0; followIndex < followIds.size(); followIndex += 100) {
+                    // Check if 10 seconds has passed
+                    hasTime = System.currentTimeMillis() - startTime < timeout;
+                    if (!hasTime)
+                        break;
+                    // Get streams for a sublist of 100 or less followers
                     List<String> followsSublist = followIds.subList(followIndex,
                             Math.min(followIds.size(), followIndex + 100));
-                    streams.addAll(getStreams(getAfterFromOffset("0", "100"), null, null, "100",
-                            null, null, null, followsSublist, null));
+                    String first = "100";
+                    String after = getAfterFromOffset("0", first);
+                    // Check cache
+                    // Note the colon. It is there to differentiate it from a direct endpoint cache
+                    List<Object> cacheParams = new ArrayList<>();
+                    cacheParams.add(after);
+                    cacheParams.add(first);
+                    cacheParams.addAll(followsSublist);
+                    String cacheId = ApiCache.createKey(":helix/user/follows/streams", cacheParams.toArray());
+                    @Nullable String cachedData = cache.get(cacheId);
+                    if (cachedData != null) {
+                        try {
+                            List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streamCachedList =
+                                    gson.fromJson(cachedData,
+                                    new TypeToken<List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream>>()
+                                    {}.getType());
+                            streams.addAll(streamCachedList);
+                            continue;
+                        }
+                        catch (JsonSyntaxException e) {
+                            Logger.exception(e);
+                        }
+                    }
+                    // Get live data
+                    @NotNull List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streamSublist =
+                            getStreams(after, null, null, first, null, null,
+                            null, followsSublist, null);
+                    // Cache
+                    try {
+                        cache.set(cacheId, gson.toJson(streamSublist));
+                    }
+                    catch (JsonSyntaxException e) {
+                        Logger.exception(e);
+                    }
+                    // Add streams to array
+                    streams.addAll(streamSublist);
                 }
             }
             // Check if 10 seconds has passed
