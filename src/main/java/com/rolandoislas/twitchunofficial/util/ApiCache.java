@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class ApiCache {
@@ -26,6 +27,8 @@ public class ApiCache {
     private static final String GAME_NAME_FIELD_PREFIX = "_gamename_";
     public static final String LINK_PREFIX = "_link_";
     public static final String TOKEN_PREFIX = "_token_";
+    private static final String FOLLOW_PREFIX = "_follow_";
+    private static final String FOLLOW_TIME_PREFIX = "_follow_time_";
     private static final int GAME_NAME_TIMEOUT = 7 * 24 * 60 * 60; // 1 Week
     private Jedis redis;
     private final ReentrantLock redisLock;
@@ -289,5 +292,90 @@ public class ApiCache {
         while (keysIter.hasNext())
             map.put(keysIter.next(), valuesIter.next());
         return map;
+    }
+
+    /**
+     * Get cached follows for an id
+     * @param fromId id to get follows for
+     * @return followed ids
+     */
+    public List<String> getFollows(String fromId) {
+        List<String> followsList = new ArrayList<>();
+        redisLock.lock();
+        try {
+            Set<String> follows = redis.smembers(FOLLOW_PREFIX + fromId);
+            followsList.addAll(follows);
+        }
+        catch (JedisConnectionException ignore) {
+            reconnect();
+        }
+        catch (Exception e) {
+            Logger.exception(e);
+        }
+        redisLock.unlock();
+        return followsList;
+    }
+
+    /**
+     * Set follows for a user id
+     * @param fromId user to set follows for
+     * @param toIds id the user follows
+     */
+    public void setFollows(String fromId, List<String> toIds) {
+        // Remove old follows
+        List<String> follows = getFollows(fromId);
+        redisLock.lock();
+        try {
+            if (follows.size() > 0)
+                redis.srem(FOLLOW_PREFIX + fromId, follows.toArray(new String[follows.size()]));
+        }
+        catch (JedisConnectionException ignore) {
+            reconnect();
+        }
+        catch (Exception e) {
+            Logger.exception(e);
+        }
+        redisLock.unlock();
+        // Set follows
+        redisLock.lock();
+        try {
+            if (toIds.size() > 0)
+                redis.sadd(FOLLOW_PREFIX + fromId, toIds.toArray(new String[toIds.size()]));
+            redis.set(FOLLOW_TIME_PREFIX + fromId, String.valueOf(System.currentTimeMillis()));
+        }
+        catch (JedisConnectionException ignore) {
+            reconnect();
+        }
+        catch (Exception e) {
+            Logger.exception(e);
+        }
+        redisLock.unlock();
+    }
+
+    /**
+     * Get the time that a follows set was set
+     * @param fromId id
+     * @return last set time of follows set for an id
+     */
+    public long getFollowIdCacheTime(String fromId) {
+        redisLock.lock();
+        long time = 0;
+        try {
+            String timeString = redis.get(FOLLOW_TIME_PREFIX + fromId);
+            if (timeString != null && !timeString.isEmpty()) {
+                try {
+                    time =  Long.parseLong(timeString);
+                }
+                catch (NumberFormatException ignore) {}
+            }
+        }
+        catch (JedisConnectionException ignore) {
+            reconnect();
+        }
+        catch (Exception e) {
+            Logger.exception(e);
+        }
+        redisLock.unlock();
+        return time;
     }
 }

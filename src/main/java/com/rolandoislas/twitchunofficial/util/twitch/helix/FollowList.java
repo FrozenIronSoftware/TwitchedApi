@@ -25,4 +25,8 @@ public class FollowList {
     public Pagination getPagination() {
         return pagination;
     }
+
+    public void setFollows(List<Follow> follows) {
+        this.follows = follows;
+    }
 }

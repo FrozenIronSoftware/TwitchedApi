@@ -14,6 +14,7 @@ import com.rolandoislas.twitchunofficial.data.annotation.Cached;
 import com.rolandoislas.twitchunofficial.data.annotation.NotCached;
 import com.rolandoislas.twitchunofficial.util.ApiCache;
 import com.rolandoislas.twitchunofficial.util.AuthUtil;
+import com.rolandoislas.twitchunofficial.util.FollowsCacher;
 import com.rolandoislas.twitchunofficial.util.Logger;
 import com.rolandoislas.twitchunofficial.util.twitch.Token;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.Follow;
@@ -73,6 +74,7 @@ import java.util.regex.Pattern;
 import static com.rolandoislas.twitchunofficial.TwitchUnofficial.cache;
 
 public class TwitchUnofficialApi {
+    public static final List<String> followIdsToCache = Collections.synchronizedList(new ArrayList<>());
     private static final Pattern DURATION_REGEX = Pattern.compile("(?:(\\d+)d)?(?:(\\d+)h)?(?:(\\d+)m)?(?:(\\d+)s)");
     static final int BAD_REQUEST = 400;
     static final int SERVER_ERROR =  500;
@@ -83,6 +85,7 @@ public class TwitchUnofficialApi {
     static TwitchClient twitch;
     static Gson gson;
     private static OAuthCredential twitchOauth;
+    private static Thread followsThread;
 
     /**
      * Send a JSON error message to the current requester
@@ -395,6 +398,11 @@ public class TwitchUnofficialApi {
         }
         if (twitchOauth == null)
             Logger.warn("No Oauth token provided. Requests will be rate limited to 30 per minute.");
+        // Start background thread
+        TwitchUnofficialApi.followsThread = new Thread(new FollowsCacher());
+        TwitchUnofficialApi.followsThread.setName("Follows Thread");
+        TwitchUnofficialApi.followsThread.setDaemon(true);
+        TwitchUnofficialApi.followsThread.start();
     }
 
     /**
@@ -1033,8 +1041,9 @@ public class TwitchUnofficialApi {
         // Params
         String offset = request.queryParamOrDefault("offset", "0");
         String limit = request.queryParamOrDefault("limit", "20");
+        String userId = request.queryParams("user_id");
         String token = AuthUtil.extractTwitchToken(request);
-        if (token == null || token.isEmpty())
+        if ((token == null || token.isEmpty()) && (userId == null || userId.isEmpty()))
             throw halt(BAD_REQUEST, "Empty token");
         // Check cache
         String requestId = ApiCache.createKey("helix/user/follows/streams", offset, limit, token);
@@ -1042,14 +1051,40 @@ public class TwitchUnofficialApi {
         if (cachedResponse != null)
             return cachedResponse;
         // Calculate the from id from the token
-        List<User> fromUsers = getUsers(null, null, token);
-        if (fromUsers.size() == 0)
-            throw halt(BAD_REQUEST, "User token invalid");
-        String fromId = fromUsers.get(0).getId();
+        String fromId = userId;
+        if (fromId == null || userId.isEmpty()) {
+            List<User> fromUsers = getUsers(null, null, token);
+            if (fromUsers.size() == 0)
+                throw halt(BAD_REQUEST, "User token invalid");
+            fromId = fromUsers.get(0).getId();
+        }
         // Get follows
+        List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streams =
+                getUserFollowedStreamsWithTimeout(fromId, 10000);
+        // Sort streams
+        streams.sort(new StreamViewComparator().reversed());
+        streams = streams.subList(0, Math.min((int) parseLong(limit), streams.size()));
+        // Cache and return
+        String json = gson.toJson(streams);
+        cache.set(requestId, json);
+        return json;
+    }
+
+    /**
+     * Poll the Helix endpoint for all user follows and attempt to get live streams
+     * If the timeout is reached, the fetched streams will be returned and the id will be added to the fetch queue
+     * @param fromId id to get follows for
+     * @param timeout timeout in milliseconds
+     * @return streams
+     */
+    @Cached
+    private static List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> getUserFollowedStreamsWithTimeout(
+            String fromId, int timeout) throws HaltException {
         List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streams = new ArrayList<>();
         List<String> followIds = new ArrayList<>();
         String pagination = null;
+        long startTime = System.currentTimeMillis();
+        boolean hasTime;
         do {
             FollowList userFollows = getUserFollows(pagination,
                     null, "100", fromId, null, true);
@@ -1060,17 +1095,37 @@ public class TwitchUnofficialApi {
             for (Follow follow : userFollows.getFollows())
                 if (follow.getToId() != null)
                     followIds.add(follow.getToId());
-            if (followIds.size() > 0)
-                streams.addAll(getStreams(getAfterFromOffset("0", "100"), null, null, "100",
-                                null, null, null, followIds, null));
+            if (followIds.size() > 0) {
+                for (int followIndex = 0; followIndex < followIds.size(); followIndex += 100) {
+                    List<String> followsSublist = followIds.subList(followIndex,
+                            Math.min(followIds.size(), followIndex + 100));
+                    streams.addAll(getStreams(getAfterFromOffset("0", "100"), null, null, "100",
+                            null, null, null, followsSublist, null));
+                }
+            }
+            // Check if 10 seconds has passed
+            hasTime = System.currentTimeMillis() - startTime < timeout;
         }
-        while (followIds.size() == 100 && pagination != null);
-        streams.sort(new StreamViewComparator().reversed());
-        streams = streams.subList(0, Math.min((int) parseLong(limit), streams.size()));
-        // Cache and return
-        String json = gson.toJson(streams);
-        cache.set(requestId, json);
-        return json;
+        while (followIds.size() == 100 && pagination != null && hasTime);
+        // Time expired - Send the data that was retrieved and add the user id to a background thread that caches
+        // follows. This is not likely to happen on accounts with less than 300 follows.
+        cacheFollows(fromId);
+        return streams;
+    }
+
+    /**
+     * Add a user id to a list of IDs that will be used in a background thread to fetch and cache user follows
+     * @param fromId user id
+     */
+    private static void cacheFollows(String fromId) {
+        long followIdCacheTime = cache.getFollowIdCacheTime(fromId);
+        // Cache for 1 hour
+        if (System.currentTimeMillis() - followIdCacheTime < 60 * 60 * 1000)
+            return;
+        synchronized (followIdsToCache) {
+            if (!followIdsToCache.contains(fromId))
+                followIdsToCache.add(fromId);
+        }
     }
 
     /**
@@ -1085,24 +1140,27 @@ public class TwitchUnofficialApi {
      */
     @Cached
     @Nullable
-    private static FollowList getUserFollows(@Nullable String after, @Nullable String before, @Nullable String first,
+    public static FollowList getUserFollows(@Nullable String after, @Nullable String before, @Nullable String first,
                                              @Nullable String fromId, @Nullable String toId, boolean loadCache) {
        if ((fromId == null || fromId.isEmpty()) && (toId == null || toId.isEmpty()))
            throw halt(BAD_REQUEST, "Missing to or from id");
-
-        // Check cache
-        String requestId = ApiCache.createKey(":helix/user/follows", after, before, first, fromId, toId);
-        if (loadCache) {
-            String cachedResponse = cache.get(requestId);
-            if (cachedResponse != null) {
-                try {
-                    return gson.fromJson(cachedResponse, FollowList.class);
+        // Check Redis cache
+        if (loadCache && fromId != null) {
+            List<String> cachedIds = cache.getFollows(fromId);
+            if (cachedIds.size() > 0) {
+                List<Follow> follows = new ArrayList<>();
+                for (String id : cachedIds) {
+                    Follow follow = new Follow();
+                    follow.setToId(id);
+                    follow.setFromId(fromId);
+                    follows.add(follow);
                 }
-                catch (JsonSyntaxException e) {
-                    Logger.exception(e);
-                }
+                FollowList followList = new FollowList();
+                followList.setFollows(follows);
+                return followList;
             }
         }
+
         // Request live
 
         // Endpoint
@@ -1130,7 +1188,6 @@ public class TwitchUnofficialApi {
                     String.class);
             try {
                 String json = responseObject.getBody();
-                cache.set(requestId, json);
                 return gson.fromJson(json, FollowList.class);
             }
             catch (JsonSyntaxException e) {

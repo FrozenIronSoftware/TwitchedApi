@@ -21,4 +21,12 @@ public class Follow {
     public String getToId() {
         return toId;
     }
+
+    public void setToId(String toId) {
+        this.toId = toId;
+    }
+
+    public void setFromId(String fromId) {
+        this.fromId = fromId;
+    }
 }

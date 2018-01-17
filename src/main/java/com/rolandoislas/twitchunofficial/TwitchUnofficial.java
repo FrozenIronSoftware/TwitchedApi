@@ -22,7 +22,7 @@ import static spark.Spark.staticFiles;
 
 public class TwitchUnofficial {
 
-    static ApiCache cache;
+    public static ApiCache cache;
 
     public static void main(String[] args) {
         // Parse args
