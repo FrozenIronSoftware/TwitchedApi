@@ -774,6 +774,7 @@ public class TwitchUnofficialApi {
             userNames = getUserNames(userIds);
         }
         catch (HaltException | RestException e) {
+            Logger.exception(e);
             userNames = new HashMap<>();
         }
         Map<String, String> gameNames;
@@ -781,17 +782,18 @@ public class TwitchUnofficialApi {
             gameNames = getGameNames(gameIds);
         }
         catch (HaltException | RestException e) {
+            Logger.exception(e);
             gameNames = new HashMap<>();
         }
         for (com.rolandoislas.twitchunofficial.util.twitch.helix.Stream stream : streams) {
             String userName = userNames.get(stream.getUserId());
             try {
                 stream.setUserName(userName == null || userName.isEmpty() ?
-                        new UserName() : gson.fromJson(userName, UserName.class));
+                        new UserName("" , "") : gson.fromJson(userName, UserName.class));
             }
             catch (JsonSyntaxException e) {
                 Logger.exception(e);
-                stream.setUserName(new UserName());
+                stream.setUserName(new UserName("", ""));
             }
             String gameName = gameNames.get(stream.getGameId());
             stream.setGameName(gameName == null ? "" : gameName);
