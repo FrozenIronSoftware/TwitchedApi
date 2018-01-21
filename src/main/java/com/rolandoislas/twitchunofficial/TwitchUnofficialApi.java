@@ -599,7 +599,7 @@ public class TwitchUnofficialApi {
         String community = request.queryParams("community_id");
         String first = request.queryParams("first");
         String game = request.queryParams("game_id");
-        String language = request.queryParams("language");
+        List<String> languages = new ArrayList<>();
         String streamType = request.queryParamOrDefault("type", "all");
         List<String> userIds = new ArrayList<>();
         List<String> userLogins = new ArrayList<>();
@@ -621,6 +621,8 @@ public class TwitchUnofficialApi {
                     userIds.add(value);
                 else if (!userLogins.contains(value) && keyValue[0].equals("user_login"))
                     userLogins.add(value);
+                else if (!languages.contains(value) && keyValue[0].equals("language"))
+                    languages.add(value);
             }
         }
         // Non-spec params
@@ -638,7 +640,7 @@ public class TwitchUnofficialApi {
         requestParams.add(community);
         requestParams.add(first);
         requestParams.add(game);
-        requestParams.add(language);
+        requestParams.addAll(languages);
         requestParams.add(streamType);
         requestParams.addAll(userIds);
         requestParams.addAll(userLogins);
@@ -655,7 +657,7 @@ public class TwitchUnofficialApi {
                 Collections.singletonList(community),
                 first,
                 Collections.singletonList(game),
-                Collections.singletonList(language),
+                languages,
                 streamType,
                 userIds,
                 userLogins
