@@ -365,7 +365,7 @@ public class TwitchUnofficialApi {
         // Add compatible playlists
         boolean addedPlaylist = false;
         for (Playlist stream : playlists) {
-            if (!limitFps || stream.getFps() <= 30) {
+            if ((!limitFps || stream.getFps() <= 30) && stream.isVideo()) {
                 playlist.addAll(stream.getLines());
                 addedPlaylist = true;
             }
