@@ -203,6 +203,15 @@ public class TwitchUnofficialApi {
         if (split.length < 2 || !split[1].equals("m3u8"))
             return null;
         String username = split[0];
+        if (username.startsWith(":")) {
+            String userId = username.replaceFirst(":", "");
+            List<User> users = getUsers(Collections.singletonList(userId), null, null);
+            if (users.size() < 1)
+                return null;
+            username = users.get(0).getLogin();
+        }
+        if (username == null || username.isEmpty())
+            return null;
         // Check cache
         String requestId = ApiCache.createKey("hls", username);
         String cachedResponse = cache.get(requestId);
