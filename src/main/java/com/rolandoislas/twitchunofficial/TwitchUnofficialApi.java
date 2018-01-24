@@ -17,6 +17,7 @@ import com.rolandoislas.twitchunofficial.util.ApiCache;
 import com.rolandoislas.twitchunofficial.util.AuthUtil;
 import com.rolandoislas.twitchunofficial.util.FollowsCacher;
 import com.rolandoislas.twitchunofficial.util.Logger;
+import com.rolandoislas.twitchunofficial.util.StringUtil;
 import com.rolandoislas.twitchunofficial.util.twitch.Token;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.Follow;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.FollowList;
@@ -187,9 +188,15 @@ public class TwitchUnofficialApi {
         if (request.splat().length < 1)
             return null;
         int fps = 30;
+        String quality = "1080p";
         String fileName = request.splat()[0];
-        if (request.splat().length >= 2) {
-            fps = (int) parseLong(request.splat()[0]);
+        if (request.splat().length >= 3) {
+            fps = (int) StringUtil.parseLong(request.splat()[0]);
+            quality = request.splat()[1];
+            fileName = request.splat()[2];
+        }
+        else if (request.splat().length >= 2) {
+            fps = (int) StringUtil.parseLong(request.splat()[0]);
             fileName = request.splat()[1];
         }
         String[] split = fileName.split("\\.");
@@ -227,7 +234,7 @@ public class TwitchUnofficialApi {
         String playlistString = playlist.getBody();
         if (playlistString == null)
             return null;
-        playlistString = cleanMasterPlaylist(playlistString, fps < 60);
+        playlistString = cleanMasterPlaylist(playlistString, fps < 60, quality);
         // Cache and return
         cache.set(requestId, playlistString);
         response.type("audio/mpegurl");
@@ -285,9 +292,15 @@ public class TwitchUnofficialApi {
         if (request.splat().length < 1)
             return null;
         int fps = 30;
+        String quality = "1080p";
         String fileName = request.splat()[0];
-        if (request.splat().length >= 2) {
-            fps = (int) parseLong(request.splat()[0]);
+        if (request.splat().length >= 3) {
+            fps = (int) StringUtil.parseLong(request.splat()[0]);
+            quality = request.splat()[1];
+            fileName = request.splat()[2];
+        }
+        else if (request.splat().length >= 2) {
+            fps = (int) StringUtil.parseLong(request.splat()[0]);
             fileName = request.splat()[1];
         }
         String[] split = fileName.split("\\.");
@@ -321,7 +334,7 @@ public class TwitchUnofficialApi {
         String playlistString = playlist.getBody();
         if (playlistString == null)
             return null;
-        playlistString = cleanMasterPlaylist(playlistString, fps < 60);
+        playlistString = cleanMasterPlaylist(playlistString, fps < 60, quality);
         // Cache and return
         cache.set(requestId, playlistString);
         response.type("audio/mpegurl");
@@ -336,7 +349,7 @@ public class TwitchUnofficialApi {
      *                 if 60fps streams are the only option, they will be added regardless
      * @return clean master playlist
      */
-    private static String cleanMasterPlaylist(String playlistString, boolean limitFps) {
+    private static String cleanMasterPlaylist(String playlistString, boolean limitFps, String quality) {
         // Parse lines
         List<String> playlist = new ArrayList<>();
         List<Playlist> playlists = new ArrayList<>();
@@ -364,12 +377,31 @@ public class TwitchUnofficialApi {
         }
         // Add compatible playlists
         boolean addedPlaylist = false;
-        for (Playlist stream : playlists) {
+        // Create a sublist of playlists that match or are below the requested quality
+        List<Playlist> playlistsMeetingQuality = new ArrayList<>();
+        for (Playlist stream : playlists)
+            if (stream.isQualityOrLower(quality))
+                playlistsMeetingQuality.add(stream);
+        // If no playlists match the quality, add the smallest
+        if (playlistsMeetingQuality.size() == 0) {
+            Playlist smallest = null;
+            for (Playlist stream : playlists) {
+                if (!stream.isVideo())
+                    continue;
+                if (smallest == null || smallest.getQuality() > stream.getQuality())
+                    smallest = stream;
+            }
+            if (smallest != null)
+                playlistsMeetingQuality.add(smallest);
+        }
+        // Check the playlist is within the fps limits
+        for (Playlist stream : playlistsMeetingQuality) {
             if ((!limitFps || stream.getFps() <= 30) && stream.isVideo()) {
                 playlist.addAll(stream.getLines());
                 addedPlaylist = true;
             }
         }
+        // If no playlist were added, add them all
         if (!addedPlaylist)
             return playlistString;
         // Return playlist
@@ -1069,7 +1101,7 @@ public class TwitchUnofficialApi {
                 getUserFollowedStreamsWithTimeout(fromId, 15000);
         // Sort streams
         streams.sort(new StreamViewComparator().reversed());
-        streams = streams.subList(0, Math.min((int) parseLong(limit), streams.size()));
+        streams = streams.subList(0, Math.min((int) StringUtil.parseLong(limit), streams.size()));
         // Cache and return
         String json = gson.toJson(streams);
         cache.set(requestId, json);
@@ -1788,16 +1820,16 @@ public class TwitchUnofficialApi {
                     long durationSeconds = 0;
                     // Seconds
                     if (matcher.groupCount() >= 4)
-                        durationSeconds += parseLong(matcher.group(4));
+                        durationSeconds += StringUtil.parseLong(matcher.group(4));
                     // Minutes
                     if (matcher.groupCount() >= 3)
-                        durationSeconds += parseLong(matcher.group(3)) * 60;
+                        durationSeconds += StringUtil.parseLong(matcher.group(3)) * 60;
                     // Hours
                     if (matcher.groupCount() >= 2)
-                        durationSeconds += parseLong(matcher.group(2)) * 60 * 60;
+                        durationSeconds += StringUtil.parseLong(matcher.group(2)) * 60 * 60;
                     // Days
                     if (matcher.groupCount() >= 1)
-                        durationSeconds += parseLong(matcher.group(1)) * 24 * 60 * 60;
+                        durationSeconds += StringUtil.parseLong(matcher.group(1)) * 24 * 60 * 60;
                     video.setDurationSeconds(durationSeconds);
                 }
             }
@@ -1815,21 +1847,6 @@ public class TwitchUnofficialApi {
     }
 
     /**
-     * Safely parse an long
-     * @param number string to parse
-     * @return parsed long or 0 on failure
-     */
-    private static long parseLong(@Nullable String number) {
-        long parsedLong = 0;
-        try {
-            if (number != null)
-                parsedLong = Long.parseLong(number);
-        }
-        catch (NumberFormatException ignore) {}
-        return parsedLong;
-    }
-
-    /**
      * Follow a channel
      * @param request request
      * @param response response
@@ -1840,7 +1857,7 @@ public class TwitchUnofficialApi {
         checkAuth(request);
         // Params
         String id = request.queryParams("id");
-        long followIdLong = parseLong(id);
+        long followIdLong = StringUtil.parseLong(id);
         if (followIdLong == 0)
             throw halt(BAD_REQUEST, "No id");
         @Nullable String token = AuthUtil.extractTwitchToken(request);
@@ -1851,7 +1868,7 @@ public class TwitchUnofficialApi {
         List<User> users = getUsers(null, null, token);
         if (users.size() != 1)
             throw halt(BAD_REQUEST, "Invalid token");
-        oauth.setUserId(parseLong(users.get(0).getId()));
+        oauth.setUserId(StringUtil.parseLong(users.get(0).getId()));
 
         // Endpoint
         String requestUrl = String.format("%s/users/%s/follows/channels/%s", Endpoints.API.getURL(), oauth.getUserId(),
@@ -1883,7 +1900,7 @@ public class TwitchUnofficialApi {
         checkAuth(request);
         // Params
         String id = request.queryParams("id");
-        long followIdLong = parseLong(id);
+        long followIdLong = StringUtil.parseLong(id);
         if (followIdLong == 0)
             throw halt(BAD_REQUEST, "No id");
         @Nullable String token = AuthUtil.extractTwitchToken(request);
@@ -1894,7 +1911,7 @@ public class TwitchUnofficialApi {
         List<User> users = getUsers(null, null, token);
         if (users.size() != 1)
             throw halt(BAD_REQUEST, "Invalid token");
-        oauth.setUserId(parseLong(users.get(0).getId()));
+        oauth.setUserId(StringUtil.parseLong(users.get(0).getId()));
         twitch.getUserEndpoint().unfollowChannel(oauth, followIdLong);
         return "{}";
     }
@@ -1927,9 +1944,9 @@ public class TwitchUnofficialApi {
         String fromId = fromUsers.get(0).getId();
         // Get follows
         List<me.philippheuer.twitch4j.model.Follow> userFollows = twitch.getUserEndpoint().getUserFollows(
-                parseLong(fromId),
-                Optional.of(parseLong(limit)),
-                Optional.of(parseLong(offset)),
+                StringUtil.parseLong(fromId),
+                Optional.of(StringUtil.parseLong(limit)),
+                Optional.of(StringUtil.parseLong(offset)),
                 Optional.of(direction),
                 Optional.of(sortBy)
         );
