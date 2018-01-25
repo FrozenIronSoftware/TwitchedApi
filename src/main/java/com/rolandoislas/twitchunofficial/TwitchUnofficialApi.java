@@ -190,7 +190,15 @@ public class TwitchUnofficialApi {
         int fps = 30;
         String quality = "1080p";
         String fileName = request.splat()[0];
-        if (request.splat().length >= 3) {
+        String model = null;
+        //noinspection Duplicates
+        if (request.splat().length >= 4) {
+            fps = (int) StringUtil.parseLong(request.splat()[0]);
+            quality = request.splat()[1];
+            model = request.splat()[2];
+            fileName = request.splat()[3];
+        }
+        else if (request.splat().length >= 3) {
             fps = (int) StringUtil.parseLong(request.splat()[0]);
             quality = request.splat()[1];
             fileName = request.splat()[2];
@@ -243,7 +251,7 @@ public class TwitchUnofficialApi {
         String playlistString = playlist.getBody();
         if (playlistString == null)
             return null;
-        playlistString = cleanMasterPlaylist(playlistString, fps < 60, quality);
+        playlistString = cleanMasterPlaylist(playlistString, fps < 60, quality, model);
         // Cache and return
         cache.set(requestId, playlistString);
         response.type("audio/mpegurl");
@@ -303,7 +311,15 @@ public class TwitchUnofficialApi {
         int fps = 30;
         String quality = "1080p";
         String fileName = request.splat()[0];
-        if (request.splat().length >= 3) {
+        String model = null;
+        //noinspection Duplicates
+        if (request.splat().length >= 4) {
+            fps = (int) StringUtil.parseLong(request.splat()[0]);
+            quality = request.splat()[1];
+            model = request.splat()[2];
+            fileName = request.splat()[3];
+        }
+        else if (request.splat().length >= 3) {
             fps = (int) StringUtil.parseLong(request.splat()[0]);
             quality = request.splat()[1];
             fileName = request.splat()[2];
@@ -343,7 +359,7 @@ public class TwitchUnofficialApi {
         String playlistString = playlist.getBody();
         if (playlistString == null)
             return null;
-        playlistString = cleanMasterPlaylist(playlistString, fps < 60, quality);
+        playlistString = cleanMasterPlaylist(playlistString, fps < 60, quality, model);
         // Cache and return
         cache.set(requestId, playlistString);
         response.type("audio/mpegurl");
@@ -358,7 +374,10 @@ public class TwitchUnofficialApi {
      *                 if 60fps streams are the only option, they will be added regardless
      * @return clean master playlist
      */
-    private static String cleanMasterPlaylist(String playlistString, boolean limitFps, String quality) {
+    private static String cleanMasterPlaylist(String playlistString, boolean limitFps, String quality,
+                                              @Nullable String model) {
+        // Determine max quality
+        quality = getMaxQualityForModel(quality, model);
         // Parse lines
         List<String> playlist = new ArrayList<>();
         List<Playlist> playlists = new ArrayList<>();
@@ -418,6 +437,83 @@ public class TwitchUnofficialApi {
         for (String line : playlist)
             cleanedPlaylist.append(line).append("\r\n");
         return cleanedPlaylist.toString();
+    }
+
+    /**
+     * Return a string representing the max resolution quality for a model of roku
+     * @param quality default quality. If this is less than the max for a model, it will be returned
+     * @param model roku model in the format nnnnX
+     * @return largest supported or specified quality
+     */
+    private static String getMaxQualityForModel(String quality, @Nullable String model) {
+        if (model == null)
+            return quality;
+        long defaultQuality = StringUtil.parseLong(quality.replace("p", ""));
+        long modelQuality;
+        // Big o' switch for models
+        switch (model) {
+            // 720
+            case "2700X": // Tyler - Roku LT
+            case "2500X": // Paolo - Roku HD
+            case "2450X": // Paolo - Roku LT
+            case "3000X": // Giga - Roku 2 HD
+            case "2400X": // Giga - Roku LT
+                modelQuality = 720;
+                break;
+            // 1080
+            case "8000X": // Midland - Roku TV
+            case "5000X": // Liberty - Roku TV
+            case "3800X": // Amarillo - Roku Streaming Stick
+            case "3910X": // Gilbert - Roku Express Plus
+            case "3900X": // Gilbert - Roku Express
+            case "3710X": // Littlefield - Roku Express Plus
+            case "3700X": // Littlefield - Roku Express
+            case "3600X": // Briscoe - Roku Streaming Stick
+            case "4230X": // Mustang - Roku 3
+            case "4210X": // Mustang - Roku 2
+            case "3500X": // Sugarland - Roku Streaming Stick
+            case "2720X": // Tyler - Roku 2
+            case "2710X": // Tyler - Roku 1, Roku SE
+            case "4200X": // Austin - Roku 3
+            case "3400X": // Jackson - Roku Streaming Stick
+            case "3420X": // Jackson - Roku Streaming Stick
+            case "3100X": // Giga - Roku 2 XS
+            case "3050X": // Giga - Roku 2 XD
+                modelQuality = 1080;
+                break;
+            // 4K
+            case "7000X": // Longview - 4K Roku TV
+            case "6000X": // Ft. Worth - 4K Roku TV
+            case "4660X": // Bryan - Roku Ultra
+            case "3810X": // Amarillo - Roku Streaming Stick Plus
+            case "4640X": // Cooper - Roku Ultra
+            case "4630X": // Cooper - Roku Premier Plus
+            case "4620X": // Cooper - Roku Premier
+            case "4400X": // Dallas - Roku 4
+                modelQuality = 2160;
+                break;
+            // Legacy
+            case "2100X":
+            case "2100N":
+            case "2050N":
+            case "2050X":
+            case "2000C":
+            case "N1101":
+            case "N1100":
+            case "N1050":
+            case "N1000":
+                modelQuality = 480;
+                break;
+            // Assume any new roku device can play at least 1080p
+            default:
+                modelQuality = 1080;
+                break;
+        }
+        // Determine smallest quality and return
+        if (defaultQuality == 0)
+            return String.valueOf(modelQuality);
+        long smallestQuality = Math.min(defaultQuality, modelQuality);
+        return String.valueOf(smallestQuality);
     }
 
     /**
