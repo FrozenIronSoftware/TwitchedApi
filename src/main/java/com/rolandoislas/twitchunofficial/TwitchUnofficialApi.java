@@ -211,7 +211,10 @@ public class TwitchUnofficialApi {
         String[] split = fileName.split("\\.");
         if (split.length < 2 || !split[1].equals("m3u8"))
             return null;
-        String username = split[0];
+        String[] idSplit = split[0].split("\\+");
+        if (idSplit.length < 1)
+            return null;
+        String username = idSplit[0];
         if (username.startsWith(":")) {
             String userId = username.replaceFirst(":", "");
             List<User> users = getUsers(Collections.singletonList(userId), null, null);
@@ -332,7 +335,10 @@ public class TwitchUnofficialApi {
         String[] split = fileName.split("\\.");
         if (split.length < 2 || !split[1].equals("m3u8"))
             return null;
-        String vodId = split[0];
+        String[] idSplit = split[0].split("\\+");
+        if (idSplit.length < 1)
+            return null;
+        String vodId = idSplit[0];
         // Check cache
         String requestId = ApiCache.createKey("vod", vodId);
         String cachedResponse = cache.get(requestId);
