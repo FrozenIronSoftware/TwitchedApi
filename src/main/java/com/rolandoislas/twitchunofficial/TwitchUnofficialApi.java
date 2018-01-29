@@ -11,6 +11,7 @@ import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 import com.rolandoislas.twitchunofficial.data.Id;
 import com.rolandoislas.twitchunofficial.data.Playlist;
+import com.rolandoislas.twitchunofficial.data.RokuQuality;
 import com.rolandoislas.twitchunofficial.data.annotation.Cached;
 import com.rolandoislas.twitchunofficial.data.annotation.NotCached;
 import com.rolandoislas.twitchunofficial.util.ApiCache;
@@ -251,7 +252,7 @@ public class TwitchUnofficialApi {
         String playlistString = playlist.getBody();
         if (playlistString == null)
             return null;
-        playlistString = cleanMasterPlaylist(playlistString, fps < 60, quality, model);
+        playlistString = cleanMasterPlaylist(playlistString, fps, quality, model);
         // Cache and return
         cache.set(requestId, playlistString);
         response.type("audio/mpegurl");
@@ -359,7 +360,7 @@ public class TwitchUnofficialApi {
         String playlistString = playlist.getBody();
         if (playlistString == null)
             return null;
-        playlistString = cleanMasterPlaylist(playlistString, fps < 60, quality, model);
+        playlistString = cleanMasterPlaylist(playlistString, fps, quality, model);
         // Cache and return
         cache.set(requestId, playlistString);
         response.type("audio/mpegurl");
@@ -368,16 +369,19 @@ public class TwitchUnofficialApi {
 
     /**
      * Parse a master playlist file, removing entries based on parameters
-     *
+     * If no streams match the fps and quality passed, the lowest stream will be added.
+     * If the playlist could not be parsed the playlist will be returned "raw!" - Gordon Ramsay
+     * Quality and FPS will be limited regardless of requested parameters if the Roku model passed is not null and that
+     * model cannot perform at that quality.
      * @param playlistString raw playlist string
-     * @param limitFps if true only 30 FPS entries and/or source are left
-     *                 if 60fps streams are the only option, they will be added regardless
+     * @param fps limit streams to this fps and lower
+     * @param  quality limit streams to the quality or lower
      * @return clean master playlist
      */
-    private static String cleanMasterPlaylist(String playlistString, boolean limitFps, String quality,
+    private static String cleanMasterPlaylist(String playlistString, int fps, String quality,
                                               @Nullable String model) {
         // Determine max quality
-        quality = getMaxQualityForModel(quality, model);
+        RokuQuality maxQuality = getMaxQualityForModel(quality, fps, model);
         // Parse lines
         List<String> playlist = new ArrayList<>();
         List<Playlist> playlists = new ArrayList<>();
@@ -408,7 +412,8 @@ public class TwitchUnofficialApi {
         // Create a sublist of playlists that match or are below the requested quality
         List<Playlist> playlistsMeetingQuality = new ArrayList<>();
         for (Playlist stream : playlists)
-            if (stream.isQualityOrLower(quality))
+            if ((stream.getFps() == 30 && stream.isQualityOrLower(maxQuality.getMaxQuality30())) ||
+                    (stream.getFps() == 60 && stream.isQualityOrLower(maxQuality.getMaxQuality60())))
                 playlistsMeetingQuality.add(stream);
         // If no playlists match the quality, add the smallest
         if (playlistsMeetingQuality.size() == 0) {
@@ -416,15 +421,17 @@ public class TwitchUnofficialApi {
             for (Playlist stream : playlists) {
                 if (!stream.isVideo())
                     continue;
-                if (smallest == null || smallest.getQuality() > stream.getQuality())
+                if ((smallest == null || smallest.getQuality() > stream.getQuality()) &&
+                        ((stream.getFps() == 30 && stream.isQualityOrLower(maxQuality.getMaxQuality30())) ||
+                        stream.getFps() == 60 && stream.isQualityOrLower(maxQuality.getMaxQuality60())))
                     smallest = stream;
             }
             if (smallest != null)
                 playlistsMeetingQuality.add(smallest);
         }
-        // Check the playlist is within the fps limits
+        // Add streams to the master playlist
         for (Playlist stream : playlistsMeetingQuality) {
-            if ((!limitFps || stream.getFps() <= 30) && stream.isVideo()) {
+            if (stream.isVideo()) {
                 playlist.addAll(stream.getLines());
                 addedPlaylist = true;
             }
@@ -440,35 +447,46 @@ public class TwitchUnofficialApi {
     }
 
     /**
-     * Return a string representing the max resolution quality for a model of roku
+     * Return a Playlist representing the max resolution quality for a model of roku
      * @param quality default quality. If this is less than the max for a model, it will be returned
+     * @param fps default fps
      * @param model roku model in the format nnnnX
      * @return largest supported or specified quality
      */
-    private static String getMaxQualityForModel(String quality, @Nullable String model) {
+    private static RokuQuality getMaxQualityForModel(String quality, int fps, @Nullable String model) {
+        int defaultQuality = (int) StringUtil.parseLong(quality.replace("p", ""));
         if (model == null)
-            return quality;
-        long defaultQuality = StringUtil.parseLong(quality.replace("p", ""));
-        long modelQuality;
+            return new RokuQuality(defaultQuality, defaultQuality);
+        int maxQuality30;
+        int maxQuality60;
         // Big o' switch for models
         switch (model) {
-            // 720
+            // 720 30 FPS
             case "2700X": // Tyler - Roku LT
             case "2500X": // Paolo - Roku HD
             case "2450X": // Paolo - Roku LT
             case "3000X": // Giga - Roku 2 HD
             case "2400X": // Giga - Roku LT
-                modelQuality = 720;
+                maxQuality30 = 720;
+                maxQuality60 = 720;
                 break;
-            // 1080
+            // Liberty - Roku TV - Cannot play 60 FPS from Twitch
+            case "5000X":
+                maxQuality30 = 1080;
+                maxQuality60 = 0;
+                break;
+            // 1080 60 FPS
             case "8000X": // Midland - Roku TV
-            case "5000X": // Liberty - Roku TV
             case "3800X": // Amarillo - Roku Streaming Stick
             case "3910X": // Gilbert - Roku Express Plus
             case "3900X": // Gilbert - Roku Express
             case "3710X": // Littlefield - Roku Express Plus
             case "3700X": // Littlefield - Roku Express
             case "3600X": // Briscoe - Roku Streaming Stick
+                maxQuality30 = 1080;
+                maxQuality60 = 1080;
+                break;
+            // 1080 60 FPS - 720 60 FPS
             case "4230X": // Mustang - Roku 3
             case "4210X": // Mustang - Roku 2
             case "3500X": // Sugarland - Roku Streaming Stick
@@ -479,9 +497,10 @@ public class TwitchUnofficialApi {
             case "3420X": // Jackson - Roku Streaming Stick
             case "3100X": // Giga - Roku 2 XS
             case "3050X": // Giga - Roku 2 XD
-                modelQuality = 1080;
+                maxQuality30 = 1080;
+                maxQuality60 = 720;
                 break;
-            // 4K
+            // 4K 60 FPS
             case "7000X": // Longview - 4K Roku TV
             case "6000X": // Ft. Worth - 4K Roku TV
             case "4660X": // Bryan - Roku Ultra
@@ -490,9 +509,10 @@ public class TwitchUnofficialApi {
             case "4630X": // Cooper - Roku Premier Plus
             case "4620X": // Cooper - Roku Premier
             case "4400X": // Dallas - Roku 4
-                modelQuality = 2160;
+                maxQuality30 = 2160;
+                maxQuality60 = 2160;
                 break;
-            // Legacy
+            // Legacy SD 30 FPS
             case "2100X":
             case "2100N":
             case "2050N":
@@ -502,18 +522,22 @@ public class TwitchUnofficialApi {
             case "N1100":
             case "N1050":
             case "N1000":
-                modelQuality = 480;
+                maxQuality30 = 480;
+                maxQuality60 = 0;
                 break;
-            // Assume any new roku device can play at least 1080p
+            // Assume any new roku device can play at least 1080p 60 FPS
             default:
-                modelQuality = 1080;
+                maxQuality30 = 1080;
+                maxQuality60 = 1080;
                 break;
         }
+        // Check for FPS limit
+        if (fps < 60)
+            maxQuality60 = 0;
         // Determine smallest quality and return
-        if (defaultQuality == 0)
-            return String.valueOf(modelQuality);
-        long smallestQuality = Math.min(defaultQuality, modelQuality);
-        return String.valueOf(smallestQuality);
+        int smallestQuality30 = Math.min(defaultQuality, maxQuality30);
+        int smallestQuality60 = Math.min(defaultQuality, maxQuality60);
+        return new RokuQuality(smallestQuality30, smallestQuality60);
     }
 
     /**

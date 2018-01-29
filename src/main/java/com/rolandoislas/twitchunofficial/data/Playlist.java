@@ -26,16 +26,23 @@ public class Playlist {
         lines.add(lineOne);
         lines.add(lineTwo);
         lines.add(lineThree);
-        if (lineOne.contains("p60") || lineTwo.contains("p60"))
-            fps = 60;
-        else
-            fps = 30;
         audioOnly = lineOne.contains("audio") || lineTwo.contains("audio");
         // Quality
-        Pattern qualityPattern = Pattern.compile(".*NAME=\"(\\d+)p?\\d*.*\".*");
+        Pattern qualityPattern = Pattern.compile(".*NAME=\"(\\d+)p?(\\d*).*\".*");
         Matcher qualityMatcher = qualityPattern.matcher(lineOne);
-        if (qualityMatcher.matches())
+        if (qualityMatcher.matches()) {
             quality = (int) StringUtil.parseLong(qualityMatcher.group(1));
+            fps = (int) StringUtil.parseLong(qualityMatcher.group(2));
+            if (fps == 0)
+                fps = 30;
+        }
+    }
+
+    public Playlist(int quality, int fps) {
+        this.quality = quality;
+        this.fps = fps;
+        this.audioOnly = false;
+        this.lines = new ArrayList<>();
     }
 
     public int getFps() {
@@ -62,5 +69,14 @@ public class Playlist {
 
     public int getQuality() {
         return quality;
+    }
+
+    /**
+     * @see Playlist#isQualityOrLower(String)
+     * @param quality quality to check for or below
+     * @return is quality lower or equal
+     */
+    public boolean isQualityOrLower(int quality) {
+        return quality > 0 && this.quality <= quality;
     }
 }
