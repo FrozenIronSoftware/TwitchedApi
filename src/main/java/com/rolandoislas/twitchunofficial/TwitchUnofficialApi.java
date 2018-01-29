@@ -462,7 +462,7 @@ public class TwitchUnofficialApi {
     private static RokuQuality getMaxQualityForModel(String quality, int fps, @Nullable String model) {
         int defaultQuality = (int) StringUtil.parseLong(quality.replace("p", ""));
         if (model == null)
-            return new RokuQuality(defaultQuality, defaultQuality);
+            model = "null";
         int maxQuality30;
         int maxQuality60;
         // Big o' switch for models
@@ -533,8 +533,8 @@ public class TwitchUnofficialApi {
                 break;
             // Assume any new roku device can play at least 1080p 60 FPS
             default:
-                maxQuality30 = 1080;
-                maxQuality60 = 1080;
+                maxQuality30 = defaultQuality;
+                maxQuality60 = defaultQuality;
                 break;
         }
         // Check for FPS limit
