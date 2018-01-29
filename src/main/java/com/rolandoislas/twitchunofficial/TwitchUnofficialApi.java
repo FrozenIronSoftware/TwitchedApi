@@ -225,7 +225,7 @@ public class TwitchUnofficialApi {
         if (username == null || username.isEmpty())
             return null;
         // Check cache
-        String requestId = ApiCache.createKey("hls", username);
+        String requestId = ApiCache.createKey("hls", fps, quality, fileName, model);
         String cachedResponse = cache.get(requestId);
         if (cachedResponse != null)
             return cachedResponse;
@@ -340,7 +340,7 @@ public class TwitchUnofficialApi {
             return null;
         String vodId = idSplit[0];
         // Check cache
-        String requestId = ApiCache.createKey("vod", vodId);
+        String requestId = ApiCache.createKey("vod", fps, quality, fileName, model);
         String cachedResponse = cache.get(requestId);
         if (cachedResponse != null)
             return cachedResponse;
