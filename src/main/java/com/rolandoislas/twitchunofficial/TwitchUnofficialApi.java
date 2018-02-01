@@ -418,8 +418,9 @@ public class TwitchUnofficialApi {
         // Create a sublist of playlists that match or are below the requested quality
         List<Playlist> playlistsMeetingQuality = new ArrayList<>();
         for (Playlist stream : playlists)
-            if ((stream.getFps() == 30 && stream.isQualityOrLower(maxQuality.getMaxQuality30())) ||
-                    (stream.getFps() == 60 && stream.isQualityOrLower(maxQuality.getMaxQuality60())))
+            if (((stream.getFps() == 30 && stream.isQualityOrLower(maxQuality.getMaxQuality30())) ||
+                    (stream.getFps() == 60 && stream.isQualityOrLower(maxQuality.getMaxQuality60()))) &&
+                    stream.getBitrate() <= maxQuality.getMaxBitrate())
                 playlistsMeetingQuality.add(stream);
         // If no playlists match the quality, add the smallest
         if (playlistsMeetingQuality.size() == 0) {
@@ -429,7 +430,8 @@ public class TwitchUnofficialApi {
                     continue;
                 if ((smallest == null || smallest.getQuality() > stream.getQuality()) &&
                         ((stream.getFps() == 30 && stream.isQualityOrLower(maxQuality.getMaxQuality30())) ||
-                        stream.getFps() == 60 && stream.isQualityOrLower(maxQuality.getMaxQuality60())))
+                        stream.getFps() == 60 && stream.isQualityOrLower(maxQuality.getMaxQuality60())) &&
+                        stream.getBitrate() <= maxQuality.getMaxBitrate())
                     smallest = stream;
             }
             if (smallest != null)
@@ -465,9 +467,11 @@ public class TwitchUnofficialApi {
             model = "null";
         int maxQuality30;
         int maxQuality60;
+        int maxBitrate;
+        final int ONE_MILLION = 1000000;
         // Big o' switch for models
         switch (model) {
-            // 720 30 FPS
+            // 720 30/60 FPS
             case "2700X": // Tyler - Roku LT
             case "2500X": // Paolo - Roku HD
             case "2450X": // Paolo - Roku LT
@@ -475,11 +479,13 @@ public class TwitchUnofficialApi {
             case "2400X": // Giga - Roku LT
                 maxQuality30 = 720;
                 maxQuality60 = 720;
+                maxBitrate = 4 * ONE_MILLION;
                 break;
             // Liberty - Roku TV - Cannot play 60 FPS from Twitch
             case "5000X":
                 maxQuality30 = 1080;
                 maxQuality60 = 0;
+                maxBitrate = 7 * ONE_MILLION;
                 break;
             // 1080 60 FPS
             case "8000X": // Midland - Roku TV
@@ -491,8 +497,9 @@ public class TwitchUnofficialApi {
             case "3600X": // Briscoe - Roku Streaming Stick
                 maxQuality30 = 1080;
                 maxQuality60 = 1080;
+                maxBitrate = 7 * ONE_MILLION;
                 break;
-            // 1080 60 FPS - 720 60 FPS
+            // 1080 30 FPS - 720 60 FPS
             case "4230X": // Mustang - Roku 3
             case "4210X": // Mustang - Roku 2
             case "3500X": // Sugarland - Roku Streaming Stick
@@ -505,6 +512,7 @@ public class TwitchUnofficialApi {
             case "3050X": // Giga - Roku 2 XD
                 maxQuality30 = 1080;
                 maxQuality60 = 720;
+                maxBitrate = 7 * ONE_MILLION;
                 break;
             // 4K 60 FPS
             case "7000X": // Longview - 4K Roku TV
@@ -517,6 +525,8 @@ public class TwitchUnofficialApi {
             case "4400X": // Dallas - Roku 4
                 maxQuality30 = 2160;
                 maxQuality60 = 2160;
+                // This number could probably be higher, but no stream will reach this until 4K is supported by Twitch.
+                maxBitrate = 20 * ONE_MILLION;
                 break;
             // Legacy SD 30 FPS
             case "2100X":
@@ -530,11 +540,13 @@ public class TwitchUnofficialApi {
             case "N1000":
                 maxQuality30 = 480;
                 maxQuality60 = 0;
+                maxBitrate = 2 * ONE_MILLION;
                 break;
             // Assume any new roku device can play at least 1080p 60 FPS
             default:
                 maxQuality30 = defaultQuality;
                 maxQuality60 = defaultQuality;
+                maxBitrate = 7 * ONE_MILLION;
                 break;
         }
         // Check for FPS limit
@@ -543,7 +555,7 @@ public class TwitchUnofficialApi {
         // Determine smallest quality and return
         int smallestQuality30 = Math.min(defaultQuality, maxQuality30);
         int smallestQuality60 = Math.min(defaultQuality, maxQuality60);
-        return new RokuQuality(smallestQuality30, smallestQuality60);
+        return new RokuQuality(smallestQuality30, smallestQuality60, maxBitrate);
     }
 
     /**

@@ -20,6 +20,7 @@ public class Playlist {
     private int fps;
     private List<String> lines;
     private int quality;
+    private int bitrate;
 
     public Playlist(String lineOne, String lineTwo, String lineThree) {
         lines = new ArrayList<>();
@@ -36,6 +37,11 @@ public class Playlist {
             if (fps == 0)
                 fps = 30;
         }
+        // Bitrate
+        Pattern bitratePattern = Pattern.compile(".*BANDWIDTH=(\\d+),.*");
+        Matcher bitrateMatcher = bitratePattern.matcher(lineTwo);
+        if (bitrateMatcher.matches())
+            bitrate = (int) StringUtil.parseLong(bitrateMatcher.group(1));
     }
 
     public Playlist(int quality, int fps) {
@@ -78,5 +84,9 @@ public class Playlist {
      */
     public boolean isQualityOrLower(int quality) {
         return quality > 0 && this.quality <= quality;
+    }
+
+    public int getBitrate() {
+        return bitrate;
     }
 }
