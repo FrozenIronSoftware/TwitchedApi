@@ -37,6 +37,10 @@ Redis server URL
 This should be in the following format:
  `redis://<username>:<password>@<server>:<port>`
  
+### REDIS_CONNECTIONS
+
+Amount of redis connections allowed
+ 
 ### TWITCH_CLIENT_ID
 
 The Twitch client ID that will be used to make request to the Twitch

@@ -8,17 +8,20 @@ package com.rolandoislas.twitchunofficial.util;
 import com.rolandoislas.twitchunofficial.data.Id;
 import org.jetbrains.annotations.Nullable;
 import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPool;
+import redis.clients.jedis.JedisPoolConfig;
+import redis.clients.jedis.Protocol;
 import redis.clients.jedis.ScanParams;
 import redis.clients.jedis.ScanResult;
-import redis.clients.jedis.exceptions.JedisConnectionException;
+import redis.clients.util.JedisURIHelper;
 
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.locks.ReentrantLock;
 
 public class ApiCache {
     private static final int TIMEOUT = 60 * 3; // Seconds before a cache value should be considered invalid
@@ -30,12 +33,30 @@ public class ApiCache {
     private static final String FOLLOW_PREFIX = "_follow_";
     private static final String FOLLOW_TIME_PREFIX = "_follow_time_";
     private static final int GAME_NAME_TIMEOUT = 7 * 24 * 60 * 60; // 1 Week
-    private Jedis redis;
-    private final ReentrantLock redisLock;
+    private final String redisPassword;
+    private JedisPool redisPool;
 
     public ApiCache(String redisServer) {
-        redis = new Jedis(redisServer);
-        redisLock = new ReentrantLock();
+        String connectionLimit = System.getenv("REDIS_CONNECTIONS");
+        JedisPoolConfig poolConfig = new JedisPoolConfig();
+        poolConfig.setBlockWhenExhausted(true);
+        if (connectionLimit != null && !connectionLimit.isEmpty())
+            poolConfig.setMaxTotal((int) StringUtil.parseLong(connectionLimit));
+        else
+            poolConfig.setMaxTotal(1);
+        // Create the pool
+        URI uri = URI.create(redisServer);
+        if (JedisURIHelper.isValid(uri)) {
+            String host = uri.getHost();
+            int port = uri.getPort();
+            redisPassword = JedisURIHelper.getPassword(uri);
+            redisPool = new JedisPool(poolConfig, host, port, Protocol.DEFAULT_TIMEOUT, redisPassword,
+                    Protocol.DEFAULT_DATABASE, null);
+        }
+        else {
+            redisPool = new JedisPool();
+            redisPassword = "";
+        }
     }
 
     /**
@@ -45,34 +66,22 @@ public class ApiCache {
      */
     @Nullable
     public String get(String key) {
-        redisLock.lock();
         String value = null;
-        try {
+        try (Jedis redis = getAuthenticatedJedis()) {
             value = redis.get(key);
-        }
-        catch (JedisConnectionException ignore) {
-            reconnect();
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             Logger.exception(e);
         }
-        redisLock.unlock();
         return value;
     }
 
-    /**
-     * Try to reconnect to a redis server
-     */
-    private void reconnect() {
-        Logger.warn("Attempting to reconnect  to Redis server");
-        try {
-            redis.disconnect();
-            redis.connect();
-            Logger.info("Reconnected to Redis server");
-        }
-        catch (Exception e) {
-            Logger.warn("Failed to reconnect to Redis server");
-        }
+    private Jedis getAuthenticatedJedis() {
+        Jedis jedis = redisPool.getResource();
+        if (!redisPassword.isEmpty())
+        jedis.auth(redisPassword);
+        if (!jedis.isConnected())
+            jedis.connect();
+        return jedis;
     }
 
     /**
@@ -97,17 +106,11 @@ public class ApiCache {
      * @param value value to set the key
      */
     public void set(String key, String value) {
-        redisLock.lock();
-        try {
+        try (Jedis redis = getAuthenticatedJedis()) {
             redis.setex(key, TIMEOUT, value);
-        }
-        catch (JedisConnectionException ignore) {
-            reconnect();
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             Logger.exception(e);
         }
-        redisLock.unlock();
     }
 
     /**
@@ -196,8 +199,7 @@ public class ApiCache {
             default:
                 throw new IllegalArgumentException("Type must be GAME or USER");
         }
-        redisLock.lock();
-        try {
+        try (Jedis redis = getAuthenticatedJedis()) {
             for (Map.Entry<String, String> nameId : namesIdMap.entrySet()) {
                 if (nameId.getKey() == null || nameId.getValue() == null)
                     continue;
@@ -206,14 +208,9 @@ public class ApiCache {
                 if (result == 1)
                     redis.expire(key, keyTimeout);
             }
-        }
-        catch (JedisConnectionException ignore) {
-            reconnect();
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             Logger.exception(e);
         }
-        redisLock.unlock();
     }
 
     /**
@@ -222,18 +219,12 @@ public class ApiCache {
      * @param key key to remove
      */
     public Long remove(String key) {
-        redisLock.lock();
         long ret = 0L;
-        try {
+        try (Jedis redis = getAuthenticatedJedis()) {
             ret = redis.del(key);
-        }
-        catch (JedisConnectionException ignore) {
-            reconnect();
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             Logger.exception(e);
         }
-        redisLock.unlock();
         return ret;
     }
 
@@ -263,13 +254,12 @@ public class ApiCache {
      */
     private Map<String, String> scan(String query) {
         // Scan
-        redisLock.lock();
         List<String> keys = new ArrayList<>();
         ScanResult<String> scan = null;
         ScanParams params = new ScanParams();
         params.match(query);
         List<String> values = new ArrayList<>();
-        try {
+        try (Jedis redis = getAuthenticatedJedis()) {
             do {
                 scan = redis.scan(scan != null ? scan.getStringCursor() : ScanParams.SCAN_POINTER_START, params);
                 keys.addAll(scan.getResult());
@@ -277,14 +267,9 @@ public class ApiCache {
             while (!scan.getStringCursor().equals(ScanParams.SCAN_POINTER_START));
             if (!keys.isEmpty())
                 values.addAll(redis.mget(keys.toArray(new String[keys.size()])));
-        }
-        catch (JedisConnectionException ignore) {
-            reconnect();
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             Logger.exception(e);
         }
-        redisLock.unlock();
         // Construct the map
         Map<String, String> map = new HashMap<>();
         Iterator<String> keysIter = keys.iterator();
@@ -301,18 +286,12 @@ public class ApiCache {
      */
     public List<String> getFollows(String fromId) {
         List<String> followsList = new ArrayList<>();
-        redisLock.lock();
-        try {
+        try (Jedis redis = getAuthenticatedJedis()) {
             Set<String> follows = redis.smembers(FOLLOW_PREFIX + fromId);
             followsList.addAll(follows);
-        }
-        catch (JedisConnectionException ignore) {
-            reconnect();
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             Logger.exception(e);
         }
-        redisLock.unlock();
         return followsList;
     }
 
@@ -324,32 +303,20 @@ public class ApiCache {
     public void setFollows(String fromId, List<String> toIds) {
         // Remove old follows
         List<String> follows = getFollows(fromId);
-        redisLock.lock();
-        try {
+        try (Jedis redis = getAuthenticatedJedis()) {
             if (follows.size() > 0)
                 redis.srem(FOLLOW_PREFIX + fromId, follows.toArray(new String[follows.size()]));
-        }
-        catch (JedisConnectionException ignore) {
-            reconnect();
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             Logger.exception(e);
         }
-        redisLock.unlock();
         // Set follows
-        redisLock.lock();
-        try {
+        try (Jedis redis = getAuthenticatedJedis()) {
             if (toIds.size() > 0)
                 redis.sadd(FOLLOW_PREFIX + fromId, toIds.toArray(new String[toIds.size()]));
             redis.set(FOLLOW_TIME_PREFIX + fromId, String.valueOf(System.currentTimeMillis()));
-        }
-        catch (JedisConnectionException ignore) {
-            reconnect();
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             Logger.exception(e);
         }
-        redisLock.unlock();
     }
 
     /**
@@ -358,9 +325,8 @@ public class ApiCache {
      * @return last set time of follows set for an id
      */
     public long getFollowIdCacheTime(String fromId) {
-        redisLock.lock();
         long time = 0;
-        try {
+        try (Jedis redis = getAuthenticatedJedis()) {
             String timeString = redis.get(FOLLOW_TIME_PREFIX + fromId);
             if (timeString != null && !timeString.isEmpty()) {
                 try {
@@ -368,14 +334,9 @@ public class ApiCache {
                 }
                 catch (NumberFormatException ignore) {}
             }
-        }
-        catch (JedisConnectionException ignore) {
-            reconnect();
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             Logger.exception(e);
         }
-        redisLock.unlock();
         return time;
     }
 }
