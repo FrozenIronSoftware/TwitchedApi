@@ -232,10 +232,13 @@ public class TwitchUnofficialApi {
         // Get live data
 
         // Construct template
+        @Nullable String userToken = AuthUtil.extractTwitchToken(request);
         RestTemplate restTemplate = twitch.getRestClient().getRestTemplate();
+        if (userToken != null)
+            restTemplate = getPrivilegedRestTemplate(new OAuthCredential(userToken));
 
         // Request channel token
-        Token token = getVideoAccessToken(Token.TYPE.CHANNEL, username);
+        Token token = getVideoAccessToken(Token.TYPE.CHANNEL, username, userToken);
 
         // Request HLS playlist
         String hlsPlaylistUrl = String.format(API_USHER + "/api/channel/hls/%s.m3u8", username);
@@ -265,10 +268,10 @@ public class TwitchUnofficialApi {
     /**
      * Get an access token for a channel stream or a VOD
      * @param type type of stream to get
+     * @param userToken optional user provided twich oauth token
      * @return token
      */
-    @NotNull
-    private static Token getVideoAccessToken(Token.TYPE type, String id) {
+    private static Token getVideoAccessToken(Token.TYPE type, String id, @Nullable String userToken) {
         String url;
         switch (type) {
             case CHANNEL:
@@ -282,6 +285,8 @@ public class TwitchUnofficialApi {
         }
         String hlsTokenUrl = String.format(API_RAW + url, id);
         RestTemplate restTemplate = twitch.getRestClient().getRestTemplate();
+        if (userToken != null)
+            restTemplate = getPrivilegedRestTemplate(new OAuthCredential(userToken));
         ResponseEntity<String> tokenResponse;
         try {
             tokenResponse = restTemplate.exchange(hlsTokenUrl, HttpMethod.GET, null,
@@ -345,9 +350,12 @@ public class TwitchUnofficialApi {
         if (cachedResponse != null)
             return cachedResponse;
         // Fetch live data
+        @Nullable String userToken = AuthUtil.extractTwitchToken(request);
         RestTemplate restTemplate = twitch.getRestClient().getRestTemplate();
+        if (userToken != null)
+            restTemplate = getPrivilegedRestTemplate(new OAuthCredential(userToken));
         // Request VOD token
-        Token token = getVideoAccessToken(Token.TYPE.VOD, vodId);
+        Token token = getVideoAccessToken(Token.TYPE.VOD, vodId, userToken);
 
         // Request HLS playlist
         String hlsPlaylistUrl = String.format(API_USHER + "/vod/%s.m3u8", vodId);
