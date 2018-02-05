@@ -192,6 +192,7 @@ public class TwitchUnofficialApi {
         String quality = "1080p";
         String fileName = request.splat()[0];
         String model = null;
+        @Nullable String userToken = AuthUtil.extractTwitchToken(request);
         //noinspection Duplicates
         if (request.splat().length >= 4) {
             fps = (int) StringUtil.parseLong(request.splat()[0]);
@@ -225,14 +226,13 @@ public class TwitchUnofficialApi {
         if (username == null || username.isEmpty())
             return null;
         // Check cache
-        String requestId = ApiCache.createKey("hls", fps, quality, fileName, model);
+        String requestId = ApiCache.createKey("hls", fps, quality, fileName, model, userToken);
         String cachedResponse = cache.get(requestId);
         if (cachedResponse != null)
             return cachedResponse;
         // Get live data
 
         // Construct template
-        @Nullable String userToken = AuthUtil.extractTwitchToken(request);
         RestTemplate restTemplate = twitch.getRestClient().getRestTemplate();
         if (userToken != null)
             restTemplate = getPrivilegedRestTemplate(new OAuthCredential(userToken));
@@ -271,6 +271,7 @@ public class TwitchUnofficialApi {
      * @param userToken optional user provided twich oauth token
      * @return token
      */
+    @NotCached
     private static Token getVideoAccessToken(Token.TYPE type, String id, @Nullable String userToken) {
         String url;
         switch (type) {
@@ -313,6 +314,7 @@ public class TwitchUnofficialApi {
      * @param response response
      * @return m3u8
      */
+    @Cached
     public static String getVodData(Request request, Response response) {
         checkAuth(request);
         if (request.splat().length < 1)
@@ -321,6 +323,7 @@ public class TwitchUnofficialApi {
         String quality = "1080p";
         String fileName = request.splat()[0];
         String model = null;
+        @Nullable String userToken = AuthUtil.extractTwitchToken(request);
         //noinspection Duplicates
         if (request.splat().length >= 4) {
             fps = (int) StringUtil.parseLong(request.splat()[0]);
@@ -345,12 +348,11 @@ public class TwitchUnofficialApi {
             return null;
         String vodId = idSplit[0];
         // Check cache
-        String requestId = ApiCache.createKey("vod", fps, quality, fileName, model);
+        String requestId = ApiCache.createKey("vod", fps, quality, fileName, model, userToken);
         String cachedResponse = cache.get(requestId);
         if (cachedResponse != null)
             return cachedResponse;
         // Fetch live data
-        @Nullable String userToken = AuthUtil.extractTwitchToken(request);
         RestTemplate restTemplate = twitch.getRestClient().getRestTemplate();
         if (userToken != null)
             restTemplate = getPrivilegedRestTemplate(new OAuthCredential(userToken));
@@ -392,6 +394,7 @@ public class TwitchUnofficialApi {
      * @param  quality limit streams to the quality or lower
      * @return clean master playlist
      */
+    @NotCached
     private static String cleanMasterPlaylist(String playlistString, int fps, String quality,
                                               @Nullable String model) {
         // Determine max quality
@@ -469,6 +472,7 @@ public class TwitchUnofficialApi {
      * @param model roku model in the format nnnnX
      * @return largest supported or specified quality
      */
+    @NotCached
     private static RokuQuality getMaxQualityForModel(String quality, int fps, @Nullable String model) {
         int defaultQuality = (int) StringUtil.parseLong(quality.replace("p", ""));
         if (model == null)
@@ -950,6 +954,7 @@ public class TwitchUnofficialApi {
      * Add user names and game names to a list of streams
      * @param streams stream list
      */
+    @NotCached
     private static void addNamesToStreams(List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream>
                                                       streams) {
         List<String> gameIds = new ArrayList<>();
@@ -994,6 +999,7 @@ public class TwitchUnofficialApi {
      * @param oauth token to add to header
      * @return rest templates
      */
+    @NotCached
     private static RestTemplate getPrivilegedRestTemplate(OAuthCredential oauth) {
         RestTemplate restTemplate = twitch.getRestClient().getPlainRestTemplate();
         restTemplate.getInterceptors().add(new HeaderRequestInterceptor("Authorization",
@@ -1238,7 +1244,7 @@ public class TwitchUnofficialApi {
         if ((token == null || token.isEmpty()) && (userId == null || userId.isEmpty()))
             throw halt(BAD_REQUEST, "Empty token");
         // Check cache
-        String requestId = ApiCache.createKey("helix/user/follows/streams", offset, limit, token);
+        String requestId = ApiCache.createKey("helix/user/follows/streams", offset, limit, token, userId);
         String cachedResponse = cache.get(requestId);
         if (cachedResponse != null)
             return cachedResponse;
@@ -1349,6 +1355,7 @@ public class TwitchUnofficialApi {
      * Add a user id to a list of IDs that will be used in a background thread to fetch and cache user follows
      * @param fromId user id
      */
+    @NotCached
     private static void cacheFollows(String fromId) {
         long followIdCacheTime = cache.getFollowIdCacheTime(fromId);
         // Cache for 1 hour
@@ -2077,6 +2084,7 @@ public class TwitchUnofficialApi {
      * @param response response
      * @return json
      */
+    @Cached
     public static String getUserFollowedStreamsKraken(Request request, Response response) {
         checkAuth(request);
         // Params
