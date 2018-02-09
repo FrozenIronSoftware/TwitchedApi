@@ -50,6 +50,7 @@ import me.philippheuer.util.rest.RestErrorHandler;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestClientException;
@@ -263,6 +264,16 @@ public class TwitchUnofficialApi {
         cache.set(requestId, playlistString);
         response.type("audio/mpegurl");
         return playlistString;
+    }
+
+    private static void logTwitchRateLimit(ResponseEntity responseEntity) {
+        HttpHeaders headers = responseEntity.getHeaders();
+        String limit = headers.getFirst("RateLimit-Limit");
+        String remaining = headers.getFirst("RateLimit-Remaining");
+        String reset = headers.getFirst("RateLimit-Reset");
+        String log = String.format("Rate Limit:\n\tLimit: %s\n\tRemaining: %s,\n\tReset: %s",
+                limit, remaining, reset);
+        Logger.debug(log);
     }
 
     /**
@@ -622,6 +633,7 @@ public class TwitchUnofficialApi {
         try {
             tokenResponse = restTemplate.exchange(appTokenUrl, HttpMethod.POST, null,
                     String.class);
+            logTwitchRateLimit(tokenResponse);
         }
         catch (RestException e) {
             Logger.warn(StringUtils.repeat("=", 80));
@@ -924,6 +936,7 @@ public class TwitchUnofficialApi {
             Logger.verbose( "Rest Request to [%s]", requestUrl);
             ResponseEntity<String> responseObject = restTemplate.exchange(requestUrl, HttpMethod.GET, null,
                     String.class);
+            logTwitchRateLimit(responseObject);
             try {
                 com.rolandoislas.twitchunofficial.util.twitch.helix.StreamList streamList = gson.fromJson(
                         responseObject.getBody(),
@@ -973,7 +986,14 @@ public class TwitchUnofficialApi {
         }
         Map<String, String> gameNames;
         try {
-            gameNames = getGameNames(gameIds);
+            int gameIdsCount = 0;
+            for (String gameId : gameIds)
+                if (gameId != null && !gameId.isEmpty())
+                    gameIdsCount++;
+            if (gameIdsCount > 0)
+                gameNames = getGameNames(gameIds);
+            else
+                gameNames = new HashMap<>();
         }
         catch (HaltException | RestException e) {
             Logger.exception(e);
@@ -1110,6 +1130,7 @@ public class TwitchUnofficialApi {
         try {
             Logger.verbose( "Rest Request to [%s]", requestUrl);
             ResponseEntity<String> responseObject = restTemplate.exchange(requestUrl, HttpMethod.GET, null, String.class);
+            logTwitchRateLimit(responseObject);
             try {
                 GameList gameList = gson.fromJson(responseObject.getBody(), GameList.class);
                 games = gameList.getGames();
@@ -1162,6 +1183,7 @@ public class TwitchUnofficialApi {
         try {
             Logger.verbose( "Rest Request to [%s]", requestUrl);
             ResponseEntity<String> responseObject = restTemplate.exchange(requestUrl, HttpMethod.GET, null, String.class);
+            logTwitchRateLimit(responseObject);
             try {
                 UserList userList = gson.fromJson(responseObject.getBody(), UserList.class);
                 users = userList.getUsers();
@@ -1425,6 +1447,7 @@ public class TwitchUnofficialApi {
             Logger.verbose( "Rest Request to [%s]", requestUrl);
             ResponseEntity<String> responseObject = restTemplate.exchange(requestUrl, HttpMethod.GET, null,
                     String.class);
+            logTwitchRateLimit(responseObject);
             try {
                 String json = responseObject.getBody();
                 return gson.fromJson(json, FollowList.class);
@@ -1730,6 +1753,7 @@ public class TwitchUnofficialApi {
             Logger.verbose( "Rest Request to [%s]", requestUrl);
             ResponseEntity<String> responseObject = restTemplate.exchange(requestUrl, HttpMethod.GET, null,
                     String.class);
+            logTwitchRateLimit(responseObject);
             try {
                 GameList gameList = gson.fromJson(responseObject.getBody(), GameList.class);
                 games = gameList.getGames();
@@ -1969,6 +1993,7 @@ public class TwitchUnofficialApi {
             Logger.verbose( "Rest Request to [%s]", requestUrl);
             ResponseEntity<String> responseObject = restTemplate.exchange(requestUrl, HttpMethod.GET, null,
                     String.class);
+            logTwitchRateLimit(responseObject);
             try {
                 StreamList streamList = gson.fromJson(responseObject.getBody(), StreamList.class);
                 videos = streamList.getStreams();
@@ -2115,8 +2140,6 @@ public class TwitchUnofficialApi {
         );
         if (userFollows == null)
             throw halt(SERVER_ERROR, "Failed to connect to Twitch API");
-        for (me.philippheuer.twitch4j.model.Follow follow : userFollows)
-            System.out.println(follow.getChannel().getName());
         List<String> followIds = new ArrayList<>();
         for (me.philippheuer.twitch4j.model.Follow follow : userFollows)
             if (follow.getChannel().getId() != null)
