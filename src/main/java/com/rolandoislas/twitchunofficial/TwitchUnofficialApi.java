@@ -86,6 +86,7 @@ public class TwitchUnofficialApi {
     private static final String API = "https://api.twitch.tv/helix";
     private static final String API_RAW = "https://api.twitch.tv/api";
     private static final String API_USHER = "https://usher.ttvnw.net";
+    public static final int RATE_LIMIT_MAX = 120;
     static TwitchClient twitch;
     static Gson gson;
     private static OAuthCredential twitchOauth;
@@ -266,7 +267,14 @@ public class TwitchUnofficialApi {
         return playlistString;
     }
 
-    private static void logTwitchRateLimit(ResponseEntity responseEntity) {
+    /**
+     * Log twitch rate limit from response headers
+     * @param responseEntity http response
+     * @return amount of request remaining in the request window
+     */
+    private static int logTwitchRateLimit(@Nullable ResponseEntity responseEntity) {
+        if (responseEntity == null)
+            return 0;
         HttpHeaders headers = responseEntity.getHeaders();
         String limit = headers.getFirst("RateLimit-Limit");
         String remaining = headers.getFirst("RateLimit-Remaining");
@@ -274,6 +282,7 @@ public class TwitchUnofficialApi {
         String log = String.format("Rate Limit:\n\tLimit: %s\n\tRemaining: %s,\n\tReset: %s",
                 limit, remaining, reset);
         Logger.debug(log);
+        return (int) StringUtil.parseLong(remaining);
     }
 
     /**
@@ -1349,18 +1358,33 @@ public class TwitchUnofficialApi {
                         }
                     }
                     // Get live data
-                    @NotNull List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streamSublist =
-                            getStreams(after, null, null, first, null, null,
-                            null, followsSublist, null);
-                    // Cache
-                    try {
-                        cache.set(cacheId, gson.toJson(streamSublist));
+                    // Do not fetch if the rate limit is at half and the user follows more than 300 channels
+                    // Allow fetching if the rate limit is at a fourth and the user follows less than or equal to 300
+                    // channels
+                    if (userFollows.getRateLimitRemaining() > RATE_LIMIT_MAX / 2 ||
+                            (userFollows.getRateLimitRemaining() > RATE_LIMIT_MAX / 4 &&
+                                    userFollows.getTotal() <= 300)) {
+                        @NotNull List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streamSublist =
+                                getStreams(after, null, null, first, null, null,
+                                        null, followsSublist, null);
+                        try {
+                            Thread.sleep(2000);
+                        } catch (InterruptedException ignore) {
+                        }
+                        // Cache
+                        try {
+                            cache.set(cacheId, gson.toJson(streamSublist));
+                        } catch (JsonSyntaxException e) {
+                            Logger.exception(e);
+                        }
+                        // Add streams to array
+                        streams.addAll(streamSublist);
                     }
-                    catch (JsonSyntaxException e) {
-                        Logger.exception(e);
+                    else {
+                        Logger.extra("Denied user follow streams request.\n\tReason: Rate limit too low\n" +
+                                "\tRate Limit: %d\n\tTotal Follows: %d", userFollows.getRateLimitRemaining(),
+                                userFollows.getTotal());
                     }
-                    // Add streams to array
-                    streams.addAll(streamSublist);
                 }
             }
             // Check if 10 seconds has passed
@@ -1418,6 +1442,7 @@ public class TwitchUnofficialApi {
                 }
                 FollowList followList = new FollowList();
                 followList.setFollows(follows);
+                followList.setRateLimitRemaining(RATE_LIMIT_MAX);
                 return followList;
             }
         }
@@ -1447,10 +1472,12 @@ public class TwitchUnofficialApi {
             Logger.verbose( "Rest Request to [%s]", requestUrl);
             ResponseEntity<String> responseObject = restTemplate.exchange(requestUrl, HttpMethod.GET, null,
                     String.class);
-            logTwitchRateLimit(responseObject);
+            int rateLimitRemaining = logTwitchRateLimit(responseObject);
             try {
                 String json = responseObject.getBody();
-                return gson.fromJson(json, FollowList.class);
+                FollowList followList = gson.fromJson(json, FollowList.class);
+                followList.setRateLimitRemaining(rateLimitRemaining);
+                return followList;
             }
             catch (JsonSyntaxException e) {
                 Logger.exception(e);

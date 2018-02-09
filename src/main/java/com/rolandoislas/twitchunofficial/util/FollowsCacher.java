@@ -65,6 +65,11 @@ public class FollowsCacher implements Runnable {
                 for (Follow follow : userFollows.getFollows())
                     if (follow.getToId() != null)
                         followIds.add(follow.getToId());
+                // Rate limit is low
+                if (userFollows.getRateLimitRemaining() < TwitchUnofficialApi.RATE_LIMIT_MAX / 4) {
+                    Logger.debug("FollowsCacher: Rate limit is low. Halting for 60 seconds");
+                    Thread.sleep(60000);
+                }
             }
             else
                 pagination = null;

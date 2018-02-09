@@ -17,6 +17,8 @@ public class FollowList {
     @SerializedName("data")
     private List<Follow> follows;
     private Pagination pagination;
+    // Non-spec
+    private int rateLimitRemaining;
 
     public List<Follow> getFollows() {
         return follows;
@@ -28,5 +30,17 @@ public class FollowList {
 
     public void setFollows(List<Follow> follows) {
         this.follows = follows;
+    }
+
+    public void setRateLimitRemaining(int rateLimitRemaining) {
+        this.rateLimitRemaining = rateLimitRemaining;
+    }
+
+    public int getRateLimitRemaining() {
+        return rateLimitRemaining;
+    }
+
+    public long getTotal() {
+        return total;
     }
 }
