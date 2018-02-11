@@ -1009,10 +1009,12 @@ public class TwitchUnofficialApi {
             gameNames = new HashMap<>();
         }
         for (com.rolandoislas.twitchunofficial.util.twitch.helix.Stream stream : streams) {
-            String userName = userNames.get(stream.getUserId());
+            String userString = userNames.get(stream.getUserId());
             try {
-                stream.setUserName(userName == null || userName.isEmpty() ?
-                        new UserName("" , "") : gson.fromJson(userName, UserName.class));
+                User user = gson.fromJson(userString, User.class);
+                stream.setUserName(user == null || user.getDisplayName() == null || user.getDisplayName().isEmpty() ||
+                        user.getLogin() == null || user.getLogin().isEmpty() ?
+                        new UserName("" , "") : new UserName(user.getLogin(), user.getDisplayName()));
             }
             catch (JsonSyntaxException e) {
                 Logger.exception(e);
@@ -1060,7 +1062,8 @@ public class TwitchUnofficialApi {
      * Get user name or game name for ids
      * @param ids user or game id - must be all one type
      * @param type type of ids
-     * @return map <id, @Nullable name> all ids passed will be returned
+     * @return map <id, @Nullable name> all ids passed will be returned.
+     *  in the case of the User type, the name string will be a User object as a json(gson) string
      */
     @Cached
     private static Map<String, String> getNameForIds(List<String> ids, Id type) {
@@ -1090,10 +1093,12 @@ public class TwitchUnofficialApi {
                 throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
             // Store missing ids
             for (User user : users) {
-                JsonObject name = new JsonObject();
-                name.addProperty("display_name", user.getDisplayName());
-                name.addProperty("login", user.getLogin());
-                nameIdMap.put(user.getId(), name.toString());
+                try {
+                    nameIdMap.put(user.getId(), gson.toJson(user));
+                }
+                catch (JsonSyntaxException e) {
+                    Logger.exception(e);
+                }
             }
             cache.setUserNames(nameIdMap);
         }
@@ -1312,6 +1317,7 @@ public class TwitchUnofficialApi {
             String fromId, int timeout) throws HaltException {
         List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streams = new ArrayList<>();
         List<String> followIds = new ArrayList<>();
+        List<Follow> followsOffline = new ArrayList<>();
         String pagination = null;
         long startTime = System.currentTimeMillis();
         boolean hasTime;
@@ -1379,6 +1385,16 @@ public class TwitchUnofficialApi {
                         }
                         // Add streams to array
                         streams.addAll(streamSublist);
+                        // Add follows to offline list
+                        for (com.rolandoislas.twitchunofficial.util.twitch.helix.Stream stream : streamSublist)
+                            if (stream != null && stream.getUserId() != null && followIds.contains(stream.getUserId()))
+                                followIds.remove(stream.getUserId());
+                        if (followIds.size() > 0) {
+                            for (String followId : followIds)
+                                for (Follow follow : userFollows.getFollows())
+                                    if (followId != null && followId.equals(follow.getToId()))
+                                        followsOffline.add(follow);
+                        }
                     }
                     else {
                         Logger.extra("Denied user follow streams request.\n\tReason: Rate limit too low\n" +
@@ -1391,6 +1407,44 @@ public class TwitchUnofficialApi {
             hasTime = System.currentTimeMillis() - startTime < timeout;
         }
         while (followIds.size() == 100 && pagination != null && hasTime);
+        // Add offline channels to list
+        if (hasTime && followsOffline.size() > 0 && followsOffline.size() <= 100) {
+            List<String> followIdsOffline = new ArrayList<>();
+            for (Follow follow : followsOffline)
+                followIdsOffline.add(follow.getToId());
+            Map<String, String> offlineUsers = getUserNames(followIdsOffline);
+            for (Map.Entry<String, String> offlineUser : offlineUsers.entrySet()) {
+                if (offlineUser.getValue() == null || offlineUser.getValue().isEmpty())
+                    continue;
+                com.rolandoislas.twitchunofficial.util.twitch.helix.Stream offlineStream =
+                        new com.rolandoislas.twitchunofficial.util.twitch.helix.Stream();
+                offlineStream.setUserId(offlineUser.getKey());
+                try {
+                    User user = gson.fromJson(offlineUser.getValue(), User.class);
+                    if (user == null || user.getLogin() == null || user.getDisplayName() == null ||
+                            user.getOfflineImageUrl() == null)
+                        continue;
+                    offlineStream.setUserName(new UserName(user.getLogin(), user.getDisplayName()));
+                    offlineStream.setThumbnailUrl(user.getOfflineImageUrl()
+                            .replace("-1920x", "-{width}x")
+                            .replace("x1080.", "x{height}.")
+                            .replace("-1280x", "-{width}x")
+                            .replace("x720.", "x{height}."));
+                    offlineStream.setTitle(user.getDisplayName());
+                    offlineStream.setViewerCount(user.getViewCount());
+                    offlineStream.setType("user");
+                    for (Follow follow : followsOffline)
+                        if (follow.getToId().equals(offlineUser.getKey()))
+                            offlineStream.setStartedAt(follow.getFollowedAt());
+                }
+                catch (JsonSyntaxException e) {
+                    Logger.exception(e);
+                    continue;
+                }
+                streams.add(offlineStream);
+            }
+        }
+        // Request offline user names from Redis
         // Time expired - Send the data that was retrieved and add the user id to a background thread that caches
         // follows. This is not likely to happen on accounts with less than 300 follows.
         cacheFollows(fromId);

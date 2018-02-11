@@ -123,4 +123,8 @@ public class Stream {
     public long getViewerCount() {
         return viewerCount;
     }
+
+    public String getType() {
+        return type;
+    }
 }

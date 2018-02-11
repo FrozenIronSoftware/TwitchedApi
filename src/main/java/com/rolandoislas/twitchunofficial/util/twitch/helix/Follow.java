@@ -29,4 +29,8 @@ public class Follow {
     public void setFromId(String fromId) {
         this.fromId = fromId;
     }
+
+    public String getFollowedAt() {
+        return followedAt;
+    }
 }

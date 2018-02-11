@@ -35,4 +35,12 @@ public class User {
     public String getLogin() {
         return login;
     }
+
+    public String getOfflineImageUrl() {
+        return offlineImageUrl;
+    }
+
+    public long getViewCount() {
+        return viewCount;
+    }
 }

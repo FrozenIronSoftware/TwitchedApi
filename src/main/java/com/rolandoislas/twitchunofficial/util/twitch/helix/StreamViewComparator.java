@@ -10,6 +10,8 @@ import java.util.Comparator;
 public class StreamViewComparator implements Comparator<Stream> {
     @Override
     public int compare(Stream a, Stream b) {
-        return Long.compare(a.getViewerCount(), b.getViewerCount());
+        long viewA = a.getType().equalsIgnoreCase("user") ? -1 : a.getViewerCount();
+        long viewB = b.getType().equalsIgnoreCase("user") ? -1 : b.getViewerCount();
+        return Long.compare(viewA, viewB);
     }
 }
