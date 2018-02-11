@@ -1321,6 +1321,7 @@ public class TwitchUnofficialApi {
         String pagination = null;
         long startTime = System.currentTimeMillis();
         boolean hasTime;
+        String offlineCacheId = ApiCache.createKey(":helix/user/follows/streams/offline", fromId);
         do {
             FollowList userFollows = getUserFollows(pagination,
                     null, "100", fromId, null, true);
@@ -1350,13 +1351,23 @@ public class TwitchUnofficialApi {
                     cacheParams.addAll(followsSublist);
                     String cacheId = ApiCache.createKey(":helix/user/follows/streams", cacheParams.toArray());
                     @Nullable String cachedData = cache.get(cacheId);
+                    @Nullable String offlineCachedData = cache.get(offlineCacheId);
                     if (cachedData != null) {
                         try {
                             List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streamCachedList =
                                     gson.fromJson(cachedData,
                                     new TypeToken<List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream>>()
                                     {}.getType());
-                            streams.addAll(streamCachedList);
+                            if (streamCachedList != null)
+                                streams.addAll(streamCachedList);
+                            if (offlineCachedData != null) {
+                                List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> offlineCachedList =
+                                        gson.fromJson(offlineCachedData,
+                                                new TypeToken<List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream>>() {
+                                                }.getType());
+                                if (offlineCachedList != null)
+                                    streams.addAll(offlineCachedList);
+                            }
                             continue;
                         }
                         catch (JsonSyntaxException e) {
@@ -1413,6 +1424,7 @@ public class TwitchUnofficialApi {
             for (Follow follow : followsOffline)
                 followIdsOffline.add(follow.getToId());
             Map<String, String> offlineUsers = getUserNames(followIdsOffline);
+            List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> offlineStreams = new ArrayList<>();
             for (Map.Entry<String, String> offlineUser : offlineUsers.entrySet()) {
                 if (offlineUser.getValue() == null || offlineUser.getValue().isEmpty())
                     continue;
@@ -1432,7 +1444,7 @@ public class TwitchUnofficialApi {
                             .replace("x720.", "x{height}."));
                     offlineStream.setTitle(user.getDisplayName());
                     offlineStream.setViewerCount(user.getViewCount());
-                    offlineStream.setType("user");
+                    offlineStream.setType("user_follow");
                     for (Follow follow : followsOffline)
                         if (follow.getToId().equals(offlineUser.getKey()))
                             offlineStream.setStartedAt(follow.getFollowedAt());
@@ -1441,8 +1453,15 @@ public class TwitchUnofficialApi {
                     Logger.exception(e);
                     continue;
                 }
-                streams.add(offlineStream);
+                offlineStreams.add(offlineStream);
             }
+            try {
+                cache.set(offlineCacheId, gson.toJson(offlineStreams));
+            }
+            catch (JsonSyntaxException e) {
+                Logger.exception(e);
+            }
+            streams.addAll(offlineStreams);
         }
         // Request offline user names from Redis
         // Time expired - Send the data that was retrieved and add the user id to a background thread that caches
