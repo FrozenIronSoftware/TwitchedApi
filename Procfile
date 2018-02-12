@@ -1,1 +1,1 @@
-web: java -jar ./build/libs/TwitchUnofficialAPI-*.jar
+web: java -jar ./build/libs/TwitchUnofficialAPI-*.jar -log FINEST
