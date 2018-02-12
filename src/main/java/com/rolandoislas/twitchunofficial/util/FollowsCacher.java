@@ -6,6 +6,7 @@ import com.rolandoislas.twitchunofficial.util.twitch.helix.FollowList;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.NoSuchElementException;
 
 import static com.rolandoislas.twitchunofficial.TwitchUnofficial.cache;
 
@@ -21,10 +22,18 @@ public class FollowsCacher implements Runnable {
         while (running) {
             try {
                 cacheFollows();
-                Thread.sleep(1000);
             }
             catch (InterruptedException e) {
-                e.printStackTrace();
+                Logger.exception(e);
+            }
+            // Empty queue, wait and try again
+            catch (NoSuchElementException e) {
+                try {
+                    Thread.sleep(1000);
+                }
+                catch (InterruptedException e1) {
+                    Logger.exception(e);
+                }
             }
         }
     }
@@ -32,19 +41,11 @@ public class FollowsCacher implements Runnable {
     /**
      * Check for id to get follow and cache to Redis
      */
-    private void cacheFollows() throws InterruptedException {
-        // Ignore if there is nothing to do
-        if (TwitchUnofficialApi.followIdsToCache.size() <= 0)
-            return;
+    private void cacheFollows() throws InterruptedException, NoSuchElementException {
         // Get follows for id
-        synchronized (TwitchUnofficialApi.followIdsToCache) {
-            List<String> toRemove = new ArrayList<>();
-            for (String fromId : TwitchUnofficialApi.followIdsToCache) {
-                getFollowsForId(fromId);
-                toRemove.add(fromId);
-            }
-            TwitchUnofficialApi.followIdsToCache.removeAll(toRemove);
-        }
+        String fromId = TwitchUnofficialApi.followIdsToCache.element();
+        getFollowsForId(fromId);
+        TwitchUnofficialApi.followIdsToCache.remove();
     }
 
     /**
@@ -52,6 +53,7 @@ public class FollowsCacher implements Runnable {
      * @param fromId id
      */
     private void getFollowsForId(String fromId) throws InterruptedException {
+        Logger.debug("FollowsCacher: Getting follows for user id %s.", fromId);
         List<String> followIds = new ArrayList<>();
         // Get all follows
         String pagination = null;

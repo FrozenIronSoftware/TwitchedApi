@@ -74,13 +74,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static com.rolandoislas.twitchunofficial.TwitchUnofficial.cache;
 
 public class TwitchUnofficialApi {
-    public static final List<String> followIdsToCache = Collections.synchronizedList(new ArrayList<>());
+    public static final Queue<String> followIdsToCache = new ConcurrentLinkedQueue<>();
     private static final Pattern DURATION_REGEX = Pattern.compile("(?:(\\d+)d)?(?:(\\d+)h)?(?:(\\d+)m)?(?:(\\d+)s)");
     static final int BAD_REQUEST = 400;
     static final int SERVER_ERROR =  500;
@@ -1479,17 +1481,31 @@ public class TwitchUnofficialApi {
     /**
      * Add a user id to a list of IDs that will be used in a background thread to fetch and cache user follows
      * @param fromId user id
+     * @param force ignore cache time
+     */
+    @NotCached
+    private static void cacheFollows(String fromId, boolean force) {
+        long followIdCacheTime = cache.getFollowIdCacheTime(fromId);
+        // Cache for 1 hour
+        if (System.currentTimeMillis() - followIdCacheTime < 60 * 60 * 1000 && !force)
+            return;
+        if (!followIdsToCache.contains(fromId)) {
+            Logger.debug("Adding user with id %s to the follows cacher.", fromId);
+            if (!followIdsToCache.offer(fromId))
+                Logger.debug("Failed to add user with id %s to follows cacher queue.");
+        }
+        else
+            Logger.debug("User with id %s already queued in the follows cacher.", fromId);
+    }
+
+    /**
+     * @see TwitchUnofficialApi#cacheFollows(String, boolean)
+     * Respects cache time
+     * @param fromId user id
      */
     @NotCached
     private static void cacheFollows(String fromId) {
-        long followIdCacheTime = cache.getFollowIdCacheTime(fromId);
-        // Cache for 1 hour
-        if (System.currentTimeMillis() - followIdCacheTime < 60 * 60 * 1000)
-            return;
-        synchronized (followIdsToCache) {
-            if (!followIdsToCache.contains(fromId))
-                followIdsToCache.add(fromId);
-        }
+        cacheFollows(fromId, false);
     }
 
     /**
@@ -1917,12 +1933,29 @@ public class TwitchUnofficialApi {
         System.arraycopy(logins.toArray(), 0, keyParams, ids.size() + 1, logins.size());
         String requestId = ApiCache.createKey("helix/users", keyParams);
         String cachedResponse = cache.get(requestId);
-        if (cachedResponse != null)
+        if (cachedResponse != null) {
+            // Preload follows
+            if (token != null) {
+                try {
+                    List<User> users = gson.fromJson(cachedResponse, new TypeToken<List<User>>() {}.getType());
+                    if (users != null && users.size() == 1 && users.get(0).getId() != null)
+                        cacheFollows(users.get(0).getId(), true);
+                }
+                catch (JsonSyntaxException e) {
+                    Logger.exception(e);
+                }
+            }
+            // Return
             return cachedResponse;
+        }
         // Request live
         List<User> users = getUsers(ids, logins, token);
         if (users == null)
             throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
+        // Preload follows
+        if (token != null)
+            if (users.size() == 1 && users.get(0).getId() != null)
+                cacheFollows(users.get(0).getId(), true);
         // Cache and return
         String json = gson.toJson(users);
         cache.set(requestId, json);
