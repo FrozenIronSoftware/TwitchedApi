@@ -17,6 +17,7 @@ import com.rolandoislas.twitchunofficial.data.annotation.NotCached;
 import com.rolandoislas.twitchunofficial.util.ApiCache;
 import com.rolandoislas.twitchunofficial.util.AuthUtil;
 import com.rolandoislas.twitchunofficial.util.FollowsCacher;
+import com.rolandoislas.twitchunofficial.util.HeaderUtil;
 import com.rolandoislas.twitchunofficial.util.Logger;
 import com.rolandoislas.twitchunofficial.util.StringUtil;
 import com.rolandoislas.twitchunofficial.util.twitch.Token;
@@ -48,6 +49,7 @@ import me.philippheuer.util.rest.HeaderRequestInterceptor;
 import me.philippheuer.util.rest.QueryRequestInterceptor;
 import me.philippheuer.util.rest.RestErrorHandler;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.maven.artifact.versioning.ComparableVersion;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.springframework.http.HttpHeaders;
@@ -1295,7 +1297,7 @@ public class TwitchUnofficialApi {
         response.header("Twitch-User-ID", fromId);
         // Get follows
         List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streams =
-                getUserFollowedStreamsWithTimeout(fromId, 15000);
+                getUserFollowedStreamsWithTimeout(fromId, 15000, HeaderUtil.extractVersion(request));
         // Sort streams
         streams.sort(new StreamViewComparator().reversed());
         streams = streams.subList(0, Math.min((int) StringUtil.parseLong(limit), streams.size()));
@@ -1310,11 +1312,12 @@ public class TwitchUnofficialApi {
      * If the timeout is reached, the fetched streams will be returned and the id will be added to the fetch queue
      * @param fromId id to get follows for
      * @param timeout timeout in milliseconds
+     * @param twitchedVersion twitched version string
      * @return streams
      */
     @Cached
     private static List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> getUserFollowedStreamsWithTimeout(
-            String fromId, int timeout) throws HaltException {
+            String fromId, int timeout, ComparableVersion twitchedVersion) throws HaltException {
         List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streams = new ArrayList<>();
         List<String> followIds = new ArrayList<>();
         List<Follow> followsOffline = new ArrayList<>();
@@ -1444,7 +1447,10 @@ public class TwitchUnofficialApi {
                             .replace("x720.", "x{height}."));
                     offlineStream.setTitle(user.getDisplayName());
                     offlineStream.setViewerCount(user.getViewCount());
-                    offlineStream.setType("user_follow");
+                    if (twitchedVersion.compareTo(new ComparableVersion("1.3")) >= 0)
+                        offlineStream.setType("user_follow");
+                    else
+                        offlineStream.setType("user");
                     for (Follow follow : followsOffline)
                         if (follow.getToId().equals(offlineUser.getKey()))
                             offlineStream.setStartedAt(follow.getFollowedAt());
