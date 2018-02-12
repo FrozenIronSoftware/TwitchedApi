@@ -10,9 +10,8 @@
         <a href="https://chrome.google.com/webstore/detail/twitched/bppjnfjndembhedknalkdlpknkoiomao"
            id="ext-install-chrome">Chrome</a>
     </div>
-    <!-- TODO add firefox addons URL -->
     <div class="button button-tall button">
-        <a href="https://github.com/TwitchedApp/twitched-extension/releases/download/v1.1/twitched-1.1-an.fx.xpi"
+        <a href="https://addons.mozilla.org/addon/twitched/"
            id="ext-install-firefox">Firefox</a>
     </div>
     <!-- TODO add opera addons URL -->
@@ -43,20 +42,24 @@
             console.log("Chrome extension install succeeded");
         }, function (reason) {
             console.log("Chrome extension install failed: " + reason)
+            window.location = "https://chrome.google.com/webstore/detail/twitched/bppjnfjndembhedknalkdlpknkoiomao";
         });
     }
 
     /**
      * Handle firefox install button
      */
-    function onFirefoxButtonClicked() {
-        // TODO detect firefox and link directly to the xpi
+    function onFirefoxButtonClicked(event) {
+        if (navigator.userAgent.toUpperCase().indexOf("FIREFOX") < 0)
+            return;
+        event.preventDefault();
+        window.location = "https://addons.mozilla.org/firefox/downloads/file/860773/twitched-latest-an+fx-linux.xpi";
     }
 
     /**
      * Handle opera install button
      */
-    function onOperaButtonClicked() {
+    function onOperaButtonClicked(event) {
         return;
         if (typeof(opr) === "undefined" || opr === null)
             return;
