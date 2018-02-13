@@ -311,9 +311,11 @@ public class ApiCache {
         }
         // Set follows
         try (Jedis redis = getAuthenticatedJedis()) {
-            if (toIds.size() > 0)
+            if (toIds.size() > 0) {
                 redis.sadd(FOLLOW_PREFIX + fromId, toIds.toArray(new String[toIds.size()]));
-            redis.set(FOLLOW_TIME_PREFIX + fromId, String.valueOf(System.currentTimeMillis()));
+                redis.expire(FOLLOW_PREFIX + fromId, 7 * 24 * 60 * 60);
+            }
+            redis.setex(FOLLOW_TIME_PREFIX + fromId, 60 * 60, String.valueOf(System.currentTimeMillis()));
         } catch (Exception e) {
             Logger.exception(e);
         }
