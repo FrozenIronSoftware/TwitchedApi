@@ -43,4 +43,8 @@ public class User {
     public long getViewCount() {
         return viewCount;
     }
+
+    public String getDescription() {
+        return description;
+    }
 }

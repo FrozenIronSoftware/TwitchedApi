@@ -1447,8 +1447,10 @@ public class TwitchUnofficialApi {
                             .replace("x1080.", "x{height}.")
                             .replace("-1280x", "-{width}x")
                             .replace("x720.", "x{height}."));
-                    offlineStream.setTitle(user.getDisplayName());
+                    offlineStream.setTitle(user.getDescription() == null ? "" : user.getDescription());
                     offlineStream.setViewerCount(user.getViewCount());
+                    offlineStream.setGameName("IRL");
+                    offlineStream.setGameId("494717");
                     if (twitchedVersion.compareTo(new ComparableVersion("1.3")) >= 0)
                         offlineStream.setType("user_follow");
                     else
