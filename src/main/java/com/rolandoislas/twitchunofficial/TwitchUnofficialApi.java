@@ -912,16 +912,18 @@ public class TwitchUnofficialApi {
             @Nullable String streamType,
             @Nullable List<String> userIdsParam,
             @Nullable List<String> userLoginsParam) {
-        // Check cache
-        CachedStreams cachedStreams = cache.getStreams(userIdsParam, userLoginsParam);
-        if (cachedStreams.getMissingIds().size() == 0 && cachedStreams.getMissingLogins().size() == 0 &&
-                ((userIdsParam != null && userIdsParam.size() > 0) ||
-                        (userLoginsParam != null && userLoginsParam.size() > 0)))
-            return cachedStreams.getStreams();
-        // Some streams are missing
-        List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streams = cachedStreams.getStreams();
-        userIdsParam = cachedStreams.getMissingIds();
-        userLoginsParam = cachedStreams.getMissingLogins();
+        List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streams = new ArrayList<>();
+        if ((userIdsParam != null && userIdsParam.size() > 0) ||
+                (userLoginsParam != null && userLoginsParam.size() > 0)) {
+            // Check cache
+            CachedStreams cachedStreams = cache.getStreams(userIdsParam, userLoginsParam);
+            if (cachedStreams.getMissingIds().size() == 0 && cachedStreams.getMissingLogins().size() == 0)
+                return cachedStreams.getStreams();
+            // Some streams are missing
+            streams = cachedStreams.getStreams();
+            userIdsParam = cachedStreams.getMissingIds();
+            userLoginsParam = cachedStreams.getMissingLogins();
+        }
 
         // Request live
         // Endpoint
