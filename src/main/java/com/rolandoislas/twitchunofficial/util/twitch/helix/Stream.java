@@ -49,6 +49,7 @@ public class Stream {
     private String gameName;
     @SerializedName("duration_seconds")
     private long durationSeconds;
+    private boolean online = true;
 
     // Get/Set
 
@@ -126,5 +127,17 @@ public class Stream {
 
     public String getType() {
         return type;
+    }
+
+    public UserName getUserName() {
+        return userName;
+    }
+
+    public void setOnline(boolean online) {
+        this.online = online;
+    }
+
+    public boolean isOnline() {
+        return online;
     }
 }

@@ -5,8 +5,17 @@
 
 package com.rolandoislas.twitchunofficial.util;
 
+import com.google.common.base.Charsets;
+import com.google.common.hash.Hashing;
+import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
+import com.rolandoislas.twitchunofficial.data.CachedStreams;
 import com.rolandoislas.twitchunofficial.data.Id;
+import com.rolandoislas.twitchunofficial.util.twitch.helix.Stream;
+import com.rolandoislas.twitchunofficial.util.twitch.helix.StreamUtil;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.springframework.util.DigestUtils;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
@@ -25,15 +34,19 @@ import java.util.Set;
 
 public class ApiCache {
     private static final int TIMEOUT = 60 * 3; // Seconds before a cache value should be considered invalid
-    private static final int USER_NAME_TIMEOUT = 24 * 60 * 60; // 1 Day
+    private static final int TIMEOUT_HOUR = 60 * 60;
+    private static final int TIMEOUT_DAY = 24 * 60 * 60; // 1 Day
+    private static final int TIMEOUT_WEEK = 7 * 24 * 60 * 60; // 1 Week
     private static final String USER_NAME_FIELD_PREFIX = "_username_";
     private static final String GAME_NAME_FIELD_PREFIX = "_gamename_";
     public static final String LINK_PREFIX = "_link_";
     public static final String TOKEN_PREFIX = "_token_";
     private static final String FOLLOW_PREFIX = "_follow_";
     private static final String FOLLOW_TIME_PREFIX = "_follow_time_";
-    private static final int GAME_NAME_TIMEOUT = 7 * 24 * 60 * 60; // 1 Week
+    private static final String STREAM_PREFIX = "_stream_";
+    private static final String TOKEN_ID_PREFIX = "_token_id_";
     private final String redisPassword;
+    private final Gson gson;
     private JedisPool redisPool;
 
     public ApiCache(String redisServer) {
@@ -57,6 +70,7 @@ public class ApiCache {
             redisPool = new JedisPool();
             redisPassword = "";
         }
+        gson = new Gson();
     }
 
     /**
@@ -190,11 +204,11 @@ public class ApiCache {
         switch (type) {
             case USER:
                 keyPrefix = USER_NAME_FIELD_PREFIX;
-                keyTimeout = USER_NAME_TIMEOUT;
+                keyTimeout = TIMEOUT_DAY;
                 break;
             case GAME:
                 keyPrefix = GAME_NAME_FIELD_PREFIX;
-                keyTimeout = GAME_NAME_TIMEOUT;
+                keyTimeout = TIMEOUT_WEEK;
                 break;
             default:
                 throw new IllegalArgumentException("Type must be GAME or USER");
@@ -313,9 +327,9 @@ public class ApiCache {
         try (Jedis redis = getAuthenticatedJedis()) {
             if (toIds.size() > 0) {
                 redis.sadd(FOLLOW_PREFIX + fromId, toIds.toArray(new String[toIds.size()]));
-                redis.expire(FOLLOW_PREFIX + fromId, 7 * 24 * 60 * 60);
+                redis.expire(FOLLOW_PREFIX + fromId, TIMEOUT_WEEK);
             }
-            redis.setex(FOLLOW_TIME_PREFIX + fromId, 60 * 60, String.valueOf(System.currentTimeMillis()));
+            redis.setex(FOLLOW_TIME_PREFIX + fromId, TIMEOUT_HOUR, String.valueOf(System.currentTimeMillis()));
         } catch (Exception e) {
             Logger.exception(e);
         }
@@ -340,5 +354,97 @@ public class ApiCache {
             Logger.exception(e);
         }
         return time;
+    }
+
+    /**
+     * Caches a list of streams
+     * @param streams streams to cache
+     */
+    public void cacheStreams(List<Stream> streams) {
+        try (Jedis redis = getAuthenticatedJedis()) {
+            for (Stream stream : streams) {
+                if (stream == null || ((stream.getUserId() == null || stream.getUserName() == null ||
+                        stream.getUserName().getLogin() == null) && stream.isOnline()))
+                    continue;
+                String json = gson.toJson(stream);
+                String id = String.format("%s%s_%s", STREAM_PREFIX, stream.getUserId(),
+                        stream.getUserName().getLogin());
+                redis.setex(id, TIMEOUT, json);
+            }
+        }
+        catch (Exception e) {
+            Logger.exception(e);
+        }
+    }
+
+    /**
+     * Get streams from the cache
+     * @param userIds optional ids to look for
+     * @param userLogins optional logins to look for
+     * @return cached streams object containing any missing ids/login and all found streams
+     */
+    @NotNull
+    public CachedStreams getStreams(@Nullable List<String> userIds, @Nullable List<String> userLogins) {
+        CachedStreams cachedStreams = new CachedStreams();
+        List<Stream> offlineStreams = new ArrayList<>();
+        // Find matching streams
+        Map<String, String> streams = scan(STREAM_PREFIX + "*");
+        for (Map.Entry<String, String> streamEntry : streams.entrySet()) {
+            try {
+                Stream stream = gson.fromJson(streamEntry.getValue(), Stream.class);
+                if (stream != null && !stream.isOnline()) {
+                    offlineStreams.add(stream);
+                    continue;
+                }
+                if (stream == null || stream.getUserId() == null || stream.getUserName() == null ||
+                        stream.getUserName().getLogin() == null ||
+                        stream.getUserName().getLogin().isEmpty())
+                    continue;
+                if ((userIds != null && userIds.contains(stream.getUserId())) ||
+                        (userLogins != null && userLogins.contains(stream.getUserName().getLogin())))
+                    cachedStreams.getStreams().add(stream);
+            }
+            catch (JsonSyntaxException e) {
+                Logger.exception(e);
+            }
+        }
+        // Populate missing lists
+        if (userIds != null)
+            for (String id : userIds)
+                if (!StreamUtil.streamListContainsId(cachedStreams.getStreams(), id) &&
+                        !StreamUtil.streamListContainsId(offlineStreams, id))
+                    cachedStreams.getMissingIds().add(id);
+        if (userLogins != null)
+            for (String login : userLogins)
+                if (!StreamUtil.streamListContainsLogin(cachedStreams.getStreams(), login) &&
+                        !StreamUtil.streamListContainsLogin(offlineStreams, login))
+                    cachedStreams.getMissingLogins().add(login);
+        return cachedStreams;
+    }
+
+    /**
+     * Cache a SHA1 salted token with its corresponding user id
+     * @param id user id
+     * @param token RAW TOKEN!
+     */
+    public void cacheUserIdFromToken(String id, String token) {
+        String tokenHash = AuthUtil.hashString(token, null);
+        try (Jedis redis = getAuthenticatedJedis()) {
+            redis.setex(TOKEN_ID_PREFIX + tokenHash, TIMEOUT_DAY, id);
+        }
+        catch (Exception e) {
+            Logger.exception(e);
+        }
+    }
+
+    /**
+     * Get cached user id from a user access token token
+     * @param token RAW TOKEN!
+     * @return id or null if not in cache
+     */
+    @Nullable
+    public String getUserIdFromToken(String token) {
+        String tokenHash = AuthUtil.hashString(token, null);
+        return get(TOKEN_ID_PREFIX + tokenHash);
     }
 }

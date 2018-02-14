@@ -5,6 +5,8 @@
 
 package com.rolandoislas.twitchunofficial.util;
 
+import com.google.common.base.Charsets;
+import com.google.common.hash.Hashing;
 import org.jetbrains.annotations.Nullable;
 import spark.Request;
 
@@ -68,5 +70,19 @@ public class AuthUtil {
         if (token == null || token.isEmpty())
             token = request.queryParams("token");
         return token;
+    }
+
+    /**
+     * Hash a string with SHA1 and the specified salt
+     * @param raw raw string
+     * @param salt salt - the global salt will be used if this is null
+     * @return hashed string
+     */
+    public static String hashString(String raw, @Nullable String salt) {
+        if (salt == null)
+            salt = System.getenv().getOrDefault("SALT", "");
+        String hash = Hashing.sha1().hashString(raw, Charsets.UTF_8).toString();
+        hash = Hashing.sha1().hashString(hash + salt, Charsets.UTF_8).toString();
+        return hash;
     }
 }

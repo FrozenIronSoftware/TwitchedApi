@@ -20,4 +20,8 @@ public class UserName {
     public UserName() {
 
     }
+
+    public String getLogin() {
+        return login;
+    }
 }

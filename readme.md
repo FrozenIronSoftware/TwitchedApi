@@ -57,6 +57,10 @@ Values: TRUE | FALSE
 If this is set to TRUE, the ALLOWED_CLIENT_ID will be ignored and all
  requests will be allowed.
  
+### SALT
+
+Global salt to use when hashing sensitive data
+ 
 # Parameters
 
 CLI parameters
