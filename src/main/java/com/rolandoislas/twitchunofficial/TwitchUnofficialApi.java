@@ -93,6 +93,7 @@ public class TwitchUnofficialApi {
     private static final String API_RAW = "https://api.twitch.tv/api";
     private static final String API_USHER = "https://usher.ttvnw.net";
     public static final int RATE_LIMIT_MAX = 120;
+    public static final String SUB_ONLY_VIDEO = "https://hls.twitched.org/sub_only_video_720/sub_only_video_720.m3u8";
     static TwitchClient twitch;
     static Gson gson;
     private static OAuthCredential twitchOauth;
@@ -234,7 +235,8 @@ public class TwitchUnofficialApi {
         if (username == null || username.isEmpty())
             return null;
         // Check cache
-        String requestId = ApiCache.createKey("hls", fps, quality, fileName, model, userToken);
+        String requestId = ApiCache.createKey("hls", fps, quality, fileName, model,
+                AuthUtil.hashString(userToken, null));
         String cachedResponse = cache.get(requestId);
         if (cachedResponse != null)
             return cachedResponse;
@@ -242,8 +244,9 @@ public class TwitchUnofficialApi {
 
         // Construct template
         RestTemplate restTemplate = twitch.getRestClient().getRestTemplate();
+        // TODO When the API transitions to Helix the Authentication header will change
         if (userToken != null)
-            restTemplate = getPrivilegedRestTemplate(new OAuthCredential(userToken));
+            restTemplate = twitch.getRestClient().getPrivilegedRestTemplate(new OAuthCredential(userToken));
 
         // Request channel token
         Token token = getVideoAccessToken(Token.TYPE.CHANNEL, username, userToken);
@@ -312,8 +315,9 @@ public class TwitchUnofficialApi {
         }
         String hlsTokenUrl = String.format(API_RAW + url, id);
         RestTemplate restTemplate = twitch.getRestClient().getRestTemplate();
+        // TODO When the API transitions to Helix the Authentication header will change
         if (userToken != null)
-            restTemplate = getPrivilegedRestTemplate(new OAuthCredential(userToken));
+            restTemplate = twitch.getRestClient().getPrivilegedRestTemplate(new OAuthCredential(userToken));
         ResponseEntity<String> tokenResponse;
         try {
             tokenResponse = restTemplate.exchange(hlsTokenUrl, HttpMethod.GET, null,
@@ -325,7 +329,7 @@ public class TwitchUnofficialApi {
         Token token;
         try {
             token = gson.fromJson(tokenResponse.getBody(), Token.class);
-            if (token.getToken() == null || token.getSig() == null)
+            if (token == null || token.getToken() == null || token.getSig() == null)
                 throw halt(SERVER_ERROR, "Invalid data: Twitch API may have changed");
         }
         catch (JsonSyntaxException e) {
@@ -374,14 +378,16 @@ public class TwitchUnofficialApi {
             return null;
         String vodId = idSplit[0];
         // Check cache
-        String requestId = ApiCache.createKey("vod", fps, quality, fileName, model, userToken);
+        String requestId = ApiCache.createKey("vod", fps, quality, fileName, model,
+                AuthUtil.hashString(userToken, null));
         String cachedResponse = cache.get(requestId);
         if (cachedResponse != null)
             return cachedResponse;
         // Fetch live data
         RestTemplate restTemplate = twitch.getRestClient().getRestTemplate();
+        // TODO When the API transitions to Helix the Authentication header will change
         if (userToken != null)
-            restTemplate = getPrivilegedRestTemplate(new OAuthCredential(userToken));
+            restTemplate = twitch.getRestClient().getPrivilegedRestTemplate(new OAuthCredential(userToken));
         // Request VOD token
         Token token = getVideoAccessToken(Token.TYPE.VOD, vodId, userToken);
 
@@ -397,6 +403,12 @@ public class TwitchUnofficialApi {
         restTemplate.getInterceptors().add(new QueryRequestInterceptor("allow_source", "true"));
         ResponseEntity<String> playlist = restTemplate.exchange(hlsPlaylistUrl, HttpMethod.GET, null,
                 String.class);
+
+        // Redirect to sub only warning video
+        if (playlist.getStatusCodeValue() == 403) {
+            response.redirect(SUB_ONLY_VIDEO);
+            return "";
+        }
 
         // Parse playlist
         String playlistString = playlist.getBody();

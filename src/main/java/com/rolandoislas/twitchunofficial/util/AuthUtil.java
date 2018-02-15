@@ -69,6 +69,8 @@ public class AuthUtil {
         // New versions should not use this as it is a security risk when the request URL is logged.
         if (token == null || token.isEmpty())
             token = request.queryParams("token");
+        if (token.isEmpty())
+            return null;
         return token;
     }
 
@@ -78,7 +80,9 @@ public class AuthUtil {
      * @param salt salt - the global salt will be used if this is null
      * @return hashed string
      */
-    public static String hashString(String raw, @Nullable String salt) {
+    public static String hashString(@Nullable String raw, @Nullable String salt) {
+        if (raw == null)
+            raw = "";
         if (salt == null)
             salt = System.getenv().getOrDefault("SALT", "");
         String hash = Hashing.sha1().hashString(raw, Charsets.UTF_8).toString();
