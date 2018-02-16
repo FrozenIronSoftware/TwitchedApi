@@ -1091,6 +1091,8 @@ public class TwitchUnofficialApi {
     @NotCached
     private static RestTemplate getPrivilegedRestTemplate(OAuthCredential oauth) {
         RestTemplate restTemplate = twitch.getRestClient().getPlainRestTemplate();
+        restTemplate.getInterceptors().add(new HeaderRequestInterceptor("Accept", "*/*"));
+        restTemplate.getInterceptors().add(new HeaderRequestInterceptor("Client-ID", twitch.getClientId()));
         restTemplate.getInterceptors().add(new HeaderRequestInterceptor("Authorization",
                 String.format("Bearer %s", oauth.getToken())));
         return restTemplate;
