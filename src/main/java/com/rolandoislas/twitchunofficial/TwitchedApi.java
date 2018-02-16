@@ -140,7 +140,7 @@ class TwitchedApi {
                 TwitchUnofficialApi.twitch.getClientId(),
                 scheme + "://" + request.host() + OAUTH_CALLBACK_PATH,
                 "token",
-                "chat_login+user_follows_edit",
+                "chat_login+user_follows_edit+user_subscriptions",
                 "true",
                 linkId.toUpperCase()
         );
