@@ -69,7 +69,7 @@ public class AuthUtil {
         // New versions should not use this as it is a security risk when the request URL is logged.
         if (token == null || token.isEmpty())
             token = request.queryParams("token");
-        if (token.isEmpty())
+        if (token == null || token.isEmpty())
             return null;
         return token;
     }
