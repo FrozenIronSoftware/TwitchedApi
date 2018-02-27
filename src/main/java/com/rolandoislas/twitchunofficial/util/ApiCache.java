@@ -5,8 +5,6 @@
 
 package com.rolandoislas.twitchunofficial.util;
 
-import com.google.common.base.Charsets;
-import com.google.common.hash.Hashing;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.rolandoislas.twitchunofficial.data.CachedStreams;
@@ -15,7 +13,6 @@ import com.rolandoislas.twitchunofficial.util.twitch.helix.Stream;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.StreamUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.springframework.util.DigestUtils;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
@@ -175,7 +172,7 @@ public class ApiCache {
                 throw new IllegalArgumentException("Type must be GAME or USER");
         }
         // Get ids stored on redis
-        Map<String, String> cachedNames = scan(keyPrefix + "*");
+        Map<String, String> cachedNames = mgetWithPrefix(keyPrefix, ids);
         // Map ids to names
         Map<String, String> nameIdMap = new HashMap<>();
         for (String id : ids) {
@@ -183,6 +180,33 @@ public class ApiCache {
             nameIdMap.put(id, cachedNames.getOrDefault(key, null));
         }
         return nameIdMap;
+    }
+
+    /**
+     * Get multiple keys each with a common prefix
+     * @param keyPrefix prefix to be added to all keys
+     * @param keys keys to get
+     * @return map with redis keys as the key and possibly null value if key did not exist
+     */
+    private Map<String, String> mgetWithPrefix(String keyPrefix, List<String> keys) {
+        Map<String, String> map = new HashMap<>();
+        String[] prefixedKeys = new String[keys.size()];
+        for (int keyIndex = 0; keyIndex < keys.size(); keyIndex++)
+            prefixedKeys[keyIndex] = keyPrefix + String.valueOf(keys.get(keyIndex));
+        List<String> values = new ArrayList<>();
+        try (Jedis redis = getAuthenticatedJedis()) {
+            values.addAll(redis.mget(prefixedKeys));
+        }
+        catch (Exception e) {
+            Logger.exception(e);
+        }
+        if (values.size() != prefixedKeys.length)
+            for (String key : prefixedKeys)
+                map.put(key, null);
+        else
+            for (int keyIndex = 0; keyIndex < prefixedKeys.length; keyIndex++)
+                map.put(prefixedKeys[keyIndex], values.get(keyIndex));
+        return map;
     }
 
     /**
@@ -388,7 +412,12 @@ public class ApiCache {
         CachedStreams cachedStreams = new CachedStreams();
         List<Stream> offlineStreams = new ArrayList<>();
         // Find matching streams
-        Map<String, String> streams = scan(STREAM_PREFIX + "*");
+        List<String> combinedIdsLogins = new ArrayList<>();
+        if (userIds != null)
+            combinedIdsLogins.addAll(userIds);
+        if (userLogins != null)
+            combinedIdsLogins.addAll(userLogins);
+        Map<String, String> streams = mgetWithPrefix(STREAM_PREFIX, combinedIdsLogins);
         for (Map.Entry<String, String> streamEntry : streams.entrySet()) {
             try {
                 Stream stream = gson.fromJson(streamEntry.getValue(), Stream.class);
