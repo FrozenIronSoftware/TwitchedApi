@@ -194,11 +194,12 @@ public class ApiCache {
         for (int keyIndex = 0; keyIndex < keys.size(); keyIndex++)
             prefixedKeys[keyIndex] = keyPrefix + String.valueOf(keys.get(keyIndex));
         List<String> values = new ArrayList<>();
-        try (Jedis redis = getAuthenticatedJedis()) {
-            values.addAll(redis.mget(prefixedKeys));
-        }
-        catch (Exception e) {
-            Logger.exception(e);
+        if (keys.size() > 0) {
+            try (Jedis redis = getAuthenticatedJedis()) {
+                values.addAll(redis.mget(prefixedKeys));
+            } catch (Exception e) {
+                Logger.exception(e);
+            }
         }
         if (values.size() != prefixedKeys.length)
             for (String key : prefixedKeys)
