@@ -23,6 +23,8 @@ Most of the parameters are passed via environment variables.
 
 Random string that serves as a way for a client to identify itself
 
+Multiple client ids can be defined by delimiting ids with a comma `,`.
+
 ### GRADLE_TASK
 
 Heroku specific variable that defines what task should be used to build

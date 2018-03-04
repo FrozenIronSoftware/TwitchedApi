@@ -10,13 +10,18 @@ import com.google.common.hash.Hashing;
 import org.jetbrains.annotations.Nullable;
 import spark.Request;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
 
 public class AuthUtil {
-    private static final String ALLOWED_ID;
+    private static List<String> ALLOWED_IDS;
     private static boolean authenticate;
 
     static {
-        ALLOWED_ID = System.getenv("ALLOWED_CLIENT_ID");
+        String[] allowedIds = System.getenv().getOrDefault("ALLOWED_CLIENT_ID", "").split(",");
+        ALLOWED_IDS = new ArrayList<>(Arrays.asList(allowedIds));
         authenticate = true;
     }
 
@@ -28,12 +33,12 @@ public class AuthUtil {
     public static boolean verify(Request request) {
         if (!authenticate)
             return true;
-        if (ALLOWED_ID == null || ALLOWED_ID.isEmpty()) {
+        if (ALLOWED_IDS.isEmpty()) {
             Logger.warn("Missing environment variable: ALLOWED_CLIENT_ID");
             return false;
         }
         String header = request.headers("Client-ID");
-        if (header == null || !header.equals(AuthUtil.ALLOWED_ID)) {
+        if (header == null || header.isEmpty() || !ALLOWED_IDS.contains(header)) {
             Logger.warn(
                     String.format(
                             "Received an unauthenticated request:\n\tIP %s\n\tUser Agent: %s\n\tID: %s",
