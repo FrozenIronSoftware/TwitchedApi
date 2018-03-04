@@ -273,21 +273,31 @@ public class ApiCache {
      * @return id exists in cache
      */
     public boolean containsLinkId(String linkId) {
-        // Check for links
-        Map<String, String> ids = scan(LINK_PREFIX + "*");
-        for (String id : ids.values())
-            if (id.equalsIgnoreCase(linkId))
-                return true;
-        // Check tokens
-        Map<String, String> tokens = scan(TOKEN_PREFIX + "*");
-        for (String tokenKey : tokens.keySet())
-            if (tokenKey.replace(TOKEN_PREFIX, "").equalsIgnoreCase(linkId))
+        String linkCacheId = ApiCache.createKey(ApiCache.LINK_PREFIX, linkId);
+        String tokenCacheId = ApiCache.createKey(ApiCache.TOKEN_PREFIX, linkId);
+        List<String> ids = new ArrayList<>();
+        ids.add(linkCacheId);
+        ids.add(tokenCacheId);
+        Map<String, String> keys = mget(ids);
+        for (String value : keys.values())
+            if (value != null)
                 return true;
         return false;
     }
 
     /**
+     * Wrapper for a fail-safe mget
+     * Gets multiple values
+     * @param keys keys to fetch
+     * @return map of all keys with potential null values if the key does not exist in cache
+     */
+    private Map<String, String> mget(List<String> keys) {
+        return mgetWithPrefix("", keys);
+    }
+
+    /**
      * Scan for keys matching a query.
+     * This is a slow operation!
      * @param query keys must match this - can include wild cards
      * @return map of keys and values
      */

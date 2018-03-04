@@ -58,8 +58,10 @@ class TwitchedApi {
                     .collect(Collectors.joining()).toUpperCase();
         }
         while (cache.containsLinkId(linkId));
+        String shortLinkCacheId = ApiCache.createKey(ApiCache.LINK_PREFIX, linkId);
         // Store and return
         cache.set(linkCacheId, linkId);
+        cache.set(shortLinkCacheId, linkCacheId);
         ret.addProperty("id", linkId);
         return ret.toString();
     }
