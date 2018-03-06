@@ -2300,4 +2300,30 @@ public class TwitchUnofficialApi {
         cache.set(requestId, json);
         return json;
     }
+
+    /**
+     * Log any headers and query params
+     * @param request request
+     * @param response response
+     * @return 404
+     */
+    public static String logGet(Request request, Response response) {
+        if (!isDevApiEnabled())
+            return null;
+        Logger.debug("-----HEADERS-----");
+        for (String header : request.headers())
+            Logger.debug("%s: %s", header, request.headers(header));
+        Logger.debug("-----QUERY PARAMS-----");
+        for (String queryParam : request.queryParams())
+            Logger.debug("%s: %s", queryParam, request.headers(queryParam));
+        return null;
+    }
+
+    /**
+     * Check if the dev api is enabled
+     * @return enabled
+     */
+    private static boolean isDevApiEnabled() {
+        return System.getenv().getOrDefault("DEV_API", "").equalsIgnoreCase("true");
+    }
 }

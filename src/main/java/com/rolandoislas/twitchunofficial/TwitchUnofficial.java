@@ -80,6 +80,7 @@ public class TwitchUnofficial {
         // API
         path("/api", () -> {
             before("/*", (request, response) -> response.type("application/json"));
+            // Twitch
             path("/twitch", () -> {
                 // Kraken
                 path("/kraken", () -> {
@@ -125,10 +126,14 @@ public class TwitchUnofficial {
                 get("/vod/*/*", TwitchUnofficialApi::getVodData);
                 get("/vod/*", TwitchUnofficialApi::getVodData);
             });
+            // Twitched
             path("/link", () -> {
                 get("", TwitchedApi::getLinkId);
                 post("", "application/json", TwitchedApi::postLinkToken);
                 get("/status", TwitchedApi::getLinkStatus);
+            });
+            path("/dev", () -> {
+                get("/log", TwitchUnofficialApi::logGet);
             });
         });
         // Web
