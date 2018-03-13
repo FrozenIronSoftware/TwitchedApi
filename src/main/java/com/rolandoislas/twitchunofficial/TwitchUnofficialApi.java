@@ -2326,4 +2326,26 @@ public class TwitchUnofficialApi {
     private static boolean isDevApiEnabled() {
         return System.getenv().getOrDefault("DEV_API", "").equalsIgnoreCase("true");
     }
+
+    /**
+     * Return an ad server url
+     * @param request request
+     * @param response response
+     * @return json
+     */
+    public static String getAdServer(Request request, Response response) {
+        checkAuth(request);
+        // Params
+        String type = request.queryParams("type");
+        if (type == null || !type.equals("roku"))
+            throw halt(BAD_REQUEST, "Invalid type");
+        JsonObject adServer = new JsonObject();
+        String adServerString = System.getenv("AD_SERVER");
+        if (adServerString == null) {
+            Logger.warn("Missing environment variable: AD_SERVER");
+            adServerString = "";
+        }
+        adServer.addProperty("ad_server", adServerString);
+        return adServer.toString();
+    }
 }

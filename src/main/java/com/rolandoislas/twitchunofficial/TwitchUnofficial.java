@@ -135,6 +135,9 @@ public class TwitchUnofficial {
             path("/dev", () -> {
                 get("/log", TwitchUnofficialApi::logGet);
             });
+            path("/ad", () -> {
+                get("/server", TwitchUnofficialApi::getAdServer);
+            });
         });
         // Web
         get("/", TwitchUnofficialServer::getIndex);
