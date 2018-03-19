@@ -887,9 +887,9 @@ public class TwitchUnofficialApi {
         List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streams = getStreams(
                 after,
                 before,
-                Collections.singletonList(community),
+                community == null ? null : Collections.singletonList(community),
                 first,
-                Collections.singletonList(game),
+                game == null ? null : Collections.singletonList(game),
                 languages,
                 streamType,
                 userIds,
