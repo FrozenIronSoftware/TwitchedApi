@@ -863,6 +863,9 @@ public class TwitchUnofficialApi {
         String afterFromOffset = getAfterFromOffset(offset, first);
         if (afterFromOffset != null)
             after = afterFromOffset;
+        // Ignore languages if the limit is 1
+        if (first.equals("1") && userIds.size() <= 1 && userLogins.size() <= 1)
+            languages.clear();
         // Check cache
         List<Object> requestParams = new ArrayList<>();
         requestParams.add(after);
