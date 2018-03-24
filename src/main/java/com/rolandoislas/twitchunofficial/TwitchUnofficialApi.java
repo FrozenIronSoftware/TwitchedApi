@@ -521,14 +521,14 @@ public class TwitchUnofficialApi {
         final int ONE_MILLION = 1000000;
         // Big o' switch for models
         switch (model) {
-            // 720 30/60 FPS
+            // 720 30 FPS
             case "2700X": // Tyler - Roku LT
             case "2500X": // Paolo - Roku HD
             case "2450X": // Paolo - Roku LT
             case "3000X": // Giga - Roku 2 HD
             case "2400X": // Giga - Roku LT
                 maxQuality30 = 720;
-                maxQuality60 = 720;
+                maxQuality60 = 0;
                 maxBitrate = 4 * ONE_MILLION;
                 break;
             // Liberty - Roku TV - Cannot play 60 FPS from Twitch
@@ -549,7 +549,7 @@ public class TwitchUnofficialApi {
                 maxQuality60 = 1080;
                 maxBitrate = 7 * ONE_MILLION;
                 break;
-            // 1080 30 FPS - 720 60 FPS
+            // 1080 30 FPS
             case "4230X": // Mustang - Roku 3
             case "4210X": // Mustang - Roku 2
             case "3500X": // Sugarland - Roku Streaming Stick
@@ -561,7 +561,7 @@ public class TwitchUnofficialApi {
             case "3100X": // Giga - Roku 2 XS
             case "3050X": // Giga - Roku 2 XD
                 maxQuality30 = 1080;
-                maxQuality60 = 720;
+                maxQuality60 = 0;
                 maxBitrate = 7 * ONE_MILLION;
                 break;
             // 4K 60 FPS
