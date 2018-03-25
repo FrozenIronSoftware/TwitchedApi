@@ -1271,8 +1271,16 @@ public class TwitchUnofficialApi {
             catch (JsonSyntaxException ignore) {}
         }
         catch (RestClientException | RestException e) {
-            if (e instanceof RestException)
-                Logger.warn("Request failed: " + ((RestException) e).getRestError().getMessage());
+            if (e instanceof RestException) {
+                // Handle an expired auth token gracefully
+                if (((RestException) e).getRestError().getStatus() == 400 &&
+                        (userIds == null || userIds.isEmpty()) && (userNames == null || userNames.isEmpty()) &&
+                        token != null) {
+                    users = new ArrayList<>();
+                }
+                else
+                    Logger.warn("Request failed: " + ((RestException) e).getRestError().getMessage());
+            }
             else
                 Logger.warn("Request failed: " + e.getMessage());
             Logger.exception(e);
@@ -1941,7 +1949,7 @@ public class TwitchUnofficialApi {
             throw halt(BAD_REQUEST, "Missing token/id/login");
         // Check cache
         Object[] keyParams = new Object[ids.size() + logins.size() + 1];
-        keyParams[0] = token;
+        keyParams[0] = AuthUtil.hashString(token, null);
         System.arraycopy(ids.toArray(), 0, keyParams, 1, ids.size());
         System.arraycopy(logins.toArray(), 0, keyParams, ids.size() + 1, logins.size());
         String requestId = ApiCache.createKey("helix/users", keyParams);
