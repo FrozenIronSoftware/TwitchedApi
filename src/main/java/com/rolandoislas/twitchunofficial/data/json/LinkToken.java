@@ -3,7 +3,7 @@
  *
  */
 
-package com.rolandoislas.twitchunofficial.util.twitch;
+package com.rolandoislas.twitchunofficial.data.json;
 
 /**
  * Structure for a link token response generated from the link complete page

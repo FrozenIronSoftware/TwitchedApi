@@ -83,12 +83,19 @@ class TwitchUnofficialServer {
      */
     @NotCached
     static String getLinkCallback(Request request, Response response) {
-        // Params
+        // Check error
         String error = request.queryParams("error");
-        // Return
         Map<String, Object> model = new HashMap<>();
         if (error != null)
             model.put("error", error.equals("access_denied") ? "Twitch login was canceled." : "Twitch login failed.");
+        // Check for authorization code flow
+        String authCode = request.queryParams("code");
+        String state = request.queryParams("state");
+        if (authCode != null && state != null) {
+            TwitchedApi.requestAccessToken(request, authCode, state);
+        }
+        else
+            model.put("send_token_xhr", true);
         return new HandlebarsTemplateEngine().render(new ModelAndView(model, "link_complete.hbs"));
     }
 
