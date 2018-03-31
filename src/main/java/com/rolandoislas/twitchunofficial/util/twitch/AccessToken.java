@@ -1,7 +1,11 @@
 package com.rolandoislas.twitchunofficial.util.twitch;
 
+import com.google.gson.JsonObject;
 import com.google.gson.annotations.SerializedName;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Class representing the JSON access token response from twitch
@@ -14,7 +18,7 @@ public class AccessToken {
     @SerializedName("expires_in")
     private long expiresIn;
     @SerializedName("scope")
-    private String scope;
+    private List<String> scope;
 
     /**
      * Constructor for access token
@@ -25,7 +29,7 @@ public class AccessToken {
         this.accessToken = accessToken;
         this.refreshToken = refreshToken;
         this.expiresIn = 0;
-        this.scope = "";
+        this.scope = new ArrayList<>();
     }
 
     public String getAccessToken() {
@@ -40,7 +44,21 @@ public class AccessToken {
         return expiresIn;
     }
 
-    public String getScope() {
+    public List<String> getScope() {
         return scope;
+    }
+
+    public JsonObject toJsonObject() {
+        JsonObject ret = new JsonObject();
+        ret.addProperty("complete", true);
+        ret.addProperty("token", getAccessToken());
+        ret.addProperty("refresh_token", getRefreshToken());
+        ret.addProperty("expires_in", getExpiresIn());
+        StringBuilder scopes = new StringBuilder();
+        for (String scope : getScope())
+            scopes.append(scope).append(" ");
+        scopes.deleteCharAt(scopes.lastIndexOf(" "));
+        ret.addProperty("scope", scopes.toString());
+        return ret;
     }
 }

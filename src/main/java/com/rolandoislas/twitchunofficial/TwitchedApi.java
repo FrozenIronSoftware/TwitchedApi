@@ -7,27 +7,26 @@ package com.rolandoislas.twitchunofficial;
 
 import com.goebl.david.Webb;
 import com.goebl.david.WebbException;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonSyntaxException;
-import com.rolandoislas.twitchunofficial.data.json.LinkId;
-import com.rolandoislas.twitchunofficial.data.json.CfVisitor;
 import com.rolandoislas.twitchunofficial.data.annotation.Cached;
 import com.rolandoislas.twitchunofficial.data.annotation.NotCached;
+import com.rolandoislas.twitchunofficial.data.json.CfVisitor;
+import com.rolandoislas.twitchunofficial.data.json.LinkId;
+import com.rolandoislas.twitchunofficial.data.json.LinkToken;
 import com.rolandoislas.twitchunofficial.util.ApiCache;
 import com.rolandoislas.twitchunofficial.util.HeaderUtil;
 import com.rolandoislas.twitchunofficial.util.Logger;
-import com.rolandoislas.twitchunofficial.data.json.LinkToken;
 import com.rolandoislas.twitchunofficial.util.twitch.AccessToken;
 import org.apache.maven.artifact.versioning.ComparableVersion;
 import org.jetbrains.annotations.NotNull;
-import org.json.JSONException;
-import org.json.JSONObject;
+import org.jetbrains.annotations.Nullable;
 import spark.Request;
 import spark.Response;
 import spark.Spark;
 
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 import java.util.Random;
 import java.util.stream.Collectors;
 
@@ -129,11 +128,7 @@ class TwitchedApi {
         catch (JsonSyntaxException e) {
             throw halt(500, "Server error: Invalid token json");
         }
-        ret.addProperty("complete", true);
-        ret.addProperty("token", accessToken.getAccessToken());
-        ret.addProperty("refresh_token", accessToken.getRefreshToken());
-        ret.addProperty("expires_in", accessToken.getExpiresIn());
-        ret.addProperty("scope", accessToken.getScope());
+        ret = accessToken.toJsonObject();
         return ret.toString();
     }
 
@@ -183,6 +178,9 @@ class TwitchedApi {
      * @return redirect url
      */
     private static String getRedirectUrl(Request request) {
+        String redirectUrl = System.getenv("REDIRECT_URL");
+        if (redirectUrl != null && !redirectUrl.isEmpty())
+            return redirectUrl;
         String scheme = request.scheme();
         if (request.headers("X-Forwarded-Proto") != null)
             scheme = request.headers("X-Forwarded-Proto");
@@ -249,17 +247,30 @@ class TwitchedApi {
                 "authorization_code",
                 getRedirectUrl(request)
         );
+        AccessToken accessToken = requestAccessTokenFromUrl(url);
+        String tokenCacheKey = ApiCache.createKey(ApiCache.TOKEN_PREFIX, state.toUpperCase());
+        cache.set(tokenCacheKey, gson.toJson(accessToken));
+        return true;
+    }
+
+    /**
+     * Request an access token from twitch via the provided url
+     * @param url fully specified URL that will return and access token
+     * @return access token, or null on error
+     */
+    @Nullable
+    private static AccessToken requestAccessTokenFromUrl(String url) {
         com.goebl.david.Response<String> result;
         try {
             Webb webb = Webb.create();
             result = webb
-                .post(url)
-                .ensureSuccess()
-                .asString();
+                    .post(url)
+                    .ensureSuccess()
+                    .asString();
         }
         catch (WebbException e) {
             Logger.exception(e);
-            return false;
+            return null;
         }
         AccessToken accessToken;
         try {
@@ -267,10 +278,48 @@ class TwitchedApi {
         }
         catch (JsonSyntaxException e) {
             Logger.exception(e);
-            return false;
+            return null;
         }
-        String tokenCacheKey = ApiCache.createKey(ApiCache.TOKEN_PREFIX, state.toUpperCase());
-        cache.set(tokenCacheKey, gson.toJson(accessToken));
-        return true;
+        return accessToken;
+    }
+
+    /**
+     * Attempt to refresh a Twitch token
+     * @param request request
+     * @param response response
+     * @return json - always 200 status code with "error" field set to true on error
+     */
+    public static String refreshToken(Request request, Response response) {
+        checkAuth(request);
+        String refreshToken = request.queryParams("refresh_token");
+        String scope = request.queryParams("scope");
+        JsonObject ret = new JsonObject();
+        if (refreshToken == null || refreshToken.isEmpty() || scope == null || scope.isEmpty()) {
+            ret.addProperty("error", true);
+            ret.addProperty("message", "Missing refresh token or scope");
+            return ret.toString();
+        }
+        String url = "https://id.twitch.tv/oauth2/token?client_id=%s&client_secret=%s&grant_type=%s&refresh_token=%s" +
+                "&scope=%s";
+        try {
+            url = String.format(
+                    url,
+                    URLEncoder.encode(TwitchUnofficialApi.twitch.getClientId(), "UTF-8"),
+                    URLEncoder.encode(TwitchUnofficialApi.twitch.getClientSecret(), "UTF-8"),
+                    "refresh_token",
+                    URLEncoder.encode(refreshToken, "UTF-8"),
+                    URLEncoder.encode(scope.replace("+", " "), "UTF-8")
+            );
+        }
+        catch (UnsupportedEncodingException e) {
+            Logger.exception(e);
+        }
+        AccessToken accessToken = requestAccessTokenFromUrl(url);
+        if (accessToken == null) {
+            ret.addProperty("error", true);
+            ret.addProperty("message", "Failed fetching access token");
+            return ret.toString();
+        }
+        return accessToken.toJsonObject().toString();
     }
 }

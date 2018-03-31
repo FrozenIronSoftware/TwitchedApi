@@ -62,6 +62,18 @@ If this is set to TRUE, the ALLOWED_CLIENT_ID will be ignored and all
 ### SALT
 
 Global salt to use when hashing sensitive data
+
+### DEV_API
+
+Values: TRUE | FALSE
+
+Enabled dev api endpoints
+
+### REDIRECT_URL
+
+Optional
+If specified, this URL will be used in Oauth request to Twitch that require a redirect url.
+The URL will be crafted based the domain name and scheme used to access the site.
  
 # Parameters
 
