@@ -57,7 +57,9 @@ public class AccessToken {
         StringBuilder scopes = new StringBuilder();
         for (String scope : getScope())
             scopes.append(scope).append(" ");
-        scopes.deleteCharAt(scopes.lastIndexOf(" "));
+        int spaceIndex = scopes.lastIndexOf(" ");
+        if (spaceIndex > -1)
+            scopes.deleteCharAt(spaceIndex);
         ret.addProperty("scope", scopes.toString());
         return ret;
     }
