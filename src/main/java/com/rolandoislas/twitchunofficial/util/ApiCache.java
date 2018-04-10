@@ -34,14 +34,16 @@ public class ApiCache {
     private static final int TIMEOUT_HOUR = 60 * 60;
     private static final int TIMEOUT_DAY = 24 * 60 * 60; // 1 Day
     private static final int TIMEOUT_WEEK = 7 * 24 * 60 * 60; // 1 Week
-    private static final String USER_NAME_FIELD_PREFIX = "_username_";
-    private static final String GAME_NAME_FIELD_PREFIX = "_gamename_";
-    public static final String LINK_PREFIX = "_link_";
-    public static final String TOKEN_PREFIX = "_token_";
-    private static final String FOLLOW_PREFIX = "_follow_";
-    private static final String FOLLOW_TIME_PREFIX = "_follow_time_";
-    private static final String STREAM_PREFIX = "_stream_";
-    private static final String TOKEN_ID_PREFIX = "_token_id_";
+    @SuppressWarnings("unused")
+    private static final String USER_NAME_FIELD_PREFIX = "_u_";
+    @SuppressWarnings("unused")
+    private static final String GAME_NAME_FIELD_PREFIX = "_g_";
+    public static final String LINK_PREFIX = "_l_";
+    public static final String TOKEN_PREFIX = "_t_";
+    private static final String FOLLOW_PREFIX = "_f_";
+    private static final String FOLLOW_TIME_PREFIX = "_ft_";
+    private static final String STREAM_PREFIX = "_s_";
+    private static final String TOKEN_ID_PREFIX = "_ti_";
     private final String redisPassword;
     private final Gson gson;
     private JedisPool redisPool;
@@ -233,7 +235,7 @@ public class ApiCache {
                 break;
             case GAME:
                 keyPrefix = GAME_NAME_FIELD_PREFIX;
-                keyTimeout = TIMEOUT_WEEK;
+                keyTimeout = TIMEOUT_DAY;
                 break;
             default:
                 throw new IllegalArgumentException("Type must be GAME or USER");
@@ -362,7 +364,7 @@ public class ApiCache {
         try (Jedis redis = getAuthenticatedJedis()) {
             if (toIds.size() > 0) {
                 redis.sadd(FOLLOW_PREFIX + fromId, toIds.toArray(new String[toIds.size()]));
-                redis.expire(FOLLOW_PREFIX + fromId, TIMEOUT_WEEK);
+                redis.expire(FOLLOW_PREFIX + fromId, TIMEOUT_DAY);
             }
             redis.setex(FOLLOW_TIME_PREFIX + fromId, TIMEOUT_HOUR, String.valueOf(System.currentTimeMillis()));
         } catch (Exception e) {
