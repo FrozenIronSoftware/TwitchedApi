@@ -44,6 +44,7 @@ public class ApiCache {
     private static final String FOLLOW_TIME_PREFIX = "_ft_";
     private static final String STREAM_PREFIX = "_s_";
     private static final String TOKEN_ID_PREFIX = "_ti_";
+    private static final String USER_ID_PREFIX = "_ui_";
     private final String redisPassword;
     private final Gson gson;
     private JedisPool redisPool;
@@ -404,8 +405,7 @@ public class ApiCache {
                         stream.getUserName().getLogin() == null) && stream.isOnline()))
                     continue;
                 String json = gson.toJson(stream);
-                String id = String.format("%s%s_%s", STREAM_PREFIX, stream.getUserId(),
-                        stream.getUserName().getLogin());
+                String id = String.format("%s%s", STREAM_PREFIX, stream.getUserId());
                 redis.setex(id, TIMEOUT, json);
             }
         }
@@ -417,20 +417,14 @@ public class ApiCache {
     /**
      * Get streams from the cache
      * @param userIds optional ids to look for
-     * @param userLogins optional logins to look for
      * @return cached streams object containing any missing ids/login and all found streams
      */
     @NotNull
-    public CachedStreams getStreams(@Nullable List<String> userIds, @Nullable List<String> userLogins) {
+    public CachedStreams getStreams(@NotNull List<String> userIds) {
         CachedStreams cachedStreams = new CachedStreams();
         List<Stream> offlineStreams = new ArrayList<>();
         // Find matching streams
-        List<String> combinedIdsLogins = new ArrayList<>();
-        if (userIds != null)
-            combinedIdsLogins.addAll(userIds);
-        if (userLogins != null)
-            combinedIdsLogins.addAll(userLogins);
-        Map<String, String> streams = mgetWithPrefix(STREAM_PREFIX, combinedIdsLogins);
+        Map<String, String> streams = mgetWithPrefix(STREAM_PREFIX, userIds);
         for (Map.Entry<String, String> streamEntry : streams.entrySet()) {
             try {
                 Stream stream = gson.fromJson(streamEntry.getValue(), Stream.class);
@@ -442,8 +436,7 @@ public class ApiCache {
                         stream.getUserName().getLogin() == null ||
                         stream.getUserName().getLogin().isEmpty())
                     continue;
-                if ((userIds != null && userIds.contains(stream.getUserId())) ||
-                        (userLogins != null && userLogins.contains(stream.getUserName().getLogin())))
+                if (userIds.contains(stream.getUserId()))
                     cachedStreams.getStreams().add(stream);
             }
             catch (JsonSyntaxException e) {
@@ -451,16 +444,10 @@ public class ApiCache {
             }
         }
         // Populate missing lists
-        if (userIds != null)
-            for (String id : userIds)
-                if (!StreamUtil.streamListContainsId(cachedStreams.getStreams(), id) &&
-                        !StreamUtil.streamListContainsId(offlineStreams, id))
-                    cachedStreams.getMissingIds().add(id);
-        if (userLogins != null)
-            for (String login : userLogins)
-                if (!StreamUtil.streamListContainsLogin(cachedStreams.getStreams(), login) &&
-                        !StreamUtil.streamListContainsLogin(offlineStreams, login))
-                    cachedStreams.getMissingLogins().add(login);
+        for (String id : userIds)
+            if (!StreamUtil.streamListContainsId(cachedStreams.getStreams(), id) &&
+                    !StreamUtil.streamListContainsId(offlineStreams, id))
+                cachedStreams.getMissingIds().add(id);
         return cachedStreams;
     }
 
@@ -488,5 +475,33 @@ public class ApiCache {
     public String getUserIdFromToken(String token) {
         String tokenHash = AuthUtil.hashString(token, null);
         return get(TOKEN_ID_PREFIX + tokenHash);
+    }
+
+    /**
+     * Fetch ids stored in the Redis cache
+     * @param logins logins to search for
+     * @return map with values as nulls if not found
+     */
+    public Map<String, String> getUserIds(List<String> logins) {
+        return mgetWithPrefix(USER_ID_PREFIX, logins);
+    }
+
+    /**
+     * Set a map of user logins and ids
+     * @param loginsIds map of logins and ids
+     */
+    public void setUserIds(Map<String, String> loginsIds) {
+        try (Jedis redis = getAuthenticatedJedis()) {
+            for (Map.Entry<String, String> loginId : loginsIds.entrySet()) {
+                if (loginId.getKey() == null || loginId.getKey().isEmpty() || loginId.getValue() == null ||
+                        loginId.getValue().isEmpty())
+                    continue;
+                String key = USER_ID_PREFIX + loginId.getKey();
+                redis.setex(key, TIMEOUT_DAY, loginId.getValue());
+            }
+        }
+        catch (Exception e) {
+            Logger.exception(e);
+        }
     }
 }

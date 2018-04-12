@@ -70,6 +70,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -934,7 +935,13 @@ public class TwitchUnofficialApi {
         if ((userIdsParam != null && userIdsParam.size() > 0) ||
                 (userLoginsParam != null && userLoginsParam.size() > 0)) {
             // Check cache
-            CachedStreams cachedStreams = cache.getStreams(userIdsParam, userLoginsParam);
+            List<String> allIds = new ArrayList<>();
+            if (userIdsParam != null)
+                allIds.addAll(userIdsParam);
+            if (userLoginsParam != null) {
+                allIds.addAll(getUserIds(userLoginsParam).values());
+            }
+            CachedStreams cachedStreams = cache.getStreams(allIds);
             if (cachedStreams.getMissingIds().size() == 0 && cachedStreams.getMissingLogins().size() == 0)
                 return cachedStreams.getStreams();
             // Some streams are missing
@@ -1034,6 +1041,26 @@ public class TwitchUnofficialApi {
         cache.cacheStreams(offlineAndOnlineStreams);
 
         return streams;
+    }
+
+    /**
+     * Checks the cache for stored user ids. If they are not found, request them and cache.
+     * @param logins user logins
+     * @return map of user ids <login, @nullable id>
+     */
+    private static Map<String, String> getUserIds(@Nullable List<String> logins) {
+        Map<String, String> cachedLogins = cache.getUserIds(logins);
+        List<String> missingLogins = new ArrayList<>();
+        for (Map.Entry<String, String> cachedId : cachedLogins.entrySet())
+            if (cachedId.getValue() == null)
+                missingLogins.add(cachedId.getKey());
+        List<User> users = getUsers(null, missingLogins, null);
+        for (User user : users)
+            if (user.getId() != null && !user.getId().isEmpty() && user.getLogin() != null &&
+                    !user.getLogin().isEmpty())
+                cachedLogins.put(user.getLogin(), user.getId());
+        cache.setUserIds(cachedLogins);
+        return cachedLogins;
     }
 
     /**
