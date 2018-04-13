@@ -483,7 +483,14 @@ public class ApiCache {
      * @return map with values as nulls if not found
      */
     public Map<String, String> getUserIds(List<String> logins) {
-        return mgetWithPrefix(USER_ID_PREFIX, logins);
+        Map<String, String> cachedIds = mgetWithPrefix(USER_ID_PREFIX, logins);
+        Map<String, String> retIds = new HashMap<>();
+        for (String login : logins) {
+            if (login == null || login.isEmpty())
+                continue;
+            retIds.put(login, cachedIds.getOrDefault(USER_ID_PREFIX + login, null));
+        }
+        return retIds;
     }
 
     /**
