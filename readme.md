@@ -39,6 +39,14 @@ Redis server URL
 This should be in the following format:
  `redis://<username>:<password>@<server>:<port>`
  
+### REDIS_URL_ENV
+
+Optional
+
+Changes the environment variable name to use instead of REDIS_URL.
+
+For example, if set to EXT_REDIS_URL, the Redis URL will be pulled from EXT_REDIS_URL instead of the default REDIS_URL.
+ 
 ### REDIS_CONNECTIONS
 
 Amount of redis connections allowed
