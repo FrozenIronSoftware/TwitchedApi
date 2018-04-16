@@ -1054,7 +1054,9 @@ public class TwitchUnofficialApi {
         for (Map.Entry<String, String> cachedId : cachedLogins.entrySet())
             if (cachedId.getValue() == null)
                 missingLogins.add(cachedId.getKey());
-        List<User> users = getUsers(null, missingLogins, null);
+        List<User> users = new ArrayList<>();
+        if (cachedLogins.size() > 0)
+            users = getUsers(null, missingLogins, null);
         for (User user : users)
             if (user.getId() != null && !user.getId().isEmpty() && user.getLogin() != null &&
                     !user.getLogin().isEmpty())
