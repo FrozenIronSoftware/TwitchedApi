@@ -92,7 +92,8 @@ class TwitchUnofficialServer {
         String authCode = request.queryParams("code");
         String state = request.queryParams("state");
         if (authCode != null && state != null) {
-            TwitchedApi.requestAccessToken(request, authCode, state);
+            if (!TwitchedApi.requestAccessToken(request, authCode, state))
+                model.put("error", "The link code has expired.");
         }
         else
             model.put("send_token_xhr", true);
