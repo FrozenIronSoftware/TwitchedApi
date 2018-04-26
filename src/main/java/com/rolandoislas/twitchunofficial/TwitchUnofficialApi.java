@@ -15,6 +15,8 @@ import com.rolandoislas.twitchunofficial.data.Playlist;
 import com.rolandoislas.twitchunofficial.data.RokuQuality;
 import com.rolandoislas.twitchunofficial.data.annotation.Cached;
 import com.rolandoislas.twitchunofficial.data.annotation.NotCached;
+import com.rolandoislas.twitchunofficial.data.json.AdServer;
+import com.rolandoislas.twitchunofficial.data.json.AdServerList;
 import com.rolandoislas.twitchunofficial.util.ApiCache;
 import com.rolandoislas.twitchunofficial.util.AuthUtil;
 import com.rolandoislas.twitchunofficial.util.FollowsCacher;
@@ -78,6 +80,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Queue;
+import java.util.Random;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -99,6 +102,7 @@ public class TwitchUnofficialApi {
     static Gson gson;
     private static OAuthCredential twitchOauth;
     private static Thread followsThread;
+    private static Random random;
 
     /**
      * Send a JSON error message to the current requester
@@ -634,6 +638,7 @@ public class TwitchUnofficialApi {
         TwitchUnofficialApi.followsThread.setName("Follows Thread");
         TwitchUnofficialApi.followsThread.setDaemon(true);
         TwitchUnofficialApi.followsThread.start();
+        TwitchUnofficialApi.random = new Random();
     }
 
     /**
@@ -2401,13 +2406,46 @@ public class TwitchUnofficialApi {
         String type = request.queryParams("type");
         if (type == null || !type.equals("roku"))
             throw halt(BAD_REQUEST, "Invalid type");
-        JsonObject adServer = new JsonObject();
+        JsonObject adServerResponse = new JsonObject();
+        String adServer = "";
         String adServerString = System.getenv("AD_SERVER");
+        AdServerList adServerList = null;
         if (adServerString == null) {
             Logger.warn("Missing environment variable: AD_SERVER");
-            adServerString = "";
         }
-        adServer.addProperty("ad_server", adServerString);
-        return adServer.toString();
+        else {
+            try {
+                adServerList = gson.fromJson(adServerString, AdServerList.class);
+            }
+            catch (JsonSyntaxException e) {
+                Logger.warn("Failed to parse ad server list from environment variable");
+                Logger.exception(e);
+            }
+        }
+        if (adServerList != null && adServerList.getAdServers() != null &&
+            adServerList.getAdServers().size() > 0) {
+            // Check region
+            String region = request.headers("CF-IPCountry");
+            if (region == null || region.isEmpty())
+                region = "XX";
+            List<AdServer> compatibleAdServers = new ArrayList<>();
+            for (AdServer adServerJson : adServerList.getAdServers()) {
+                if (adServerJson.getCountries() == null)
+                    continue;
+                for (String country : adServerJson.getCountries()) {
+                    if (country != null && (country.equals(region) || country.equals("INT")) &&
+                            adServerJson.getUrl() != null)
+                        compatibleAdServers.add(adServerJson);
+                }
+            }
+            if (compatibleAdServers.size() > 0) {
+                int adServerIndex = random.nextInt(compatibleAdServers.size());
+                AdServer selectedAdServer = compatibleAdServers.get(adServerIndex);
+                adServer = selectedAdServer.getUrl();
+            }
+        }
+        // Send response
+        adServerResponse.addProperty("ad_server", adServer);
+        return adServerResponse.toString();
     }
 }
