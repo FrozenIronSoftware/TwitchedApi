@@ -15,9 +15,11 @@ import com.rolandoislas.twitchunofficial.data.json.CfVisitor;
 import com.rolandoislas.twitchunofficial.data.json.LinkId;
 import com.rolandoislas.twitchunofficial.data.json.LinkToken;
 import com.rolandoislas.twitchunofficial.util.ApiCache;
+import com.rolandoislas.twitchunofficial.util.AuthUtil;
 import com.rolandoislas.twitchunofficial.util.HeaderUtil;
 import com.rolandoislas.twitchunofficial.util.Logger;
 import com.rolandoislas.twitchunofficial.util.twitch.AccessToken;
+import com.rolandoislas.twitchunofficial.util.twitch.TokenValidation;
 import org.apache.maven.artifact.versioning.ComparableVersion;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -27,6 +29,8 @@ import spark.Spark;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import java.util.stream.Collectors;
 
@@ -321,5 +325,43 @@ class TwitchedApi {
             return ret.toString();
         }
         return accessToken.toJsonObject().toString();
+    }
+
+    /**
+     * Call the Twitch Oauth validate endpoint to check a user token
+     * @param request request
+     * @param response response
+     * @return json output from the validate endpoint
+     */
+    static String validateToken(Request request, Response response) {
+        List<TokenValidation> validationList = new ArrayList<>(); // Wrapped in an array to be compatible with Twitched
+        String token = AuthUtil.extractTwitchToken(request);
+        if (token == null || token.isEmpty())
+            return gson.toJson(validationList);
+        String url = "https://id.twitch.tv/oauth2/validate";
+        com.goebl.david.Response<String> result;
+        try {
+            Webb webb = Webb.create();
+            result = webb
+                    .get(url)
+                    .header("Authorization", "OAuth " + token)
+                    .ensureSuccess()
+                    .asString();
+        }
+        catch (WebbException e) {
+            Logger.exception(e);
+            return gson.toJson(validationList);
+        }
+        TokenValidation tokenValidation;
+        try {
+            tokenValidation = gson.fromJson(result.getBody(), TokenValidation.class);
+        }
+        catch (JsonSyntaxException e) {
+            Logger.exception(e);
+            return gson.toJson(validationList);
+        }
+        if (tokenValidation != null)
+            validationList.add(tokenValidation);
+        return gson.toJson(validationList);
     }
 }

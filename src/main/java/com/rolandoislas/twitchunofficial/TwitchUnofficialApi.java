@@ -1257,6 +1257,16 @@ public class TwitchUnofficialApi {
     }
 
     /**
+     * @see TwitchUnofficialApi#getUsers(List, List, String, Request, Response)
+     */
+    @NotCached
+    @Nullable
+    private static List<User> getUsers(@Nullable List<String> userIds, @Nullable List<String> userNames,
+                                       @Nullable String token) {
+        return getUsers(userIds, userNames, token, null, null);
+    }
+
+    /**
      * Get a users from Twitch API
      * @param userIds id to poll
      * @param userNames name to poll
@@ -1264,8 +1274,10 @@ public class TwitchUnofficialApi {
      * @return list of users
      */
     @NotCached
+    @Nullable
     private static List<User> getUsers(@Nullable List<String> userIds, @Nullable List<String> userNames,
-                                       @Nullable String token) {
+                                       @Nullable String token, @Nullable Request request,
+                                       @Nullable Response response) {
         if ((userIds == null || userIds.isEmpty()) && (userNames == null || userNames.isEmpty()) && token == null)
             throw halt(BAD_REQUEST, "Bad request: missing user id or user name");
         // Request live
@@ -1305,6 +1317,13 @@ public class TwitchUnofficialApi {
                 if (((RestException) e).getRestError().getStatus() == 400 &&
                         (userIds == null || userIds.isEmpty()) && (userNames == null || userNames.isEmpty()) &&
                         token != null) {
+                    // Redirect to the validate endpoint for versions prior to 1.4
+                    if (request != null && response != null) {
+                        ComparableVersion version = HeaderUtil.extractVersion(request);
+                        if (version.compareTo(new ComparableVersion("1.4")) < 0) {
+                            response.redirect("/api/link/validate");
+                        }
+                    }
                     users = new ArrayList<>();
                 }
                 else
@@ -1999,7 +2018,7 @@ public class TwitchUnofficialApi {
             return cachedResponse;
         }
         // Request live
-        List<User> users = getUsers(ids, logins, token);
+        List<User> users = getUsers(ids, logins, token, request, response);
         if (users == null)
             throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
         // Preload follows

@@ -128,6 +128,7 @@ public class TwitchUnofficial {
                 post("", "application/json", TwitchedApi::postLinkToken);
                 get("/status", TwitchedApi::getLinkStatus);
                 get("/refresh", TwitchedApi::refreshToken);
+                get("/validate", TwitchedApi::validateToken);
             });
             path("/dev", () -> {
                 get("/log", TwitchUnofficialApi::logGet);
