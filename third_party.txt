@@ -1,4 +1,4 @@
-This application may use or contain portions of the following libraries, subject to the below licenses.
+The Twitched website/API may use or contain portions of the following libraries, subject to the below licenses.
 
 [Spark]
 
