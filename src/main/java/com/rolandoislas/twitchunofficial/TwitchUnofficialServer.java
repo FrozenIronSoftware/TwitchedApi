@@ -120,7 +120,9 @@ class TwitchUnofficialServer {
      */
     static String getInfoOss(Request request, Response response) {
         Map<String, Object> model = new HashMap<>();
-        model.put("text", getPartialWithHtmlLineBreaks("third_party.txt", true));
+        model.put("text_website", getPartialWithHtmlLineBreaks("third_party.txt", true));
+        model.put("text_roku", getPartialWithHtmlLineBreaks("third_party_roku.txt", true));
+        model.put("text_apple_tv", getPartialWithHtmlLineBreaks("third_party_apple_tv.txt", true));
         return new HandlebarsTemplateEngine().render(new ModelAndView(model, "info_oss.hbs"));
     }
 
