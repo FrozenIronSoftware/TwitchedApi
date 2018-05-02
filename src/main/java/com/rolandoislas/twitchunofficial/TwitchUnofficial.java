@@ -80,22 +80,15 @@ public class TwitchUnofficial {
             path("/twitch", () -> {
                 // Kraken
                 path("/kraken", () -> {
-                    get("/streams", TwitchUnofficialApi::getStreamsKraken);
-                    path("/games", () -> {
-                        get("/top", TwitchUnofficialApi::getTopGamesKraken);
-                    });
                     path("/communities", () -> {
                         get("", TwitchUnofficialApi::getCommunityKraken);
                         get("/top", TwitchUnofficialApi::getCommunitiesKraken);
                     });
                     get("/search", TwitchUnofficialApi::getSearchKraken);
-                    path("/users", () -> {
-                        path("/follows", () -> {
-                            get("/follow", TwitchUnofficialApi::followKraken);
-                            get("/unfollow", TwitchUnofficialApi::unfollowKraken);
-                            get("/streams", TwitchUnofficialApi::getUserFollowedStreamsKraken);
-                        });
-                    });
+                    path("/users", () -> path("/follows", () -> {
+                        get("/follow", TwitchUnofficialApi::followKraken);
+                        get("/unfollow", TwitchUnofficialApi::unfollowKraken);
+                    }));
                 });
                 // Helix
                 path("/helix", () -> {
@@ -113,6 +106,7 @@ public class TwitchUnofficial {
                     });
                     get("/videos", TwitchUnofficialApi::getVideosHelix);
                 });
+                // Undocumented Twitch HLS endpoints
                 get("/hls/*/*/*/*", TwitchUnofficialApi::getHlsData);
                 get("/hls/*/*/*", TwitchUnofficialApi::getHlsData);
                 get("/hls/*/*", TwitchUnofficialApi::getHlsData);
@@ -130,9 +124,11 @@ public class TwitchUnofficial {
                 get("/refresh", TwitchedApi::refreshToken);
                 get("/validate", TwitchedApi::validateToken);
             });
+            //noinspection CodeBlock2Expr
             path("/dev", () -> {
                 get("/log", TwitchUnofficialApi::logGet);
             });
+            //noinspection CodeBlock2Expr
             path("/ad", () -> {
                 get("/server", TwitchUnofficialApi::getAdServer);
             });

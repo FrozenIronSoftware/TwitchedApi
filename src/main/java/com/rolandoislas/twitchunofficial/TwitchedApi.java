@@ -50,7 +50,7 @@ class TwitchedApi {
      * @return json id
      */
     @Cached
-    static String getLinkId(Request request, Response response) {
+    static String getLinkId(Request request, @SuppressWarnings("unused") Response response) {
         checkAuth(request);
         String type = request.queryParams("type");
         String id = request.queryParams("id");
@@ -99,7 +99,7 @@ class TwitchedApi {
      * @return link status json
      */
     @NotCached
-    static String getLinkStatus(Request request, Response response) {
+    static String getLinkStatus(Request request, @SuppressWarnings("unused") Response response) {
         checkAuth(request);
         String type = request.queryParams("type");
         String id = request.queryParams("id");
@@ -141,6 +141,7 @@ class TwitchedApi {
      * @param linkId code to check
      * @return is valid
      */
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     static boolean isLinkCodeValid(String linkId) {
         return cache.containsLinkId(linkId.toUpperCase());
     }
@@ -207,7 +208,7 @@ class TwitchedApi {
      * @param response response
      * @return empty string
      */
-    static String postLinkToken(Request request, Response response) {
+    static String postLinkToken(Request request, @SuppressWarnings("unused") Response response) {
         // Parse body
         LinkToken linkToken;
         try {
@@ -238,7 +239,7 @@ class TwitchedApi {
      * @param state linkId
      * @return if the token fetch was successful
      */
-    public static boolean requestAccessToken(Request request, String authCode, String state) throws WebbException {
+    static boolean requestAccessToken(Request request, String authCode, String state) throws WebbException {
         if (!isLinkCodeValid(state.toUpperCase()))
             return false;
         String url = "https://id.twitch.tv/oauth2/token?client_id=%s&client_secret=%s&code=%s" +
@@ -293,7 +294,7 @@ class TwitchedApi {
      * @param response response
      * @return json - always 200 status code with "error" field set to true on error
      */
-    public static String refreshToken(Request request, Response response) {
+    static String refreshToken(Request request, @SuppressWarnings("unused") Response response) {
         checkAuth(request);
         String refreshToken = request.queryParams("refresh_token");
         String scope = request.queryParams("scope");
@@ -333,7 +334,7 @@ class TwitchedApi {
      * @param response response
      * @return json output from the validate endpoint
      */
-    static String validateToken(Request request, Response response) {
+    static String validateToken(Request request, @SuppressWarnings("unused") Response response) {
         List<TokenValidation> validationList = new ArrayList<>(); // Wrapped in an array to be compatible with Twitched
         String token = AuthUtil.extractTwitchToken(request);
         if (token == null || token.isEmpty())

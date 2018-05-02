@@ -17,14 +17,11 @@ import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
 import redis.clients.jedis.Protocol;
-import redis.clients.jedis.ScanParams;
-import redis.clients.jedis.ScanResult;
 import redis.clients.util.JedisURIHelper;
 
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -33,7 +30,6 @@ public class ApiCache {
     private static final int TIMEOUT = 60 * 3; // Seconds before a cache value should be considered invalid
     private static final int TIMEOUT_HOUR = 60 * 60;
     private static final int TIMEOUT_DAY = 24 * 60 * 60; // 1 Day
-    private static final int TIMEOUT_WEEK = 7 * 24 * 60 * 60; // 1 Week
     @SuppressWarnings("unused")
     private static final String USER_NAME_FIELD_PREFIX = "_u_";
     @SuppressWarnings("unused")
@@ -260,6 +256,7 @@ public class ApiCache {
      * Fails silently
      * @param key key to remove
      */
+    @SuppressWarnings("UnusedReturnValue")
     public Long remove(String key) {
         long ret = 0L;
         try (Jedis redis = getAuthenticatedJedis()) {
@@ -299,39 +296,6 @@ public class ApiCache {
     }
 
     /**
-     * Scan for keys matching a query.
-     * This is a slow operation!
-     * @param query keys must match this - can include wild cards
-     * @return map of keys and values
-     */
-    private Map<String, String> scan(String query) {
-        // Scan
-        List<String> keys = new ArrayList<>();
-        ScanResult<String> scan = null;
-        ScanParams params = new ScanParams();
-        params.match(query);
-        List<String> values = new ArrayList<>();
-        try (Jedis redis = getAuthenticatedJedis()) {
-            do {
-                scan = redis.scan(scan != null ? scan.getStringCursor() : ScanParams.SCAN_POINTER_START, params);
-                keys.addAll(scan.getResult());
-            }
-            while (!scan.getStringCursor().equals(ScanParams.SCAN_POINTER_START));
-            if (!keys.isEmpty())
-                values.addAll(redis.mget(keys.toArray(new String[keys.size()])));
-        } catch (Exception e) {
-            Logger.exception(e);
-        }
-        // Construct the map
-        Map<String, String> map = new HashMap<>();
-        Iterator<String> keysIter = keys.iterator();
-        Iterator<String> valuesIter = values.iterator();
-        while (keysIter.hasNext())
-            map.put(keysIter.next(), valuesIter.next());
-        return map;
-    }
-
-    /**
      * Get cached follows for an id
      * @param fromId id to get follows for
      * @return followed ids
@@ -352,19 +316,19 @@ public class ApiCache {
      * @param fromId user to set follows for
      * @param toIds id the user follows
      */
-    public void setFollows(String fromId, List<String> toIds) {
+    void setFollows(String fromId, List<String> toIds) {
         // Remove old follows
         List<String> follows = getFollows(fromId);
         try (Jedis redis = getAuthenticatedJedis()) {
             if (follows.size() > 0)
-                redis.srem(FOLLOW_PREFIX + fromId, follows.toArray(new String[follows.size()]));
+                redis.srem(FOLLOW_PREFIX + fromId, follows.toArray(new String[0]));
         } catch (Exception e) {
             Logger.exception(e);
         }
         // Set follows
         try (Jedis redis = getAuthenticatedJedis()) {
             if (toIds.size() > 0) {
-                redis.sadd(FOLLOW_PREFIX + fromId, toIds.toArray(new String[toIds.size()]));
+                redis.sadd(FOLLOW_PREFIX + fromId, toIds.toArray(new String[0]));
                 redis.expire(FOLLOW_PREFIX + fromId, TIMEOUT_DAY);
             }
             redis.setex(FOLLOW_TIME_PREFIX + fromId, TIMEOUT_HOUR, String.valueOf(System.currentTimeMillis()));

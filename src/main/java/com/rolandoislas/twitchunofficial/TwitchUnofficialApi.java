@@ -54,6 +54,7 @@ import me.philippheuer.util.rest.QueryRequestInterceptor;
 import me.philippheuer.util.rest.RestErrorHandler;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.maven.artifact.versioning.ComparableVersion;
+import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.springframework.http.HttpHeaders;
@@ -72,7 +73,6 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -91,13 +91,13 @@ public class TwitchUnofficialApi {
     public static final Queue<String> followIdsToCache = new ConcurrentLinkedQueue<>();
     private static final Pattern DURATION_REGEX = Pattern.compile("(?:(\\d+)d)?(?:(\\d+)h)?(?:(\\d+)m)?(?:(\\d+)s)");
     static final int BAD_REQUEST = 400;
-    static final int SERVER_ERROR =  500;
-    static final int BAD_GATEWAY = 502;
+    private static final int SERVER_ERROR =  500;
+    private static final int BAD_GATEWAY = 502;
     private static final String API = "https://api.twitch.tv/helix";
     private static final String API_RAW = "https://api.twitch.tv/api";
     private static final String API_USHER = "https://usher.ttvnw.net";
     public static final int RATE_LIMIT_MAX = 120;
-    public static final String SUB_ONLY_VIDEO = "https://hls.twitched.org/sub_only_video_720/sub_only_video_720.m3u8";
+    private static final String SUB_ONLY_VIDEO = "https://hls.twitched.org/sub_only_video_720/sub_only_video_720.m3u8";
     static TwitchClient twitch;
     static Gson gson;
     private static OAuthCredential twitchOauth;
@@ -123,6 +123,7 @@ public class TwitchUnofficialApi {
     /**
      * Helper to send 401 unauthorized
      */
+    @Contract(" -> fail")
     @NotCached
     private static void unauthorized() {
         throw halt(401, "Unauthorized");
@@ -139,64 +140,12 @@ public class TwitchUnofficialApi {
     }
 
     /**
-     * Get stream data from twitch
-     * @param request request
-     * @param response response
-     * @return stream data
-     */
-    @Cached
-    static String getStreamsKraken(Request request, Response response) {
-        checkAuth(request);
-        Long limit = null;
-        Long offset = null;
-        String language;
-        me.philippheuer.twitch4j.model.Game game = null;
-        String channel;
-        String streamType;
-        try {
-            limit = Long.parseLong(request.queryParams("limit"));
-        }
-        catch (NumberFormatException ignore) {}
-        try {
-            offset = Long.parseLong(request.queryParams("offset"));
-        }
-        catch (NumberFormatException ignore) {}
-        language = request.queryParams("language");
-        String gameString = request.queryParams("game");
-        if (gameString != null) {
-            game = new me.philippheuer.twitch4j.model.Game();
-            game.setName(gameString);
-        }
-        channel = request.queryParams("channel");
-        streamType = request.queryParams("type");
-        // Check cache
-        String requestId = ApiCache.createKey("kraken/streams", limit, offset, language, game != null ? game.getName() : null,
-                channel, streamType);
-        String cachedResponse = cache.get(requestId);
-        if (cachedResponse != null)
-            return cachedResponse;
-        // Request live
-        List<Stream> streams = twitch.getStreamEndpoint().getAll(
-                Optional.ofNullable(limit),
-                Optional.ofNullable(offset),
-                Optional.ofNullable(language),
-                Optional.ofNullable(game),
-                Optional.ofNullable(channel),
-                Optional.ofNullable(streamType)
-        );
-        if (streams == null)
-            throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
-        String json = gson.toJson(streams);
-        cache.set(requestId, json);
-        return json;
-    }
-
-    /**
      * Get stream HLS m3u8 links
      * @param request request
      * @param response response
      * @return links
      */
+    @Nullable
     @Cached
     static String getHlsData(Request request, Response response) {
         checkAuth(request);
@@ -233,7 +182,7 @@ public class TwitchUnofficialApi {
         if (username.startsWith(":")) {
             String userId = username.replaceFirst(":", "");
             List<User> users = getUsers(Collections.singletonList(userId), null, null);
-            if (users.size() < 1)
+            if (users == null || users.size() < 1)
                 return null;
             username = users.get(0).getLogin();
         }
@@ -349,8 +298,9 @@ public class TwitchUnofficialApi {
      * @param response response
      * @return m3u8
      */
+    @Nullable
     @Cached
-    public static String getVodData(Request request, Response response) {
+    static String getVodData(Request request, Response response) {
         checkAuth(request);
         if (request.splat().length < 1)
             return null;
@@ -662,7 +612,7 @@ public class TwitchUnofficialApi {
         restTemplate.getInterceptors().add(new QueryRequestInterceptor("grant_type", "client_credentials"));
         restTemplate.getInterceptors().add(new QueryRequestInterceptor("scope", ""));
 
-        ResponseEntity<String> tokenResponse = null;
+        ResponseEntity<String> tokenResponse;
         try {
             tokenResponse = restTemplate.exchange(appTokenUrl, HttpMethod.POST, null,
                     String.class);
@@ -695,36 +645,6 @@ public class TwitchUnofficialApi {
             Logger.warn(StringUtils.repeat("=", 80));
             return null;
         }
-    }
-
-    /**
-     * Get a list of games
-     * @param request request
-     * @param response response
-     * @return games json
-     */
-    @Cached
-    static String getTopGamesKraken(Request request, Response response) {
-        checkAuth(request);
-        // Parse parameters
-        String limit = request.queryParamOrDefault("limit", "10");
-        String offset = request.queryParamOrDefault("offset", "0");
-        // Check cache
-        String requestId = ApiCache.createKey("kraken/games/top", limit, offset);
-        String cachedResponse = cache.get(requestId);
-        if (cachedResponse != null)
-            return cachedResponse;
-
-        // Request
-        @Nullable List<TopGame> games = getTopGamesKraken(limit, offset);
-
-        if (games == null)
-            throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
-
-        // Store and return
-        String json = gson.toJson(games);
-        cache.set(requestId, json);
-        return json;
     }
 
     /**
@@ -765,7 +685,7 @@ public class TwitchUnofficialApi {
      * @return communities json
      */
     @Cached
-    static String getCommunitiesKraken(Request request, Response response) {
+    static String getCommunitiesKraken(Request request, @SuppressWarnings("unused") Response response) {
         checkAuth(request);
         // Params
         Long limit = null;
@@ -797,7 +717,7 @@ public class TwitchUnofficialApi {
      * @return community json
      */
     @Cached
-    static String getCommunityKraken(Request request, Response response) {
+    static String getCommunityKraken(Request request, @SuppressWarnings("unused") Response response) {
         checkAuth(request);
         // Params
         String name = request.queryParams("name");
@@ -827,7 +747,7 @@ public class TwitchUnofficialApi {
      * @return stream json with usernames added to each stream as "user_name"
      */
     @Cached
-    static String getStreamsHelix(Request request, Response response) {
+    static String getStreamsHelix(Request request, @SuppressWarnings("unused") Response response) {
         checkAuth(request);
         // Params
         String after = request.queryParams("after");
@@ -1062,10 +982,11 @@ public class TwitchUnofficialApi {
         List<User> users = new ArrayList<>();
         if (missingLogins.size() > 0)
             users = getUsers(null, missingLogins, null);
-        for (User user : users)
-            if (user.getId() != null && !user.getId().isEmpty() && user.getLogin() != null &&
-                    !user.getLogin().isEmpty())
-                cachedLogins.put(user.getLogin(), user.getId());
+        if (users != null)
+            for (User user : users)
+                if (user.getId() != null && !user.getId().isEmpty() && user.getLogin() != null &&
+                        !user.getLogin().isEmpty())
+                    cachedLogins.put(user.getLogin(), user.getId());
         cache.setUserIds(cachedLogins);
         return cachedLogins;
     }
@@ -1219,6 +1140,7 @@ public class TwitchUnofficialApi {
      * @param ids id of games to fetch
      * @return games
      */
+    @Contract("null, null -> fail")
     @NotCached
     @Nullable
     private static List<Game> getGames(@Nullable List<String> ids, @Nullable List<String> names) {
@@ -1264,6 +1186,7 @@ public class TwitchUnofficialApi {
     /**
      * @see TwitchUnofficialApi#getUsers(List, List, String, Request, Response)
      */
+    @Contract("null, null, null -> fail")
     @NotCached
     @Nullable
     private static List<User> getUsers(@Nullable List<String> userIds, @Nullable List<String> userNames,
@@ -1278,6 +1201,7 @@ public class TwitchUnofficialApi {
      * @param token oauth token to use instead of names or ids. if names or ids are not null, the token is ignored
      * @return list of users
      */
+    @Contract("null, null, null, _, _ -> fail")
     @NotCached
     @Nullable
     private static List<User> getUsers(@Nullable List<String> userIds, @Nullable List<String> userNames,
@@ -1348,7 +1272,7 @@ public class TwitchUnofficialApi {
      * @return game json
      */
     @Cached
-    static String getGamesHelix(Request request, Response response) {
+    static String getGamesHelix(Request request, @SuppressWarnings("unused") Response response) {
         checkAuth(request);
         // Parse query params
         List<String> ids = new ArrayList<>();
@@ -1400,7 +1324,6 @@ public class TwitchUnofficialApi {
     static String getUserFollowedStreamsHelix(Request request, Response response) {
         checkAuth(request);
         // Params
-        String offset = request.queryParamOrDefault("offset", "0"); // FIXME this is not used
         String limit = request.queryParamOrDefault("limit", "20");
         String userId = request.queryParams("user_id");
         String token = AuthUtil.extractTwitchToken(request);
@@ -1412,7 +1335,7 @@ public class TwitchUnofficialApi {
             fromId = cache.getUserIdFromToken(token);
             if (fromId == null || fromId.isEmpty()) {
                 List<User> fromUsers = getUsers(null, null, token);
-                if (fromUsers.size() == 0)
+                if (fromUsers == null || fromUsers.size() == 0)
                     throw halt(BAD_REQUEST, "User token invalid");
                 fromId = fromUsers.get(0).getId();
                 cache.cacheUserIdFromToken(fromId, token);
@@ -1439,7 +1362,8 @@ public class TwitchUnofficialApi {
      */
     @Cached
     private static List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> getUserFollowedStreamsWithTimeout(
-            String fromId, int timeout, ComparableVersion twitchedVersion) throws HaltException {
+            String fromId, @SuppressWarnings("SameParameterValue") int timeout,
+            ComparableVersion twitchedVersion) throws HaltException {
         List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streams = new ArrayList<>();
         List<String> followIds = new ArrayList<>();
         List<Follow> followsOffline = new ArrayList<>();
@@ -1481,7 +1405,7 @@ public class TwitchUnofficialApi {
                         streams.addAll(streamSublist);
                         // Add follows to offline list
                         for (com.rolandoislas.twitchunofficial.util.twitch.helix.Stream stream : streamSublist)
-                            if (stream != null && stream.getUserId() != null && followIds.contains(stream.getUserId()))
+                            if (stream != null && stream.getUserId() != null)
                                 followIds.remove(stream.getUserId());
                         if (followIds.size() > 0) {
                             for (String followId : followIds)
@@ -1592,6 +1516,7 @@ public class TwitchUnofficialApi {
      * @param loadCache load results from cache
      * @return follow list
      */
+    @Contract("_, _, _, null, null, _ -> fail")
     @Cached
     @Nullable
     public static FollowList getUserFollows(@Nullable String after, @Nullable String before, @Nullable String first,
@@ -1668,6 +1593,7 @@ public class TwitchUnofficialApi {
      * @param first page item limit
      * @return cursor(after)
      */
+    @Contract("null, _ -> null")
     @Nullable
     @NotCached
     private static String getAfterFromOffset(@Nullable String offset, String first) {
@@ -1693,7 +1619,7 @@ public class TwitchUnofficialApi {
      * @return json
      */
     @Cached
-    static String getUserFollowHelix(Request request, Response response) {
+    static String getUserFollowHelix(Request request, @SuppressWarnings("unused") Response response) {
         checkAuth(request);
         // Params
         String after = request.queryParams("after");
@@ -1715,12 +1641,12 @@ public class TwitchUnofficialApi {
         // Convert logins to ids
         if (fromLogin != null) {
             List<User> users = getUsers(null, Collections.singletonList(fromLogin), null);
-            if (users.size() == 1)
+            if (users != null && users.size() == 1)
                 fromId = users.get(0).getId();
         }
         if (toLogin != null) {
             List<User> users = getUsers(null, Collections.singletonList(toLogin), null);
-            if (users.size() == 1)
+            if (users != null && users.size() == 1)
                 toId = users.get(0).getId();
         }
         // Check cache
@@ -1750,7 +1676,7 @@ public class TwitchUnofficialApi {
      * @return json
      */
     @Cached
-    static String getSearchKraken(Request request, Response response) {
+    static String getSearchKraken(Request request, @SuppressWarnings("unused") Response response) {
         checkAuth(request);
         // All
         @Nullable String query = request.queryParams("query");
@@ -1911,7 +1837,7 @@ public class TwitchUnofficialApi {
      * @return json
      */
     @Cached
-    static String getTopGamesHelix(Request request, Response response) {
+    static String getTopGamesHelix(Request request, @SuppressWarnings("unused") Response response) {
         checkAuth(request);
         // Params
         String after = request.queryParams("after");
@@ -1965,7 +1891,7 @@ public class TwitchUnofficialApi {
         if (games == null)
             throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
         // Add viewer info
-        List<TopGame> gamesKraken = getTopGamesKraken("100", "0");
+        List<TopGame> gamesKraken = getTopGamesKraken(first, offset);
         if (gamesKraken != null) {
             for (Game game : games)
                 for (TopGame gameKraken : gamesKraken)
@@ -1986,7 +1912,7 @@ public class TwitchUnofficialApi {
      * @return json
      */
     @Cached
-    public static String getUsersHelix(Request request, Response response) {
+    static String getUsersHelix(Request request, Response response) {
         checkAuth(request);
         // Params
         String token = AuthUtil.extractTwitchToken(request);
@@ -2043,7 +1969,7 @@ public class TwitchUnofficialApi {
      * @return video json
      */
     @Cached
-    public static String getVideosHelix(Request request, Response response) {
+    static String getVideosHelix(Request request, @SuppressWarnings("unused") Response response) {
         checkAuth(request);
         // Parse query params
         String userId = request.queryParams("user_id");
@@ -2253,7 +2179,7 @@ public class TwitchUnofficialApi {
      * @return empty html
      */
     @NotCached
-    public static String followKraken(Request request, Response response) {
+    static String followKraken(Request request, @SuppressWarnings("unused") Response response) {
         checkAuth(request);
         // Params
         String id = request.queryParams("id");
@@ -2266,7 +2192,7 @@ public class TwitchUnofficialApi {
         // Follow
         OAuthCredential oauth = new OAuthCredential(token);
         List<User> users = getUsers(null, null, token);
-        if (users.size() != 1)
+        if (users == null || users.size() != 1)
             throw halt(BAD_REQUEST, "Invalid token");
         oauth.setUserId(StringUtil.parseLong(users.get(0).getId()));
 
@@ -2297,7 +2223,7 @@ public class TwitchUnofficialApi {
      * @return empty html
      */
     @NotCached
-    public static String unfollowKraken(Request request, Response response) {
+    static String unfollowKraken(Request request, @SuppressWarnings("unused") Response response) {
         checkAuth(request);
         // Params
         String id = request.queryParams("id");
@@ -2310,7 +2236,7 @@ public class TwitchUnofficialApi {
         // Unfollow
         OAuthCredential oauth = new OAuthCredential(token);
         List<User> users = getUsers(null, null, token);
-        if (users.size() != 1)
+        if (users == null || users.size() != 1)
             throw halt(BAD_REQUEST, "Invalid token");
         oauth.setUserId(StringUtil.parseLong(users.get(0).getId()));
         twitch.getUserEndpoint().unfollowChannel(oauth, followIdLong);
@@ -2319,62 +2245,13 @@ public class TwitchUnofficialApi {
     }
 
     /**
-     * Get user follows as streams from the kraken endpoint
-     * @param request request
-     * @param response response
-     * @return json
-     */
-    @Cached
-    public static String getUserFollowedStreamsKraken(Request request, Response response) {
-        checkAuth(request);
-        // Params
-        String offset = request.queryParamOrDefault("offset", "0");
-        String limit = request.queryParamOrDefault("limit", "20");
-        String direction = request.queryParamOrDefault("direction", "desc");
-        String sortBy = request.queryParamOrDefault("sortby", "last_broadcast");
-        String token = AuthUtil.extractTwitchToken(request);
-        if (token == null || token.isEmpty())
-            throw halt(BAD_REQUEST, "Empty token");
-        // Check cache
-        String requestId = ApiCache.createKey("kraken/user/follows/streams", offset, limit, token);
-        String cachedResponse = cache.get(requestId);
-        if (cachedResponse != null)
-            return cachedResponse;
-        // Calculate the from id from the token
-        List<User> fromUsers = getUsers(null, null, token);
-        if (fromUsers.size() == 0)
-            throw halt(BAD_REQUEST, "User token invalid");
-        String fromId = fromUsers.get(0).getId();
-        // Get follows
-        List<me.philippheuer.twitch4j.model.Follow> userFollows = twitch.getUserEndpoint().getUserFollows(
-                StringUtil.parseLong(fromId),
-                Optional.of(StringUtil.parseLong(limit)),
-                Optional.of(StringUtil.parseLong(offset)),
-                Optional.of(direction),
-                Optional.of(sortBy)
-        );
-        if (userFollows == null)
-            throw halt(SERVER_ERROR, "Failed to connect to Twitch API");
-        List<String> followIds = new ArrayList<>();
-        for (me.philippheuer.twitch4j.model.Follow follow : userFollows)
-            if (follow.getChannel().getId() != null)
-                followIds.add(String.valueOf(follow.getChannel().getId()));
-        @NotNull List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streams =
-                getStreams(getAfterFromOffset("0", limit), null, null, limit,
-                        null, null, null, followIds, null);
-        // Cache and return
-        String json = gson.toJson(streams);
-        cache.set(requestId, json);
-        return json;
-    }
-
-    /**
      * Log any headers and query params
      * @param request request
      * @param response response
      * @return 404
      */
-    public static String logGet(Request request, Response response) {
+    @Nullable
+    static String logGet(Request request, @SuppressWarnings("unused") Response response) {
         if (!isDevApiEnabled())
             return null;
         Logger.debug("-----HEADERS-----");
@@ -2400,7 +2277,7 @@ public class TwitchUnofficialApi {
      * @param response response
      * @return json
      */
-    public static String getAdServer(Request request, Response response) {
+    static String getAdServer(Request request, @SuppressWarnings("unused") Response response) {
         checkAuth(request);
         // Params
         String type = request.queryParams("type");

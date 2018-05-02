@@ -32,19 +32,19 @@ public class AccessToken {
         this.scope = new ArrayList<>();
     }
 
-    public String getAccessToken() {
+    private String getAccessToken() {
         return accessToken;
     }
 
-    public String getRefreshToken() {
+    private String getRefreshToken() {
         return refreshToken;
     }
 
-    public long getExpiresIn() {
+    private long getExpiresIn() {
         return expiresIn;
     }
 
-    public List<String> getScope() {
+    private List<String> getScope() {
         return scope;
     }
 

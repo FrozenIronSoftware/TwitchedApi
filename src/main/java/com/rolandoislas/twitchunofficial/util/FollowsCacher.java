@@ -14,6 +14,7 @@ import static com.rolandoislas.twitchunofficial.TwitchUnofficial.cache;
  * Checks for any id that need to have their follows cached and polls the api and caches them.
  */
 public class FollowsCacher implements Runnable {
+    @SuppressWarnings("FieldCanBeLocal")
     private boolean running = false;
 
     @Override

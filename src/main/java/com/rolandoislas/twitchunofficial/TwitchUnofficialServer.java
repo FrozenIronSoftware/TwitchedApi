@@ -6,7 +6,6 @@
 package com.rolandoislas.twitchunofficial;
 
 import com.rolandoislas.twitchunofficial.data.annotation.NotCached;
-import spark.HaltException;
 import spark.ModelAndView;
 import spark.Request;
 import spark.Response;
@@ -17,7 +16,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 class TwitchUnofficialServer {
@@ -29,7 +27,9 @@ class TwitchUnofficialServer {
      * @param replaceOnlyDouble only replace double line breaks "\n\n"
      * @return text with html break tags
      */
-    private static String getPartialWithHtmlLineBreaks(String fileName, boolean replaceOnlyDouble) {
+    private static String getPartialWithHtmlLineBreaks(String fileName,
+                                                       @SuppressWarnings("SameParameterValue")
+                                                               boolean replaceOnlyDouble) {
         InputStream fileStream = ClassLoader.getSystemResourceAsStream("templates/partial/" + fileName);
         String fileString = new BufferedReader(new InputStreamReader(fileStream))
                 .lines().collect(Collectors.joining("\n"));
@@ -46,7 +46,7 @@ class TwitchUnofficialServer {
      * @return root html
      */
     @NotCached
-    static String getIndex(Request request, Response response) {
+    static String getIndex(@SuppressWarnings("unused") Request request, @SuppressWarnings("unused") Response response) {
         Map<String, Object> model = new HashMap<>();
         return new HandlebarsTemplateEngine().render(new ModelAndView(model, "index.hbs"));
     }
@@ -82,7 +82,7 @@ class TwitchUnofficialServer {
      * @return html
      */
     @NotCached
-    static String getLinkCallback(Request request, Response response) {
+    static String getLinkCallback(Request request, @SuppressWarnings("unused") Response response) {
         // Check error
         String error = request.queryParams("error");
         Map<String, Object> model = new HashMap<>();
@@ -106,7 +106,8 @@ class TwitchUnofficialServer {
      * @param response response
      * @return html
      */
-    static String getInfoIndex(Request request, Response response) {
+    static String getInfoIndex(@SuppressWarnings("unused") Request request,
+                               @SuppressWarnings("unused") Response response) {
         Map<String, Object> model = new HashMap<>();
         model.put("text", getPartialWithHtmlLineBreaks("license.txt", true));
         return new HandlebarsTemplateEngine().render(new ModelAndView(model, "info.hbs"));
@@ -118,7 +119,8 @@ class TwitchUnofficialServer {
      * @param response response
      * @return html
      */
-    static String getInfoOss(Request request, Response response) {
+    static String getInfoOss(@SuppressWarnings("unused") Request request,
+                             @SuppressWarnings("unused") Response response) {
         Map<String, Object> model = new HashMap<>();
         model.put("text_website", getPartialWithHtmlLineBreaks("third_party.txt", true));
         model.put("text_roku", getPartialWithHtmlLineBreaks("third_party_roku.txt", true));
@@ -132,7 +134,8 @@ class TwitchUnofficialServer {
      * @param response response
      * @return html
      */
-    static String getInfoPrivacy(Request request, Response response) {
+    static String getInfoPrivacy(@SuppressWarnings("unused") Request request,
+                                 @SuppressWarnings("unused") Response response) {
         Map<String, Object> model = new HashMap<>();
         return new HandlebarsTemplateEngine().render(new ModelAndView(model, "info_privacy.hbs"));
     }
@@ -143,7 +146,8 @@ class TwitchUnofficialServer {
      * @param response response
      * @return html
      */
-    public static String getExtensionIndex(Request request, Response response) {
+    static String getExtensionIndex(@SuppressWarnings("unused") Request request,
+                                    @SuppressWarnings("unused") Response response) {
         Map<String, Object> model = new HashMap<>();
         return new HandlebarsTemplateEngine().render(new ModelAndView(model, "extension.hbs"));
     }
@@ -154,7 +158,8 @@ class TwitchUnofficialServer {
      * @param response response
      * @return html
      */
-    public static String getSupportIndex(Request request, Response response) {
+    static String getSupportIndex(@SuppressWarnings("unused") Request request,
+                                  @SuppressWarnings("unused") Response response) {
         Map<String, Object> model = new HashMap<>();
         return new HandlebarsTemplateEngine().render(new ModelAndView(model, "support.hbs"));
     }
@@ -165,7 +170,8 @@ class TwitchUnofficialServer {
      * @param response response
      * @return html
      */
-    public static String getAppIndex(Request request, Response response) {
+    static String getAppIndex(@SuppressWarnings("unused") Request request,
+                              @SuppressWarnings("unused") Response response) {
         Map<String, Object> model = new HashMap<>();
         return new HandlebarsTemplateEngine().render(new ModelAndView(model, "app.hbs"));
     }
