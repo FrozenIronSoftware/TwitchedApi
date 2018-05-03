@@ -1498,10 +1498,12 @@ public class TwitchUnofficialApi {
             if (cachedIds.size() > 0) {
                 List<Follow> follows = new ArrayList<>();
                 for (String id : cachedIds) {
-                    Follow follow = new Follow();
-                    follow.setToId(id);
-                    follow.setFromId(fromId);
-                    follows.add(follow);
+                    if (toId == null || toId.isEmpty() || toId.equals(id)) {
+                        Follow follow = new Follow();
+                        follow.setToId(id);
+                        follow.setFromId(fromId);
+                        follows.add(follow);
+                    }
                 }
                 FollowList followList = new FollowList();
                 followList.setFollows(follows);
