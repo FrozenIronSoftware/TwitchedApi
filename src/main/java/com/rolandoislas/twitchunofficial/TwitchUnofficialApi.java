@@ -2319,8 +2319,10 @@ public class TwitchUnofficialApi {
                     continue;
                 for (String country : adServerJson.getCountries()) {
                     if (country != null && (country.equals(region) || country.equals("INT")) &&
-                            adServerJson.getUrl() != null)
+                            adServerJson.getUrl() != null) {
                         compatibleAdServers.add(adServerJson);
+                        break;
+                    }
                 }
             }
             if (compatibleAdServers.size() > 0) {
