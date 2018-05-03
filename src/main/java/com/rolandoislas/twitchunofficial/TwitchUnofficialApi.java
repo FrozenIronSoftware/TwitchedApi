@@ -23,6 +23,7 @@ import com.rolandoislas.twitchunofficial.util.FollowsCacher;
 import com.rolandoislas.twitchunofficial.util.HeaderUtil;
 import com.rolandoislas.twitchunofficial.util.Logger;
 import com.rolandoislas.twitchunofficial.util.StringUtil;
+import com.rolandoislas.twitchunofficial.util.twitch.AppToken;
 import com.rolandoislas.twitchunofficial.util.twitch.Token;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.Follow;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.FollowList;
@@ -36,8 +37,6 @@ import com.rolandoislas.twitchunofficial.util.twitch.helix.StreamViewComparator;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.User;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.UserList;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.UserName;
-import com.rolandoislas.twitchunofficial.util.twitch.AppToken;
-import com.rolandoislas.twitchunofficial.util.twitch.kraken.Video;
 import me.philippheuer.twitch4j.TwitchClient;
 import me.philippheuer.twitch4j.TwitchClientBuilder;
 import me.philippheuer.twitch4j.auth.model.OAuthCredential;
@@ -47,8 +46,6 @@ import me.philippheuer.twitch4j.model.Channel;
 import me.philippheuer.twitch4j.model.Community;
 import me.philippheuer.twitch4j.model.CommunityList;
 import me.philippheuer.twitch4j.model.Stream;
-import me.philippheuer.twitch4j.model.TopGame;
-import me.philippheuer.twitch4j.model.TopGameList;
 import me.philippheuer.util.rest.HeaderRequestInterceptor;
 import me.philippheuer.util.rest.QueryRequestInterceptor;
 import me.philippheuer.util.rest.RestErrorHandler;
@@ -646,38 +643,6 @@ public class TwitchUnofficialApi {
             Logger.warn(StringUtils.repeat("=", 80));
             return null;
         }
-    }
-
-    /**
-     * Request top games from the Kraken end point
-     * @param limit limit
-     * @param offset offset
-     * @return top games
-     */
-    @Nullable
-    @NotCached
-    @Deprecated
-    private static List<TopGame> getTopGamesKraken(@Nullable String limit, @Nullable String offset) {
-        // Fetch live data
-        String requestUrl = String.format("%s/games/top", Endpoints.API.getURL());
-        RestTemplate restTemplate = twitch.getRestClient().getRestTemplate();
-        if (limit != null)
-            restTemplate.getInterceptors().add(new QueryRequestInterceptor("limit", limit));
-        if (offset != null)
-            restTemplate.getInterceptors().add(new QueryRequestInterceptor("offset", offset));
-        // REST Request
-        List<TopGame> games = null;
-        try {
-            Logger.verbose( "Rest Request to [%s]", requestUrl);
-            TopGameList responseObject = restTemplate.getForObject(requestUrl, TopGameList.class);
-            if (responseObject != null)
-                games = responseObject.getTop();
-        }
-        catch (RestClientException | RestException e) {
-            Logger.warn("Request failed: " + e.getMessage());
-            Logger.exception(e);
-        }
-        return games;
     }
 
     /**
@@ -1895,15 +1860,7 @@ public class TwitchUnofficialApi {
         }
         if (games == null)
             throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
-        // Add viewer info
-        List<TopGame> gamesKraken = getTopGamesKraken(first, offset);
-        if (gamesKraken != null) {
-            for (Game game : games)
-                for (TopGame gameKraken : gamesKraken)
-                    if (String.valueOf(game.getId()).equals(
-                            String.valueOf(gameKraken.getGame() != null ? gameKraken.getGame().getId() : null)))
-                        game.setViewers(gameKraken.getViewers());
-        }
+        // TODO Add viewer counts. Kraken data was used previously to get viewers
         // Store and return
         String json = gson.toJson(games);
         cache.set(requestId, json);
@@ -2031,49 +1988,15 @@ public class TwitchUnofficialApi {
                 before, first, language, period, sort, type);
         if (videos == null)
             throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
-        // Add game to video from Kraken endpoint
+        // Add game to video
         // Only do this for a single video
-        if (ids.size() == 1 && videos.size() == 1) {
-            @Nullable Video video = getVideoKraken(ids.get(0));
-            @Nullable List<Game> games = null;
-            if (video != null && video.getGame() != null && !video.getGame().isEmpty())
-                games = getGames(null, new ArrayList<>(Collections.singleton(video.getGame())));
-            if (games != null && games.size() == 1) {
-                videos.get(0).setGameId(games.get(0).getId());
-                videos.get(0).setGameName(games.get(0).getName());
-            }
-        }
+        //if (ids.size() == 1 && videos.size() == 1) {
+            // TODO this previously used kraken data to fetch the game information. Helix does not even have the ID
+        //}
         // Cache and return
         String json = gson.toJson(videos);
         cache.set(requestId, json);
         return json;
-    }
-
-    /**
-     * Get a single video by ID from the Kraken endpoint
-     * @param id video id
-     * @return video
-     */
-    @Nullable
-    @NotCached
-    @Deprecated
-    private static Video getVideoKraken(String id) {
-        // Endpoint
-        String requestUrl = String.format("%s/videos/%s", Endpoints.API.getURL(), id);
-        RestTemplate restTemplate = twitch.getRestClient().getRestTemplate();
-        // REST Request
-        try {
-            Logger.verbose("Rest Request to [%s]", requestUrl);
-            return restTemplate.getForObject(requestUrl, Video.class);
-        }
-        catch (RestException e) {
-            Logger.extra("RestException: " + e.getRestError().toString());
-            Logger.exception(e);
-        }
-        catch (Exception e) {
-            Logger.exception(e);
-        }
-        return null;
     }
 
     /**
