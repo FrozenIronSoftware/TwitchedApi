@@ -3,7 +3,7 @@
  *
  */
 
-package com.rolandoislas.twitchunofficial.util.twitch.kraken;
+package com.rolandoislas.twitchunofficial.util.twitch;
 
 import com.google.gson.annotations.SerializedName;
 

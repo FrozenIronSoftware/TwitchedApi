@@ -36,7 +36,7 @@ import com.rolandoislas.twitchunofficial.util.twitch.helix.StreamViewComparator;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.User;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.UserList;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.UserName;
-import com.rolandoislas.twitchunofficial.util.twitch.kraken.AppToken;
+import com.rolandoislas.twitchunofficial.util.twitch.AppToken;
 import com.rolandoislas.twitchunofficial.util.twitch.kraken.Video;
 import me.philippheuer.twitch4j.TwitchClient;
 import me.philippheuer.twitch4j.TwitchClientBuilder;
@@ -98,6 +98,7 @@ public class TwitchUnofficialApi {
     private static final String API_USHER = "https://usher.ttvnw.net";
     public static final int RATE_LIMIT_MAX = 120;
     private static final String SUB_ONLY_VIDEO = "https://hls.twitched.org/sub_only_video_720/sub_only_video_720.m3u8";
+    private static final String API_AUTH = "https://id.twitch.tv";
     static TwitchClient twitch;
     static Gson gson;
     private static OAuthCredential twitchOauth;
@@ -605,7 +606,7 @@ public class TwitchUnofficialApi {
         restTemplate.setErrorHandler(new RestErrorHandler());
 
         // Request app token
-        String appTokenUrl = Endpoints.API.getURL() + "/oauth2/token";
+        String appTokenUrl = API_AUTH + "/oauth2/token";
 
         restTemplate.getInterceptors().add(new QueryRequestInterceptor("client_id", twitchClientId));
         restTemplate.getInterceptors().add(new QueryRequestInterceptor("client_secret", twitchClientSecret));
@@ -655,6 +656,7 @@ public class TwitchUnofficialApi {
      */
     @Nullable
     @NotCached
+    @Deprecated
     private static List<TopGame> getTopGamesKraken(@Nullable String limit, @Nullable String offset) {
         // Fetch live data
         String requestUrl = String.format("%s/games/top", Endpoints.API.getURL());
@@ -685,6 +687,7 @@ public class TwitchUnofficialApi {
      * @return communities json
      */
     @Cached
+    @Deprecated
     static String getCommunitiesKraken(Request request, @SuppressWarnings("unused") Response response) {
         checkAuth(request);
         // Params
@@ -717,6 +720,7 @@ public class TwitchUnofficialApi {
      * @return community json
      */
     @Cached
+    @Deprecated
     static String getCommunityKraken(Request request, @SuppressWarnings("unused") Response response) {
         checkAuth(request);
         // Params
@@ -1676,6 +1680,7 @@ public class TwitchUnofficialApi {
      * @return json
      */
     @Cached
+    @Deprecated
     static String getSearchKraken(Request request, @SuppressWarnings("unused") Response response) {
         checkAuth(request);
         // All
@@ -2051,6 +2056,7 @@ public class TwitchUnofficialApi {
      */
     @Nullable
     @NotCached
+    @Deprecated
     private static Video getVideoKraken(String id) {
         // Endpoint
         String requestUrl = String.format("%s/videos/%s", Endpoints.API.getURL(), id);
@@ -2179,6 +2185,7 @@ public class TwitchUnofficialApi {
      * @return empty html
      */
     @NotCached
+    @Deprecated
     static String followKraken(Request request, @SuppressWarnings("unused") Response response) {
         checkAuth(request);
         // Params
@@ -2223,6 +2230,7 @@ public class TwitchUnofficialApi {
      * @return empty html
      */
     @NotCached
+    @Deprecated
     static String unfollowKraken(Request request, @SuppressWarnings("unused") Response response) {
         checkAuth(request);
         // Params
