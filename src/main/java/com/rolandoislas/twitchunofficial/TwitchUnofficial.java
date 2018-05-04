@@ -11,7 +11,6 @@ import com.rolandoislas.twitchunofficial.util.Logger;
 import spark.Filter;
 
 import java.util.Arrays;
-import java.util.Random;
 import java.util.logging.Level;
 
 import static spark.Spark.before;

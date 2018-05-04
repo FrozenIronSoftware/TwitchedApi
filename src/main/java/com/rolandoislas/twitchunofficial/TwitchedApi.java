@@ -393,6 +393,7 @@ class TwitchedApi {
      * Check if the dev api is enabled
      * @return enabled
      */
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     private static boolean isDevApiEnabled() {
         return System.getenv().getOrDefault("DEV_API", "").equalsIgnoreCase("true");
     }
@@ -460,7 +461,7 @@ class TwitchedApi {
      * @param response response
      * @return 404
      */
-    static String getStall(Request request, Response response) {
+    static String getStall(Request request, @SuppressWarnings("unused") Response response) {
         if (!isDevApiEnabled())
             return null;
         int sleep = 30;
