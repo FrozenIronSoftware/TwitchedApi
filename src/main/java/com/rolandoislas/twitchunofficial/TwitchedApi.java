@@ -453,4 +453,30 @@ class TwitchedApi {
         adServerResponse.addProperty("ad_server", adServer);
         return adServerResponse.toString();
     }
+
+    /**
+     * Stall the request for a certain amount of time
+     * @param request request
+     * @param response response
+     * @return 404
+     */
+    static String getStall(Request request, Response response) {
+        if (!isDevApiEnabled())
+            return null;
+        int sleep = 30;
+        String sleepString = request.queryParamOrDefault("delay", "30");
+        try {
+            sleep = Integer.parseInt(sleepString);
+        }
+        catch (NumberFormatException e) {
+            Logger.exception(e);
+        }
+        try {
+            Thread.sleep(sleep);
+        }
+        catch (InterruptedException e) {
+            Logger.exception(e);
+        }
+        return null;
+    }
 }

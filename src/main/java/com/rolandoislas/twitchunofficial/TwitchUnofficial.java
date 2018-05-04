@@ -128,6 +128,7 @@ public class TwitchUnofficial {
             //noinspection CodeBlock2Expr
             path("/dev", () -> {
                 get("/log", TwitchedApi::logGet);
+                get("/stall", TwitchedApi::getStall);
             });
             //noinspection CodeBlock2Expr
             path("/ad", () -> {
