@@ -335,6 +335,7 @@ class TwitchedApi {
      * @return json output from the validate endpoint
      */
     static String validateToken(Request request, @SuppressWarnings("unused") Response response) {
+        checkAuth(request);
         List<TokenValidation> validationList = new ArrayList<>(); // Wrapped in an array to be compatible with Twitched
         String token = AuthUtil.extractTwitchToken(request);
         if (token == null || token.isEmpty())
