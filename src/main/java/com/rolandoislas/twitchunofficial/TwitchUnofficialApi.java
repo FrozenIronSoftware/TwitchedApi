@@ -15,8 +15,6 @@ import com.rolandoislas.twitchunofficial.data.Playlist;
 import com.rolandoislas.twitchunofficial.data.RokuQuality;
 import com.rolandoislas.twitchunofficial.data.annotation.Cached;
 import com.rolandoislas.twitchunofficial.data.annotation.NotCached;
-import com.rolandoislas.twitchunofficial.data.json.AdServer;
-import com.rolandoislas.twitchunofficial.data.json.AdServerList;
 import com.rolandoislas.twitchunofficial.util.ApiCache;
 import com.rolandoislas.twitchunofficial.util.AuthUtil;
 import com.rolandoislas.twitchunofficial.util.FollowsCacher;
@@ -101,7 +99,6 @@ public class TwitchUnofficialApi {
     static Gson gson;
     private static OAuthCredential twitchOauth;
     private static Thread followsThread;
-    private static Random random;
 
     /**
      * Send a JSON error message to the current requester
@@ -587,7 +584,6 @@ public class TwitchUnofficialApi {
         TwitchUnofficialApi.followsThread.setName("Follows Thread");
         TwitchUnofficialApi.followsThread.setDaemon(true);
         TwitchUnofficialApi.followsThread.start();
-        TwitchUnofficialApi.random = new Random();
     }
 
     /**
@@ -2179,89 +2175,5 @@ public class TwitchUnofficialApi {
         twitch.getUserEndpoint().unfollowChannel(oauth, followIdLong);
         cacheFollows(String.valueOf(oauth.getUserId()), true);
         return "{}";
-    }
-
-    /**
-     * Log any headers and query params
-     * @param request request
-     * @param response response
-     * @return 404
-     */
-    @Nullable
-    static String logGet(Request request, @SuppressWarnings("unused") Response response) {
-        if (!isDevApiEnabled())
-            return null;
-        Logger.debug("-----HEADERS-----");
-        for (String header : request.headers())
-            Logger.debug("%s: %s", header, request.headers(header));
-        Logger.debug("-----QUERY PARAMS-----");
-        for (String queryParam : request.queryParams())
-            Logger.debug("%s: %s", queryParam, request.headers(queryParam));
-        return null;
-    }
-
-    /**
-     * Check if the dev api is enabled
-     * @return enabled
-     */
-    private static boolean isDevApiEnabled() {
-        return System.getenv().getOrDefault("DEV_API", "").equalsIgnoreCase("true");
-    }
-
-    /**
-     * Return an ad server url
-     * @param request request
-     * @param response response
-     * @return json
-     */
-    static String getAdServer(Request request, @SuppressWarnings("unused") Response response) {
-        checkAuth(request);
-        // Params
-        String type = request.queryParams("type");
-        if (type == null || !type.equals("roku"))
-            throw halt(BAD_REQUEST, "Invalid type");
-        JsonObject adServerResponse = new JsonObject();
-        String adServer = "";
-        String adServerString = System.getenv("AD_SERVER");
-        AdServerList adServerList = null;
-        if (adServerString == null) {
-            Logger.warn("Missing environment variable: AD_SERVER");
-        }
-        else {
-            try {
-                adServerList = gson.fromJson(adServerString, AdServerList.class);
-            }
-            catch (JsonSyntaxException e) {
-                Logger.warn("Failed to parse ad server list from environment variable");
-                Logger.exception(e);
-            }
-        }
-        if (adServerList != null && adServerList.getAdServers() != null &&
-            adServerList.getAdServers().size() > 0) {
-            // Check region
-            String region = request.headers("CF-IPCountry");
-            if (region == null || region.isEmpty())
-                region = "XX";
-            List<AdServer> compatibleAdServers = new ArrayList<>();
-            for (AdServer adServerJson : adServerList.getAdServers()) {
-                if (adServerJson.getCountries() == null)
-                    continue;
-                for (String country : adServerJson.getCountries()) {
-                    if (country != null && (country.equals(region) || country.equals("INT")) &&
-                            adServerJson.getUrl() != null) {
-                        compatibleAdServers.add(adServerJson);
-                        break;
-                    }
-                }
-            }
-            if (compatibleAdServers.size() > 0) {
-                int adServerIndex = random.nextInt(compatibleAdServers.size());
-                AdServer selectedAdServer = compatibleAdServers.get(adServerIndex);
-                adServer = selectedAdServer.getUrl();
-            }
-        }
-        // Send response
-        adServerResponse.addProperty("ad_server", adServer);
-        return adServerResponse.toString();
     }
 }

@@ -11,6 +11,7 @@ import com.rolandoislas.twitchunofficial.util.Logger;
 import spark.Filter;
 
 import java.util.Arrays;
+import java.util.Random;
 import java.util.logging.Level;
 
 import static spark.Spark.before;
@@ -126,11 +127,11 @@ public class TwitchUnofficial {
             });
             //noinspection CodeBlock2Expr
             path("/dev", () -> {
-                get("/log", TwitchUnofficialApi::logGet);
+                get("/log", TwitchedApi::logGet);
             });
             //noinspection CodeBlock2Expr
             path("/ad", () -> {
-                get("/server", TwitchUnofficialApi::getAdServer);
+                get("/server", TwitchedApi::getAdServer);
             });
         });
         // Web
