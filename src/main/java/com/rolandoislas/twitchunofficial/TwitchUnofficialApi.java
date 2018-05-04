@@ -88,7 +88,8 @@ public class TwitchUnofficialApi {
     public static final Queue<String> followIdsToCache = new ConcurrentLinkedQueue<>();
     private static final Pattern DURATION_REGEX = Pattern.compile("(?:(\\d+)d)?(?:(\\d+)h)?(?:(\\d+)m)?(?:(\\d+)s)");
     static final int BAD_REQUEST = 400;
-    private static final int SERVER_ERROR =  500;
+    static final int NOT_FOUND = 404;
+    static final int SERVER_ERROR =  500;
     private static final int BAD_GATEWAY = 502;
     private static final String API = "https://api.twitch.tv/helix";
     private static final String API_RAW = "https://api.twitch.tv/api";

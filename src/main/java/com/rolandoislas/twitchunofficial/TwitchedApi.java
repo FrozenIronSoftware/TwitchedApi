@@ -115,7 +115,7 @@ class TwitchedApi {
         // Parse json
         LinkId linkId = new LinkId(cache.get(linkCacheId), gson);
         if (linkId.getLinkId() == null) {
-            ret.addProperty("error", 500);
+            ret.addProperty("error", TwitchUnofficialApi.NOT_FOUND);
             return ret.toString();
         }
         // Check cache for token
@@ -130,7 +130,7 @@ class TwitchedApi {
             accessToken = gson.fromJson(token, AccessToken.class);
         }
         catch (JsonSyntaxException e) {
-            throw halt(500, "Server error: Invalid token json");
+            throw halt(TwitchUnofficialApi.SERVER_ERROR, "Server error: Invalid token json");
         }
         ret = accessToken.toJsonObject();
         return ret.toString();
@@ -158,10 +158,10 @@ class TwitchedApi {
         String shortLinkCacheId = ApiCache.createKey(ApiCache.LINK_PREFIX, linkId.toUpperCase());
         String linkCacheId = cache.get(shortLinkCacheId);
         if (linkCacheId == null)
-            throw Spark.halt(404, "Link id not found");
+            throw Spark.halt(TwitchUnofficialApi.NOT_FOUND, "Link id not found");
         LinkId linkIdObj = new LinkId(cache.get(linkCacheId), gson);
         if (linkIdObj.getLinkId() == null)
-            throw Spark.halt(500, "Link id not found");
+            throw Spark.halt(TwitchUnofficialApi.NOT_FOUND, "Link id not found");
         String oauthUrl = "https://id.twitch.tv/oauth2/authorize?client_id=%s&redirect_uri=%s&response_type=%s" +
                 "&scope=%s&force_verify=%s&state=%s";
         oauthUrl = String.format(
