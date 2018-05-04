@@ -2095,7 +2095,10 @@ public class TwitchUnofficialApi {
             }
         }
         catch (RestClientException | RestException e) {
-            Logger.warn("Request failed: " + e.getMessage());
+            if (e instanceof RestException)
+                Logger.warn("Request failed: " + ((RestException)e).getRestError().getMessage());
+            else
+                Logger.warn("Request failed: " + e.getMessage());
             Logger.exception(e);
         }
         if (videos != null)
