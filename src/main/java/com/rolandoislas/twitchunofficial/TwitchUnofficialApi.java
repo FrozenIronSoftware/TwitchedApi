@@ -429,7 +429,7 @@ public class TwitchUnofficialApi {
                     continue;
                 if ((smallest == null || smallest.getQuality() > stream.getQuality()) &&
                         ((stream.getFps() == 30 && stream.isQualityOrLower(maxQuality.getMaxQuality30())) ||
-                        stream.getFps() == 60 && stream.isQualityOrLower(maxQuality.getMaxQuality60())) &&
+                                (stream.getFps() == 60 && stream.isQualityOrLower(maxQuality.getMaxQuality60()))) &&
                         stream.getBitrate() <= maxQuality.getMaxBitrate())
                     smallest = stream;
             }
