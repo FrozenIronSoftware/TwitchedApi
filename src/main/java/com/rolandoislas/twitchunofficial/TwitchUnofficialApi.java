@@ -787,13 +787,34 @@ public class TwitchUnofficialApi {
                 languages,
                 streamType,
                 userIds,
-                userLogins
+                userLogins,
+                HeaderUtil.extractVersion(request)
         );
 
         // Cache and return
         String json = gson.toJson(streams);
         cache.set(requestId, json);
         return json;
+    }
+
+    /**
+     * @see TwitchUnofficialApi#getStreams(String, String, List, String, List, List, String, List, List, ComparableVersion)
+     */
+    @SuppressWarnings("unused")
+    @NotNull
+    @Cached
+    private static List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> getStreams(
+            @Nullable String after,
+            @Nullable String before,
+            @Nullable List<String> communities,
+            @Nullable String first,
+            @Nullable List<String> games,
+            @Nullable List<String> languages,
+            @Nullable String streamType,
+            @Nullable List<String> userIdsParam,
+            @Nullable List<String> userLoginsParam) {
+        return getStreams(after, before, communities, first, games, languages, streamType, userIdsParam,
+                userLoginsParam, null);
     }
 
     /**
@@ -807,6 +828,7 @@ public class TwitchUnofficialApi {
      * @param streamType stream type
      * @param userIdsParam user ids
      * @param userLoginsParam user logins
+     * @param version twitched version from request
      * @return streams
      */
     @NotNull
@@ -820,7 +842,8 @@ public class TwitchUnofficialApi {
             @Nullable List<String> languages,
             @Nullable String streamType,
             @Nullable List<String> userIdsParam,
-            @Nullable List<String> userLoginsParam) {
+            @Nullable List<String> userLoginsParam,
+            @Nullable ComparableVersion version) {
         List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streams = new ArrayList<>();
         if ((userIdsParam != null && userIdsParam.size() > 0) ||
                 (userLoginsParam != null && userLoginsParam.size() > 0)) {
@@ -899,7 +922,7 @@ public class TwitchUnofficialApi {
         }
 
         // Add user names and game names to data
-        addNamesToStreams(streams);
+        addNamesToStreams(streams, version);
 
         // Cache streams
         ArrayList<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> offlineAndOnlineStreams =
@@ -957,12 +980,21 @@ public class TwitchUnofficialApi {
     }
 
     /**
+     * @see TwitchUnofficialApi#addNamesToStreams(List, ComparableVersion)
+     */
+    @NotCached
+    private static void addNamesToStreams(List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream>
+                                                  streams) {
+        addNamesToStreams(streams, null);
+    }
+
+    /**
      * Add user names and game names to a list of streams
      * @param streams stream list
      */
     @NotCached
     private static void addNamesToStreams(List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream>
-                                                      streams) {
+                                                      streams, @Nullable ComparableVersion version) {
         List<String> gameIds = new ArrayList<>();
         List<String> userIds = new ArrayList<>();
         for (com.rolandoislas.twitchunofficial.util.twitch.helix.Stream stream : streams) {
@@ -996,9 +1028,11 @@ public class TwitchUnofficialApi {
             String userString = userNames.get(stream.getUserId());
             try {
                 User user = gson.fromJson(userString, User.class);
+                boolean shouldSendLogin = version == null || version.compareTo(new ComparableVersion("1.4.2400")) != 0;
                 stream.setUserName(user == null || user.getDisplayName() == null || user.getDisplayName().isEmpty() ||
                         user.getLogin() == null || user.getLogin().isEmpty() ?
-                        new UserName("" , "") : new UserName(user.getLogin(), user.getDisplayName()));
+                        new UserName("" , "") :
+                        new UserName(shouldSendLogin ? user.getLogin() : "", user.getDisplayName()));
             }
             catch (JsonSyntaxException e) {
                 Logger.exception(e);
@@ -1365,7 +1399,7 @@ public class TwitchUnofficialApi {
                                     userFollows.getTotal() <= 300)) {
                         @NotNull List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streamSublist =
                                 getStreams(after, null, null, first, null, null,
-                                        null, followsSublist, null);
+                                        null, followsSublist, null, twitchedVersion);
                         // Add streams to array
                         streams.addAll(streamSublist);
                         // Add follows to offline list
@@ -1692,7 +1726,8 @@ public class TwitchUnofficialApi {
                             null,
                             null,
                             userIds,
-                            null
+                            null,
+                            HeaderUtil.extractVersion(request)
                     );
                 json = gson.toJson(streamsHelix);
                 break;
@@ -1720,7 +1755,8 @@ public class TwitchUnofficialApi {
                         null,
                         null,
                         userIds,
-                        null
+                        null,
+                        HeaderUtil.extractVersion(request)
                 );
                 // Populate Streams
                 SimpleDateFormat krakenDateFormat = new SimpleDateFormat("E MMM dd HH:mm:ss z yyyy");
