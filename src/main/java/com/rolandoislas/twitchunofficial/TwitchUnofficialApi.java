@@ -772,6 +772,7 @@ public class TwitchUnofficialApi {
         requestParams.addAll(userIds);
         requestParams.addAll(userLogins);
         requestParams.add(offset);
+        requestParams.add(HeaderUtil.extractVersion(request));
         String requestId = ApiCache.createKey("helix/streams", requestParams);
         String cachedResponse = cache.get(requestId);
         if (cachedResponse != null)
