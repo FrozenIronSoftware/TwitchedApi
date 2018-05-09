@@ -6,6 +6,7 @@
 package com.rolandoislas.twitchunofficial.util.twitch.helix;
 
 import com.google.gson.annotations.SerializedName;
+import org.jetbrains.annotations.Nullable;
 
 public class Game {
     private String id;
@@ -14,7 +15,7 @@ public class Game {
     private String boxArtUrl;
 
     // Non-spec
-    private long viewers;
+    @Nullable private Long viewers;
 
     public String getId() {
         return id;
@@ -25,10 +26,15 @@ public class Game {
     }
 
     public void setViewers(int viewers) {
-        this.viewers = viewers;
+        this.viewers = (long) viewers;
     }
 
-    public long getViewers() {
+    @Nullable
+    public Long getViewers() {
         return viewers;
+    }
+
+    public long getViewersPrimitive() {
+        return viewers != null ? viewers : 0;
     }
 }

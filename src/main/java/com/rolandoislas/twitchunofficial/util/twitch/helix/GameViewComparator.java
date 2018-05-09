@@ -10,6 +10,6 @@ import java.util.Comparator;
 public class GameViewComparator implements Comparator<Game> {
     @Override
     public int compare(Game a, Game b) {
-        return Long.compare(a.getViewers(), b.getViewers());
+        return Long.compare(a.getViewersPrimitive(), b.getViewersPrimitive());
     }
 }
