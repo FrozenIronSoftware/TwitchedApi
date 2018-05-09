@@ -855,6 +855,13 @@ public class TwitchUnofficialApi {
                 allIds.addAll(getUserIds(userLoginsParam).values());
             }
             CachedStreams cachedStreams = cache.getStreams(allIds);
+            if (version != null && version.compareTo(new ComparableVersion("1.4.2400")) == 0) {
+                for (com.rolandoislas.twitchunofficial.util.twitch.helix.Stream stream : cachedStreams.getStreams()) {
+                    UserName username = stream.getUserName();
+                    username.setLogin("");
+                    stream.setUserName(username);
+                }
+            }
             if (cachedStreams.getMissingIds().size() == 0 && cachedStreams.getMissingLogins().size() == 0)
                 return cachedStreams.getStreams();
             // Some streams are missing
