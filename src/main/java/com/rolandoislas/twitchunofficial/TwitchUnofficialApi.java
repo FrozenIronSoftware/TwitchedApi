@@ -1079,7 +1079,17 @@ public class TwitchUnofficialApi {
      */
     @Cached
     private static Map<String, String> getGameNames(List<String> gameIds) {
-        return getNameForIds(gameIds, Id.GAME);
+        return getNameForIds(gameIds, Id.GAME, true);
+    }
+
+    /**
+     * Get username for ids, checking the cache first
+     * @param userIds ids
+     * @return user names(value) and ids(key)
+     */
+    @Cached
+    private static Map<String, String> getUserNames(List<String> userIds, boolean shouldFetchLive) {
+        return getNameForIds(userIds, Id.USER, shouldFetchLive);
     }
 
     /**
@@ -1089,7 +1099,7 @@ public class TwitchUnofficialApi {
      */
     @Cached
     private static Map<String, String> getUserNames(List<String> userIds) {
-        return getNameForIds(userIds, Id.USER);
+        return getNameForIds(userIds, Id.USER, true);
     }
 
     /**
@@ -1100,7 +1110,7 @@ public class TwitchUnofficialApi {
      *  in the case of the User type, the name string will be a User object as a json(gson) string
      */
     @Cached
-    private static Map<String, String> getNameForIds(List<String> ids, Id type) {
+    private static Map<String, String> getNameForIds(List<String> ids, Id type, boolean shouldFetchLive) {
         // Get ids in cache
         Map<String, String> nameIdMap;
         switch (type) {
@@ -1113,6 +1123,9 @@ public class TwitchUnofficialApi {
             default:
                 throw new IllegalArgumentException("Id type must be GAME or USER");
         }
+        // If live data should not be fetched, return what was found
+        if (!shouldFetchLive)
+            return nameIdMap;
         // Find missing ids
         List<String> missingIds = new ArrayList<>();
         for (Map.Entry<String, String> nameId : nameIdMap.entrySet())
@@ -1122,19 +1135,21 @@ public class TwitchUnofficialApi {
             return nameIdMap;
         // Request missing ids
         if (type.equals(Id.USER)) {
-            List<User> users = getUsers(ids, null, null);
-            if (users == null)
-                throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
-            // Store missing ids
-            for (User user : users) {
-                try {
-                    nameIdMap.put(user.getId(), gson.toJson(user));
+            for (int idIndex = 0; idIndex < ids.size(); idIndex += 100) {
+                List<String> idsSubList = ids.subList(idIndex, Math.min(idIndex + 100, ids.size()));
+                List<User> users = getUsers(idsSubList, null, null);
+                if (users == null)
+                    throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
+                // Store missing ids
+                for (User user : users) {
+                    try {
+                        nameIdMap.put(user.getId(), gson.toJson(user));
+                    } catch (JsonSyntaxException e) {
+                        Logger.exception(e);
+                    }
                 }
-                catch (JsonSyntaxException e) {
-                    Logger.exception(e);
-                }
+                cache.setUserNames(nameIdMap);
             }
-            cache.setUserNames(nameIdMap);
         }
         else if (type.equals(Id.GAME)) {
             List<Game> games = getGames(ids, null);
@@ -1383,6 +1398,7 @@ public class TwitchUnofficialApi {
         String pagination = null;
         long startTime = System.currentTimeMillis();
         boolean hasTime;
+        boolean shouldFetchLive = false;
         do {
             FollowList userFollows = getUserFollows(pagination,
                     null, "100", fromId, null, true);
@@ -1408,7 +1424,7 @@ public class TwitchUnofficialApi {
                     // Do not fetch if the rate limit is at half and the user follows more than 300 channels
                     // Allow fetching if the rate limit is at a fourth and the user follows less than or equal to 300
                     // channels
-                    boolean shouldFetchLive = userFollows.getRateLimitRemaining() > RATE_LIMIT_MAX / 2 ||
+                    shouldFetchLive = userFollows.getRateLimitRemaining() > RATE_LIMIT_MAX / 2 ||
                             (userFollows.getRateLimitRemaining() > RATE_LIMIT_MAX / 4 && userFollows.getTotal() <= 300);
                     @NotNull List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streamSublist =
                             getStreams(after, null, null, first, null, null,
@@ -1423,7 +1439,8 @@ public class TwitchUnofficialApi {
                     if (followIds.size() > 0) {
                         for (String followId : followIds)
                             for (Follow follow : userFollows.getFollows())
-                                if (followId != null && followId.equals(follow.getToId()))
+                                if (followId != null && followId.equals(follow.getToId()) &&
+                                        !followsOffline.contains(follow))
                                     followsOffline.add(follow);
                     }
                     // Log that live data was not used for a request
@@ -1439,11 +1456,17 @@ public class TwitchUnofficialApi {
         }
         while (followIds.size() == 100 && pagination != null && hasTime);
         // Add offline channels to list
-        if (hasTime && followsOffline.size() > 0 && followsOffline.size() <= 100) {
+        int followsOfflineMaxIndex = Math.min(followsOffline.size(), 500);
+        if (followsOfflineMaxIndex == 500)
+            followsOfflineMaxIndex -= streams.size();
+        if (followsOfflineMaxIndex < 0)
+            followsOfflineMaxIndex = 0;
+        followsOffline = followsOffline.subList(0, followsOfflineMaxIndex);
+        if (hasTime && followsOffline.size() > 0) {
             List<String> followIdsOffline = new ArrayList<>();
             for (Follow follow : followsOffline)
                 followIdsOffline.add(follow.getToId());
-            Map<String, String> offlineUsers = getUserNames(followIdsOffline);
+            Map<String, String> offlineUsers = getUserNames(followIdsOffline, shouldFetchLive);
             List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> offlineStreams = new ArrayList<>();
             for (Map.Entry<String, String> offlineUser : offlineUsers.entrySet()) {
                 if (offlineUser.getValue() == null || offlineUser.getValue().isEmpty())
@@ -1466,6 +1489,7 @@ public class TwitchUnofficialApi {
                     offlineStream.setViewerCount(user.getViewCount());
                     offlineStream.setGameName("IRL");
                     offlineStream.setGameId("494717");
+                    offlineStream.setOnline(false);
                     if (twitchedVersion.compareTo(new ComparableVersion("1.3")) >= 0)
                         offlineStream.setType("user_follow");
                     else
