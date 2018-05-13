@@ -799,38 +799,7 @@ public class TwitchUnofficialApi {
     }
 
     /**
-     * @see TwitchUnofficialApi#getStreams(String, String, List, String, List, List, String, List, List, ComparableVersion)
-     */
-    @SuppressWarnings("unused")
-    @NotNull
-    @Cached
-    private static List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> getStreams(
-            @Nullable String after,
-            @Nullable String before,
-            @Nullable List<String> communities,
-            @Nullable String first,
-            @Nullable List<String> games,
-            @Nullable List<String> languages,
-            @Nullable String streamType,
-            @Nullable List<String> userIdsParam,
-            @Nullable List<String> userLoginsParam) {
-        return getStreams(after, before, communities, first, games, languages, streamType, userIdsParam,
-                userLoginsParam, null);
-    }
-
-    /**
-     * Get streams from the helix end point
-     * @param after cursor
-     * @param before cursor
-     * @param communities community ids
-     * @param first limit
-     * @param games game ids
-     * @param languages lang ids
-     * @param streamType stream type
-     * @param userIdsParam user ids
-     * @param userLoginsParam user logins
-     * @param version twitched version from request
-     * @return streams
+     * @see TwitchUnofficialApi#getStreams(String, String, List, String, List, List, String, List, List, ComparableVersion, Boolean)
      */
     @NotNull
     @Cached
@@ -845,6 +814,39 @@ public class TwitchUnofficialApi {
             @Nullable List<String> userIdsParam,
             @Nullable List<String> userLoginsParam,
             @Nullable ComparableVersion version) {
+        return getStreams(after, before, communities, first, games, languages, streamType, userIdsParam,
+                userLoginsParam, version, true);
+    }
+
+    /**
+     * Get streams from the helix end point
+     * @param after cursor
+     * @param before cursor
+     * @param communities community ids
+     * @param first limit
+     * @param games game ids
+     * @param languages lang ids
+     * @param streamType stream type
+     * @param userIdsParam user ids
+     * @param userLoginsParam user logins
+     * @param version twitched version from request
+     * @param shouldFetchLive should the data be fetch live or only cached results returned
+     * @return streams
+     */
+    @NotNull
+    @Cached
+    private static List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> getStreams(
+            @Nullable String after,
+            @Nullable String before,
+            @Nullable List<String> communities,
+            @Nullable String first,
+            @Nullable List<String> games,
+            @Nullable List<String> languages,
+            @Nullable String streamType,
+            @Nullable List<String> userIdsParam,
+            @Nullable List<String> userLoginsParam,
+            @Nullable ComparableVersion version,
+            @Nullable Boolean shouldFetchLive) {
         List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streams = new ArrayList<>();
         if ((userIdsParam != null && userIdsParam.size() > 0) ||
                 (userLoginsParam != null && userLoginsParam.size() > 0)) {
@@ -870,6 +872,10 @@ public class TwitchUnofficialApi {
             userIdsParam = cachedStreams.getMissingIds();
             userLoginsParam = cachedStreams.getMissingLogins();
         }
+
+        // If only cached data is to be returned, do not fetch live
+        if (shouldFetchLive != null && !shouldFetchLive)
+            return streams;
 
         // Request live
         // Endpoint
@@ -1402,26 +1408,26 @@ public class TwitchUnofficialApi {
                     // Do not fetch if the rate limit is at half and the user follows more than 300 channels
                     // Allow fetching if the rate limit is at a fourth and the user follows less than or equal to 300
                     // channels
-                    if (userFollows.getRateLimitRemaining() > RATE_LIMIT_MAX / 2 ||
-                            (userFollows.getRateLimitRemaining() > RATE_LIMIT_MAX / 4 &&
-                                    userFollows.getTotal() <= 300)) {
-                        @NotNull List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streamSublist =
-                                getStreams(after, null, null, first, null, null,
-                                        null, followsSublist, null, twitchedVersion);
-                        // Add streams to array
-                        streams.addAll(streamSublist);
-                        // Add follows to offline list
-                        for (com.rolandoislas.twitchunofficial.util.twitch.helix.Stream stream : streamSublist)
-                            if (stream != null && stream.getUserId() != null)
-                                followIds.remove(stream.getUserId());
-                        if (followIds.size() > 0) {
-                            for (String followId : followIds)
-                                for (Follow follow : userFollows.getFollows())
-                                    if (followId != null && followId.equals(follow.getToId()))
-                                        followsOffline.add(follow);
-                        }
+                    boolean shouldFetchLive = userFollows.getRateLimitRemaining() > RATE_LIMIT_MAX / 2 ||
+                            (userFollows.getRateLimitRemaining() > RATE_LIMIT_MAX / 4 && userFollows.getTotal() <= 300);
+                    @NotNull List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streamSublist =
+                            getStreams(after, null, null, first, null, null,
+                                    null, followsSublist, null, twitchedVersion,
+                                    shouldFetchLive);
+                    // Add streams to array
+                    streams.addAll(streamSublist);
+                    // Add follows to offline list
+                    for (com.rolandoislas.twitchunofficial.util.twitch.helix.Stream stream : streamSublist)
+                        if (stream != null && stream.getUserId() != null)
+                            followIds.remove(stream.getUserId());
+                    if (followIds.size() > 0) {
+                        for (String followId : followIds)
+                            for (Follow follow : userFollows.getFollows())
+                                if (followId != null && followId.equals(follow.getToId()))
+                                    followsOffline.add(follow);
                     }
-                    else {
+                    // Log that live data was not used for a request
+                    if (!shouldFetchLive) {
                         Logger.extra("Denied user follow streams request.\n\tReason: Rate limit too low\n" +
                                 "\tRate Limit: %d\n\tTotal Follows: %d", userFollows.getRateLimitRemaining(),
                                 userFollows.getTotal());
