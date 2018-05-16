@@ -1554,7 +1554,7 @@ public class TwitchUnofficialApi {
      * @param fromId user id
      */
     @NotCached
-    private static void cacheFollows(String fromId) {
+    static void cacheFollows(String fromId) {
         cacheFollows(fromId, false);
     }
 

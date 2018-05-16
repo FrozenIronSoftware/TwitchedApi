@@ -14,4 +14,8 @@ public class TokenValidation {
     private List<String> scopes;
     @SerializedName("user_id")
     private String userId;
+
+    public String getUserId() {
+        return userId;
+    }
 }

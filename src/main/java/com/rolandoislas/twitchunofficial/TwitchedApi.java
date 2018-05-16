@@ -367,6 +367,13 @@ class TwitchedApi {
         }
         if (tokenValidation != null)
             validationList.add(tokenValidation);
+        // Start a cache follows request
+        String userId = tokenValidation != null ? tokenValidation.getUserId() : null;
+        if (userId != null && !userId.isEmpty()) {
+            cache.cacheUserIdFromToken(userId, token);
+            TwitchUnofficialApi.cacheFollows(userId);
+        }
+        // Return validation data
         return gson.toJson(validationList);
     }
 

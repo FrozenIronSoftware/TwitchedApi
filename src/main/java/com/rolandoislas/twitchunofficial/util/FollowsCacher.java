@@ -108,6 +108,7 @@ public class FollowsCacher implements Runnable {
             }
         }
         // Fetch users
+        Logger.debug("FollowsCacher: Fetching %d users from ids", missingFromCache.size());
         for (int idIndex = 0; idIndex < missingFromCache.size(); idIndex += 100) {
             List<String> fetchIds = missingFromCache.subList(idIndex, Math.min(idIndex, missingFromCache.size()));
             UsersWithRate usersWithRate = TwitchUnofficialApi.getUsersWithRate(fetchIds,
