@@ -1,11 +1,15 @@
 package com.rolandoislas.twitchunofficial.util;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
 import com.rolandoislas.twitchunofficial.TwitchUnofficialApi;
 import com.rolandoislas.twitchunofficial.data.model.UsersWithRate;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.Follow;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.FollowList;
+import com.rolandoislas.twitchunofficial.util.twitch.helix.User;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -18,6 +22,7 @@ import static com.rolandoislas.twitchunofficial.TwitchUnofficial.cache;
 public class FollowsCacher implements Runnable {
     @SuppressWarnings("FieldCanBeLocal")
     private boolean running = false;
+    private Gson gson = new Gson();
 
     @Override
     public void run() {
@@ -109,6 +114,18 @@ public class FollowsCacher implements Runnable {
                     null, null, null, null);
             if (usersWithRate.getUsers() == null)
                 return;
+            List<User> fetchedUsers = usersWithRate.getUsers();
+            Map<String, String> userIdMap = new HashMap<>();
+            for (User fetchedUser : fetchedUsers) {
+                try {
+                    String userString = gson.toJson(fetchedUser);
+                    userIdMap.put(fetchedUser.getId(), userString);
+                }
+                catch (JsonSyntaxException e) {
+                    Logger.exception(e);
+                }
+            }
+            cache.setUserNames(userIdMap);
             if (usersWithRate.getRateLimit() < TwitchUnofficialApi.RATE_LIMIT_MAX / 4) {
                 Logger.debug("FollowsCacher: Rate limit is low. Halting for 10 seconds");
                 Thread.sleep(10000);
