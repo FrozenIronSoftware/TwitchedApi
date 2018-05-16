@@ -1,11 +1,13 @@
 package com.rolandoislas.twitchunofficial.util;
 
 import com.rolandoislas.twitchunofficial.TwitchUnofficialApi;
+import com.rolandoislas.twitchunofficial.data.model.UsersWithRate;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.Follow;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.FollowList;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 
 import static com.rolandoislas.twitchunofficial.TwitchUnofficial.cache;
@@ -81,5 +83,37 @@ public class FollowsCacher implements Runnable {
         while (followAmount == 100 && pagination != null);
         // Cache follows
         cache.setFollows(fromId, followIds);
+        // Fetch user data and cache from IDS
+        cacheUsers(followIds);
+    }
+
+    /**
+     * Fetch users by id and cache
+     * Only user ids not in the cache will be fetched
+     * @param ids user ids to fetch
+     */
+    private void cacheUsers(List<String> ids) throws InterruptedException {
+        // Find non-cached users
+        Map<String, String> users = cache.getUserNames(ids);
+        List<String> missingFromCache = new ArrayList<>();
+        for (Map.Entry<String, String> userEntry : users.entrySet()) {
+            if (userEntry.getValue() == null && userEntry.getKey() != null &&
+                    !missingFromCache.contains(userEntry.getKey())) {
+                missingFromCache.add(userEntry.getKey());
+            }
+        }
+        // Fetch users
+        for (int idIndex = 0; idIndex < missingFromCache.size(); idIndex += 100) {
+            List<String> fetchIds = missingFromCache.subList(idIndex, Math.min(idIndex, missingFromCache.size()));
+            UsersWithRate usersWithRate = TwitchUnofficialApi.getUsersWithRate(fetchIds,
+                    null, null, null, null);
+            if (usersWithRate.getUsers() == null)
+                return;
+            if (usersWithRate.getRateLimit() < TwitchUnofficialApi.RATE_LIMIT_MAX / 4) {
+                Logger.debug("FollowsCacher: Rate limit is low. Halting for 10 seconds");
+                Thread.sleep(10000);
+            }
+            Thread.sleep(2000);
+        }
     }
 }

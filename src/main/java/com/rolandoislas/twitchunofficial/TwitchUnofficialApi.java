@@ -15,6 +15,7 @@ import com.rolandoislas.twitchunofficial.data.Playlist;
 import com.rolandoislas.twitchunofficial.data.RokuQuality;
 import com.rolandoislas.twitchunofficial.data.annotation.Cached;
 import com.rolandoislas.twitchunofficial.data.annotation.NotCached;
+import com.rolandoislas.twitchunofficial.data.model.UsersWithRate;
 import com.rolandoislas.twitchunofficial.util.ApiCache;
 import com.rolandoislas.twitchunofficial.util.AuthUtil;
 import com.rolandoislas.twitchunofficial.util.FollowsCacher;
@@ -1223,6 +1224,19 @@ public class TwitchUnofficialApi {
     }
 
     /**
+     * @see TwitchUnofficialApi#getUsersWithRate(List, List, String, Request, Response)
+     */
+    @Contract("null, null, null, _, _ -> fail")
+    @NotCached
+    @Nullable
+    private static List<User> getUsers(@Nullable List<String> userIds, @Nullable List<String> userNames,
+                                       @Nullable String token, @Nullable Request request,
+                                       @Nullable Response response) {
+        UsersWithRate usersWithRate = getUsersWithRate(userIds, userNames, token, request, response);
+        return usersWithRate.getUsers();
+    }
+
+    /**
      * Get a users from Twitch API
      * @param userIds id to poll
      * @param userNames name to poll
@@ -1231,8 +1245,7 @@ public class TwitchUnofficialApi {
      */
     @Contract("null, null, null, _, _ -> fail")
     @NotCached
-    @Nullable
-    private static List<User> getUsers(@Nullable List<String> userIds, @Nullable List<String> userNames,
+    public static UsersWithRate getUsersWithRate(@Nullable List<String> userIds, @Nullable List<String> userNames,
                                        @Nullable String token, @Nullable Request request,
                                        @Nullable Response response) {
         if ((userIds == null || userIds.isEmpty()) && (userNames == null || userNames.isEmpty()) && token == null)
@@ -1257,11 +1270,13 @@ public class TwitchUnofficialApi {
         if (userNames != null)
             for (String name : userNames)
                 restTemplate.getInterceptors().add(new QueryRequestInterceptor("login", name));
+        int rateLimit = 0;
         // REST Request
         try {
             Logger.verbose( "Rest Request to [%s]", requestUrl);
             ResponseEntity<String> responseObject = restTemplate.exchange(requestUrl, HttpMethod.GET, null, String.class);
             logTwitchRateLimit(responseObject);
+            rateLimit = (int) StringUtil.parseLong(responseObject.getHeaders().getFirst("RateLimit-Remaining"));
             try {
                 UserList userList = gson.fromJson(responseObject.getBody(), UserList.class);
                 users = userList.getUsers();
@@ -1290,7 +1305,7 @@ public class TwitchUnofficialApi {
                 Logger.warn("Request failed: " + e.getMessage());
             Logger.exception(e);
         }
-        return users;
+        return new UsersWithRate(users, rateLimit);
     }
 
     /**
