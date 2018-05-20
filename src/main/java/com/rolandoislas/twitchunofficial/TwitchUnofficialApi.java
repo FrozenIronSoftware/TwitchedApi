@@ -775,7 +775,7 @@ public class TwitchUnofficialApi {
             List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> cachedStreamsList =
                     cachedStreams.getStreams();
             if (cachedStreamsList != null && cachedStreamsList.size() == userIds.size()) {
-                return gson.toJson(cachedStreams);
+                return gson.toJson(cachedStreamsList);
             }
         }
         // Check page cache
