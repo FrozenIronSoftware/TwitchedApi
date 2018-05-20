@@ -36,6 +36,7 @@ import com.rolandoislas.twitchunofficial.util.twitch.helix.StreamViewComparator;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.User;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.UserList;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.UserName;
+import javassist.NotFoundException;
 import me.philippheuer.twitch4j.TwitchClient;
 import me.philippheuer.twitch4j.TwitchClientBuilder;
 import me.philippheuer.twitch4j.auth.model.OAuthCredential;
@@ -1975,7 +1976,26 @@ public class TwitchUnofficialApi {
         }
         if (token == null && ids.isEmpty() && logins.isEmpty())
             throw halt(BAD_REQUEST, "Missing token/id/login");
-        // Check cache
+        // Check user cache
+        if (ids.size() > 0 && logins.size() == 0) {
+            Map<String, String> cachedUserNames = getUserNames(ids);
+            List<User> cachedUsers = new ArrayList<>();
+            try {
+                for (Map.Entry<String, String> userEntry: cachedUserNames.entrySet()) {
+                    if (userEntry.getValue() == null)
+                        throw new NotFoundException("Missing cached user");
+                    User user = gson.fromJson(userEntry.getValue(), User.class);
+                    if (user == null)
+                        throw new NotFoundException("Null user data");
+                    cachedUsers.add(user);
+                }
+                return gson.toJson(cachedUsers);
+            }
+            catch (NotFoundException | JsonSyntaxException e) {
+                Logger.exception(e);
+            }
+        }
+        // Check page cache
         Object[] keyParams = new Object[ids.size() + logins.size() + 1];
         keyParams[0] = AuthUtil.hashString(token, null);
         System.arraycopy(ids.toArray(), 0, keyParams, 1, ids.size());
