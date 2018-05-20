@@ -762,7 +762,17 @@ public class TwitchUnofficialApi {
         // Add en-gb
         if (languages.contains("en") && !languages.contains("en-gb"))
             languages.add("en-gb");
-        // Check cache
+        // Check streams cache
+        if (after == null && before == null && community == null && game == null && languages.size() == 0 &&
+                streamType.equals("all") && userIds.size() > 0 && userLogins.size() == 0) {
+            @NotNull CachedStreams cachedStreams = cache.getStreams(userIds);
+            List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> cachedStreamsList =
+                    cachedStreams.getStreams();
+            if (cachedStreamsList != null && cachedStreamsList.size() == userIds.size()) {
+                return gson.toJson(cachedStreams);
+            }
+        }
+        // Check page cache
         List<Object> requestParams = new ArrayList<>();
         requestParams.add(after);
         requestParams.add(before);
