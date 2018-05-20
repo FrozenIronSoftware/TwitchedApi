@@ -178,10 +178,16 @@ public class TwitchUnofficialApi {
         String username = idSplit[0];
         if (username.startsWith(":")) {
             String userId = username.replaceFirst(":", "");
-            List<User> users = getUsers(Collections.singletonList(userId), null, null);
-            if (users == null || users.size() < 1)
+            Map<String, String> cachedUsers = getUserNames(Collections.singletonList(userId));
+            String userJson = cachedUsers.get(userId);
+            if (userJson == null)
                 return null;
-            username = users.get(0).getLogin();
+            try {
+                username = gson.fromJson(userJson, User.class).getLogin();
+            }
+            catch (JsonSyntaxException e) {
+                return null;
+            }
         }
         if (username == null || username.isEmpty())
             return null;
