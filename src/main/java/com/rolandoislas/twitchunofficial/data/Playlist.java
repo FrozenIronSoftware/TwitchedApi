@@ -23,6 +23,9 @@ public class Playlist {
     private int bitrate;
 
     public Playlist(String lineOne, String lineTwo, String lineThree) {
+        // Set closed caption to none
+        lineTwo += ",CLOSED-CAPTIONS=NONE";
+        // Add lines
         lines = new ArrayList<>();
         lines.add(lineOne);
         lines.add(lineTwo);
@@ -68,6 +71,7 @@ public class Playlist {
      * @param quality quality string in the format <resolution>p
      * @return is the quality of the stream of equal or lower quality
      */
+    @SuppressWarnings("WeakerAccess")
     public boolean isQualityOrLower(String quality) {
         int qualityInt = (int) StringUtil.parseLong(quality.replace("p", ""));
         return qualityInt > 0 && this.quality <= qualityInt;

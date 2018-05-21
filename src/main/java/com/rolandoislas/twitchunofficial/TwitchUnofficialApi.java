@@ -479,6 +479,12 @@ public class TwitchUnofficialApi {
         final int ONE_MILLION = 1000000;
         // Big o' switch for models
         switch (model) {
+            // Catch-all for Apple TVs
+            case "ATV":
+                maxQuality30 = 1080;
+                maxQuality60 = 1080;
+                maxBitrate = 7 * ONE_MILLION;
+                break;
             // 720 30 FPS
             case "2700X": // Tyler - Roku LT
             case "2500X": // Paolo - Roku HD
