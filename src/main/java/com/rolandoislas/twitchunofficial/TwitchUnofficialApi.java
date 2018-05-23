@@ -50,6 +50,8 @@ import me.philippheuer.util.rest.HeaderRequestInterceptor;
 import me.philippheuer.util.rest.QueryRequestInterceptor;
 import me.philippheuer.util.rest.RestErrorHandler;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.maven.artifact.versioning.ComparableVersion;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
@@ -57,6 +59,7 @@ import org.jetbrains.annotations.Nullable;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import spark.HaltException;
@@ -64,8 +67,11 @@ import spark.Request;
 import spark.Response;
 import spark.Spark;
 
+import javax.net.ssl.SSLContext;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -200,10 +206,10 @@ public class TwitchUnofficialApi {
         // Get live data
 
         // Construct template
-        RestTemplate restTemplate = twitch.getRestClient().getRestTemplate();
+        RestTemplate restTemplate = getRestTemplate();
         // TODO When the API transitions to Helix the Authentication header will change
         if (userToken != null)
-            restTemplate = twitch.getRestClient().getPrivilegedRestTemplate(new OAuthCredential(userToken));
+            restTemplate = getPrivilegedRestTemplateKraken(new OAuthCredential(userToken));
 
         // Request channel token
         Token token = getVideoAccessToken(Token.TYPE.CHANNEL, username, userToken);
@@ -271,10 +277,10 @@ public class TwitchUnofficialApi {
                 throw new RuntimeException("Invalid type specified");
         }
         String hlsTokenUrl = String.format(API_RAW + url, id);
-        RestTemplate restTemplate = twitch.getRestClient().getRestTemplate();
+        RestTemplate restTemplate = getRestTemplate();
         // TODO When the API transitions to Helix the Authentication header will change
         if (userToken != null)
-            restTemplate = twitch.getRestClient().getPrivilegedRestTemplate(new OAuthCredential(userToken));
+            restTemplate = getPrivilegedRestTemplateKraken(new OAuthCredential(userToken));
         ResponseEntity<String> tokenResponse;
         try {
             tokenResponse = restTemplate.exchange(hlsTokenUrl, HttpMethod.GET, null,
@@ -342,10 +348,10 @@ public class TwitchUnofficialApi {
         if (cachedResponse != null)
             return cachedResponse;
         // Fetch live data
-        RestTemplate restTemplate = twitch.getRestClient().getRestTemplate();
+        RestTemplate restTemplate = getRestTemplate();
         // TODO When the API transitions to Helix the Authentication header will change
         if (userToken != null)
-            restTemplate = twitch.getRestClient().getPrivilegedRestTemplate(new OAuthCredential(userToken));
+            restTemplate = getPrivilegedRestTemplateKraken(new OAuthCredential(userToken));
         // Request VOD token
         Token token = getVideoAccessToken(Token.TYPE.VOD, vodId, userToken);
 
@@ -608,7 +614,10 @@ public class TwitchUnofficialApi {
     @Nullable
     private static String getAppToken(String twitchClientId, String twitchClientSecret) {
         // Construct template
+        HttpComponentsClientHttpRequestFactory factory = getHttpFactoryWithTls();
         RestTemplate restTemplate = new RestTemplate();
+        if (factory != null)
+            restTemplate.setRequestFactory(factory);
         restTemplate.setInterceptors(new ArrayList<>());
         restTemplate.setErrorHandler(new RestErrorHandler());
 
@@ -653,6 +662,24 @@ public class TwitchUnofficialApi {
             Logger.warn(StringUtils.repeat("=", 80));
             return null;
         }
+    }
+
+    /**
+     * Construct an http components client http factory with TLS 1.2
+     * @return factory or null on error
+     */
+    @Nullable
+    private static HttpComponentsClientHttpRequestFactory getHttpFactoryWithTls() {
+        HttpComponentsClientHttpRequestFactory factory = null;
+        try {
+            SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
+            sslContext.init(null, null, null);
+            CloseableHttpClient httpClient = HttpClientBuilder.create().setSSLContext(sslContext).build();
+            factory = new HttpComponentsClientHttpRequestFactory(httpClient);
+        } catch (NoSuchAlgorithmException | KeyManagementException e) {
+            Logger.exception(e);
+        }
+        return factory;
     }
 
     /**
@@ -908,7 +935,7 @@ public class TwitchUnofficialApi {
         if (twitchOauth != null)
             restTemplate = getPrivilegedRestTemplate(twitchOauth);
         else
-            restTemplate = twitch.getRestClient().getRestTemplate();
+            restTemplate = getRestTemplate();
         // Parameters
         if (after != null)
             restTemplate.getInterceptors().add(new QueryRequestInterceptor("after", after));
@@ -1082,17 +1109,45 @@ public class TwitchUnofficialApi {
     }
 
     /**
-     * Get a rest templates with the oauth token added as a bearer token
+     * Get a rest template with the oauth token added as a bearer token
      * @param oauth token to add to header
-     * @return rest templates
+     * @return rest template with bearer token
      */
     @NotCached
     private static RestTemplate getPrivilegedRestTemplate(OAuthCredential oauth) {
-        RestTemplate restTemplate = twitch.getRestClient().getPlainRestTemplate();
-        restTemplate.getInterceptors().add(new HeaderRequestInterceptor("Accept", "*/*"));
-        restTemplate.getInterceptors().add(new HeaderRequestInterceptor("Client-ID", twitch.getClientId()));
+        RestTemplate restTemplate = getRestTemplate();
         restTemplate.getInterceptors().add(new HeaderRequestInterceptor("Authorization",
                 String.format("Bearer %s", oauth.getToken())));
+        return restTemplate;
+    }
+
+    /**
+     * Get a rest template with the oauth token added as an authorization token
+     * @param oauth token
+     * @return rest template with
+     */
+    @NotCached
+    @Deprecated
+    private static RestTemplate getPrivilegedRestTemplateKraken(OAuthCredential oauth) {
+        RestTemplate restTemplate = getRestTemplate();
+        restTemplate.getInterceptors().add(new HeaderRequestInterceptor("Authorization",
+                String.format("OAuth %s", oauth.getToken())));
+        return restTemplate;
+    }
+
+    /**
+     * Get a generic rest template with twitch client ID
+     * If available, an SSL context with TLS 1.2 will be added
+     * @return rest template with client id
+     */
+    @NotCached
+    private static RestTemplate getRestTemplate() {
+        RestTemplate restTemplate = twitch.getRestClient().getPlainRestTemplate();
+        @Nullable HttpComponentsClientHttpRequestFactory factory = getHttpFactoryWithTls();
+        if (factory != null)
+            restTemplate.setRequestFactory(factory);
+        restTemplate.getInterceptors().add(new HeaderRequestInterceptor("Accept", "*/*"));
+        restTemplate.getInterceptors().add(new HeaderRequestInterceptor("Client-ID", twitch.getClientId()));
         return restTemplate;
     }
 
@@ -1206,7 +1261,7 @@ public class TwitchUnofficialApi {
         if (twitchOauth != null)
             restTemplate = getPrivilegedRestTemplate(twitchOauth);
         else
-            restTemplate = twitch.getRestClient().getRestTemplate();
+            restTemplate = getRestTemplate();
         // Parameters
         if (ids != null)
             for (String id : ids)
@@ -1285,7 +1340,7 @@ public class TwitchUnofficialApi {
         else if (twitchOauth != null)
             restTemplate = getPrivilegedRestTemplate(twitchOauth);
         else
-            restTemplate = twitch.getRestClient().getRestTemplate();
+            restTemplate = getRestTemplate();
         // Parameters
         if (userIds != null)
             for (String id : userIds)
@@ -1626,7 +1681,7 @@ public class TwitchUnofficialApi {
         if (twitchOauth != null)
             restTemplate = getPrivilegedRestTemplate(twitchOauth);
         else
-            restTemplate = twitch.getRestClient().getRestTemplate();
+            restTemplate = getRestTemplate();
         // Parameters
         if (after != null)
             restTemplate.getInterceptors().add(new QueryRequestInterceptor("after", after));
@@ -1943,7 +1998,7 @@ public class TwitchUnofficialApi {
         if (twitchOauth != null)
             restTemplate = getPrivilegedRestTemplate(twitchOauth);
         else
-            restTemplate = twitch.getRestClient().getRestTemplate();
+            restTemplate = getRestTemplate();
         if (after != null)
             restTemplate.getInterceptors().add(new QueryRequestInterceptor("after", after));
         if (before != null)
@@ -2160,7 +2215,7 @@ public class TwitchUnofficialApi {
         if (twitchOauth != null)
             restTemplate = getPrivilegedRestTemplate(twitchOauth);
         else
-            restTemplate = twitch.getRestClient().getRestTemplate();
+            restTemplate = getRestTemplate();
         // Rest URL
         String requestUrl = String.format("%s/videos", API);
         if (ids != null)
@@ -2261,7 +2316,7 @@ public class TwitchUnofficialApi {
         // Endpoint
         String requestUrl = String.format("%s/users/%s/follows/channels/%s", Endpoints.API.getURL(), oauth.getUserId(),
                 followIdLong);
-        RestTemplate restTemplate = twitch.getRestClient().getPrivilegedRestTemplate(oauth);
+        RestTemplate restTemplate = getPrivilegedRestTemplateKraken(oauth);
 
         // REST Request
         try {
