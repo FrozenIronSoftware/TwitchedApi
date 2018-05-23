@@ -111,27 +111,28 @@ public class FollowsCacher implements Runnable {
         Logger.debug("FollowsCacher: Fetching %d users from ids", missingFromCache.size());
         for (int idIndex = 0; idIndex < missingFromCache.size(); idIndex += 100) {
             List<String> fetchIds = missingFromCache.subList(idIndex, Math.min(idIndex, missingFromCache.size()));
-            UsersWithRate usersWithRate = TwitchUnofficialApi.getUsersWithRate(fetchIds,
-                    null, null, null, null);
-            if (usersWithRate.getUsers() == null)
-                return;
-            List<User> fetchedUsers = usersWithRate.getUsers();
-            Map<String, String> userIdMap = new HashMap<>();
-            for (User fetchedUser : fetchedUsers) {
-                try {
-                    String userString = gson.toJson(fetchedUser);
-                    userIdMap.put(fetchedUser.getId(), userString);
+            if (fetchIds.size() > 0) {
+                UsersWithRate usersWithRate = TwitchUnofficialApi.getUsersWithRate(fetchIds,
+                        null, null, null, null);
+                if (usersWithRate.getUsers() == null)
+                    return;
+                List<User> fetchedUsers = usersWithRate.getUsers();
+                Map<String, String> userIdMap = new HashMap<>();
+                for (User fetchedUser : fetchedUsers) {
+                    try {
+                        String userString = gson.toJson(fetchedUser);
+                        userIdMap.put(fetchedUser.getId(), userString);
+                    } catch (JsonSyntaxException e) {
+                        Logger.exception(e);
+                    }
                 }
-                catch (JsonSyntaxException e) {
-                    Logger.exception(e);
+                cache.setUserNames(userIdMap);
+                if (usersWithRate.getRateLimit() < TwitchUnofficialApi.RATE_LIMIT_MAX / 4) {
+                    Logger.debug("FollowsCacher: Rate limit is low. Halting for 10 seconds");
+                    Thread.sleep(10000);
                 }
+                Thread.sleep(2000);
             }
-            cache.setUserNames(userIdMap);
-            if (usersWithRate.getRateLimit() < TwitchUnofficialApi.RATE_LIMIT_MAX / 4) {
-                Logger.debug("FollowsCacher: Rate limit is low. Halting for 10 seconds");
-                Thread.sleep(10000);
-            }
-            Thread.sleep(2000);
         }
     }
 }
