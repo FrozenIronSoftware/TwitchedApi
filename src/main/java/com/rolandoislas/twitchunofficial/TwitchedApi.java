@@ -58,7 +58,7 @@ class TwitchedApi {
         String type = request.queryParams("type");
         String id = request.queryParams("id");
         // Check params
-        if (type == null || !type.equals("roku"))
+        if (type == null || (!type.equals("roku") && !type.equals("ATV")))
             throw halt(BAD_REQUEST, "Type is invalid");
         if (id == null || id.isEmpty())
             throw halt(BAD_REQUEST, "Id is empty");
@@ -107,7 +107,7 @@ class TwitchedApi {
         String type = request.queryParams("type");
         String id = request.queryParams("id");
         // Check params
-        if (type == null || !type.equals("roku"))
+        if (type == null || (!type.equals("roku") && !type.equals("ATV")))
             throw halt(BAD_REQUEST, "Type is invalid");
         if (id == null || id.isEmpty())
             throw halt(BAD_REQUEST, "Id is empty");
