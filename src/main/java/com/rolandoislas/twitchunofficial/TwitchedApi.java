@@ -9,6 +9,7 @@ import com.goebl.david.Webb;
 import com.goebl.david.WebbException;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
+import com.rolandoislas.twitchunofficial.data.Constants;
 import com.rolandoislas.twitchunofficial.data.annotation.Cached;
 import com.rolandoislas.twitchunofficial.data.annotation.NotCached;
 import com.rolandoislas.twitchunofficial.data.json.AdServer;
@@ -169,7 +170,7 @@ class TwitchedApi {
                 "&scope=%s&force_verify=%s&state=%s";
         oauthUrl = String.format(
                 oauthUrl, 
-                TwitchUnofficialApi.twitch.getClientId(),
+                TwitchUnofficialApi.getTwitchCredentials().getClientId(),
                 getRedirectUrl(request),
                 linkIdObj.getVersion() == 1 ? "token" : "code",
                 "chat_login+user_follows_edit+user_subscriptions",
@@ -249,8 +250,8 @@ class TwitchedApi {
                 "&grant_type=%s&redirect_uri=%s";
         url = String.format(
                 url,
-                TwitchUnofficialApi.twitch.getClientId(),
-                TwitchUnofficialApi.twitch.getClientSecret(),
+                TwitchUnofficialApi.getTwitchCredentials().getClientId(),
+                TwitchUnofficialApi.getTwitchCredentials().getClientSecret(),
                 authCode,
                 "authorization_code",
                 getRedirectUrl(request)
@@ -270,7 +271,7 @@ class TwitchedApi {
     private static AccessToken requestAccessTokenFromUrl(String url) {
         com.goebl.david.Response<String> result;
         try {
-            Webb webb = Webb.create();
+            Webb webb = getWebb();
             result = webb
                     .post(url)
                     .ensureSuccess()
@@ -312,8 +313,8 @@ class TwitchedApi {
         try {
             url = String.format(
                     url,
-                    URLEncoder.encode(TwitchUnofficialApi.twitch.getClientId(), "UTF-8"),
-                    URLEncoder.encode(TwitchUnofficialApi.twitch.getClientSecret(), "UTF-8"),
+                    URLEncoder.encode(TwitchUnofficialApi.getTwitchCredentials().getClientId(), "UTF-8"),
+                    URLEncoder.encode(TwitchUnofficialApi.getTwitchCredentials().getClientSecret(), "UTF-8"),
                     "refresh_token",
                     URLEncoder.encode(refreshToken, "UTF-8"),
                     URLEncoder.encode(scope.replace("+", " "), "UTF-8")
@@ -346,7 +347,7 @@ class TwitchedApi {
         String url = "https://id.twitch.tv/oauth2/validate";
         com.goebl.david.Response<String> result;
         try {
-            Webb webb = Webb.create();
+            Webb webb = getWebb();
             result = webb
                     .get(url)
                     .header("Authorization", "OAuth " + token)
@@ -486,5 +487,19 @@ class TwitchedApi {
             Logger.exception(e);
         }
         return null;
+    }
+
+    /**
+     * Create a webb instance with user agent set
+     * @return Webb instance
+     */
+    static Webb getWebb() {
+        Webb webb = Webb.create();
+        webb.setDefaultHeader("Accept", "*/*");
+        webb.setDefaultHeader("User-Agent",
+                String.format("Twitched/%s (Java/%s)",
+                        Constants.VERSION,
+                        System.getProperty("java.version")));
+        return webb;
     }
 }

@@ -5,6 +5,9 @@
 
 package com.rolandoislas.twitchunofficial;
 
+import com.goebl.david.Response;
+import com.goebl.david.Webb;
+import com.goebl.david.WebbException;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
@@ -15,12 +18,14 @@ import com.rolandoislas.twitchunofficial.data.Playlist;
 import com.rolandoislas.twitchunofficial.data.RokuQuality;
 import com.rolandoislas.twitchunofficial.data.annotation.Cached;
 import com.rolandoislas.twitchunofficial.data.annotation.NotCached;
+import com.rolandoislas.twitchunofficial.data.model.TwitchCredentials;
 import com.rolandoislas.twitchunofficial.data.model.UsersWithRate;
 import com.rolandoislas.twitchunofficial.util.ApiCache;
 import com.rolandoislas.twitchunofficial.util.AuthUtil;
 import com.rolandoislas.twitchunofficial.util.FollowsCacher;
 import com.rolandoislas.twitchunofficial.util.HeaderUtil;
 import com.rolandoislas.twitchunofficial.util.Logger;
+import com.rolandoislas.twitchunofficial.util.NotFoundException;
 import com.rolandoislas.twitchunofficial.util.StringUtil;
 import com.rolandoislas.twitchunofficial.util.twitch.AppToken;
 import com.rolandoislas.twitchunofficial.util.twitch.Token;
@@ -30,38 +35,24 @@ import com.rolandoislas.twitchunofficial.util.twitch.helix.Game;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.GameList;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.GameViewComparator;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.Pagination;
+import com.rolandoislas.twitchunofficial.util.twitch.helix.Stream;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.StreamList;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.StreamUtil;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.StreamViewComparator;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.User;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.UserList;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.UserName;
-import javassist.NotFoundException;
-import me.philippheuer.twitch4j.TwitchClient;
-import me.philippheuer.twitch4j.TwitchClientBuilder;
-import me.philippheuer.twitch4j.auth.model.OAuthCredential;
-import me.philippheuer.twitch4j.enums.Endpoints;
-import me.philippheuer.twitch4j.exceptions.RestException;
-import me.philippheuer.twitch4j.model.Channel;
-import me.philippheuer.twitch4j.model.Community;
-import me.philippheuer.twitch4j.model.CommunityList;
-import me.philippheuer.twitch4j.model.Stream;
-import me.philippheuer.util.rest.HeaderRequestInterceptor;
-import me.philippheuer.util.rest.QueryRequestInterceptor;
-import me.philippheuer.util.rest.RestErrorHandler;
+import com.rolandoislas.twitchunofficial.util.twitch.kraken.Channel;
+import com.rolandoislas.twitchunofficial.util.twitch.kraken.ChannelList;
+import com.rolandoislas.twitchunofficial.util.twitch.kraken.Community;
+import com.rolandoislas.twitchunofficial.util.twitch.kraken.CommunityList;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.maven.artifact.versioning.ComparableVersion;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestTemplate;
 import spark.HaltException;
 import spark.Request;
-import spark.Response;
 import spark.Spark;
 
 import java.io.UnsupportedEncodingException;
@@ -75,7 +66,6 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.regex.Matcher;
@@ -91,15 +81,16 @@ public class TwitchUnofficialApi {
     static final int SERVER_ERROR =  500;
     private static final int BAD_GATEWAY = 502;
     private static final String API = "https://api.twitch.tv/helix";
+    private static final String API_KRAKEN = "https://api.twitch.tv/kraken";
     private static final String API_RAW = "https://api.twitch.tv/api";
     private static final String API_USHER = "https://usher.ttvnw.net";
     public static final int RATE_LIMIT_MAX = 120;
     private static final String SUB_ONLY_VIDEO = "https://hls.twitched.org/sub_only_video_720/sub_only_video_720.m3u8";
     private static final String API_AUTH = "https://id.twitch.tv";
-    static TwitchClient twitch;
+
     static Gson gson;
-    private static OAuthCredential twitchOauth;
     private static Thread followsThread;
+    private static TwitchCredentials twitchCredentials;
 
     /**
      * Send a JSON error message to the current requester
@@ -144,7 +135,7 @@ public class TwitchUnofficialApi {
      */
     @Nullable
     @Cached
-    static String getHlsData(Request request, Response response) {
+    static String getHlsData(Request request, spark.Response response) {
         checkAuth(request);
         if (request.splat().length < 1)
             return null;
@@ -192,59 +183,68 @@ public class TwitchUnofficialApi {
         if (username == null || username.isEmpty())
             return null;
         // Check cache
-        String requestId = ApiCache.createKey("hls", fps, quality, fileName, model,
-                AuthUtil.hashString(userToken, null));
+        String requestId = ApiCache.createKey("hls", username, AuthUtil.hashString(userToken, null));
         String cachedResponse = cache.get(requestId);
-        if (cachedResponse != null)
-            return cachedResponse;
+        if (cachedResponse != null) {
+            response.type("audio/mpegurl");
+            return cleanMasterPlaylist(cachedResponse, fps, quality, model);
+        }
         // Get live data
 
         // Construct template
-        RestTemplate restTemplate = getRestTemplate();
+        Webb webb = getWebb();
         // TODO When the API transitions to Helix the Authentication header will change
         if (userToken != null)
-            restTemplate = getPrivilegedRestTemplateKraken(new OAuthCredential(userToken));
+            webb = getPrivilegedWebbKraken(userToken);
 
         // Request channel token
         Token token = getVideoAccessToken(Token.TYPE.CHANNEL, username, userToken);
 
         // Request HLS playlist
         String hlsPlaylistUrl = String.format(API_USHER + "/api/channel/hls/%s.m3u8", username);
-        restTemplate.getInterceptors().add(new HeaderRequestInterceptor("Accept", "*/*"));
-        restTemplate.getInterceptors().add(new QueryRequestInterceptor("player", "twitchunofficialroku"));
-        restTemplate.getInterceptors().add(new QueryRequestInterceptor("token", token.getToken()));
-        restTemplate.getInterceptors().add(new QueryRequestInterceptor("sig", token.getSig()));
-        restTemplate.getInterceptors().add(new QueryRequestInterceptor("p",
-                String.valueOf((int)(Math.random() * Integer.MAX_VALUE))));
-        restTemplate.getInterceptors().add(new QueryRequestInterceptor("type", "any"));
-        restTemplate.getInterceptors().add(new QueryRequestInterceptor("allow_audio_only", "false"));
-        restTemplate.getInterceptors().add(new QueryRequestInterceptor("allow_source", "true"));
-        ResponseEntity<String> playlist = restTemplate.exchange(hlsPlaylistUrl, HttpMethod.GET, null,
-                String.class);
+        String playlistString = null;
+        try {
+            Logger.verbose( "Rest Request to [%s]", hlsPlaylistUrl);
+            Response<String> webbResponse = webb.get(hlsPlaylistUrl)
+                    .header("Accept", "*/*")
+                    .param("player", "Twitched")
+                    .param("token", token.getToken())
+                    .param("sig", token.getSig())
+                    .param("p", String.valueOf((int) (Math.random() * Integer.MAX_VALUE)))
+                    .param("type", "any")
+                    .param("allow_audio_only", "true")
+                    .param("allow_source", "true")
+                    .ensureSuccess()
+                    .asString();
+            playlistString = webbResponse.getBody();
+        }
+        catch (WebbException e) {
+            if (e.getResponse().getStatusCode() != 404) {
+                Logger.warn("Request failed: " + e.getMessage());
+                Logger.exception(e);
+            }
+        }
 
         // Parse playlist
-        String playlistString = playlist.getBody();
         if (playlistString == null)
             return null;
-        playlistString = cleanMasterPlaylist(playlistString, fps, quality, model);
         // Cache and return
         cache.set(requestId, playlistString);
         response.type("audio/mpegurl");
-        return playlistString;
+        return cleanMasterPlaylist(playlistString, fps, quality, model);
     }
 
     /**
      * Log twitch rate limit from response headers
-     * @param responseEntity http response
+     * @param response Webb response
      * @return amount of request remaining in the request window
      */
-    private static int logTwitchRateLimit(@Nullable ResponseEntity responseEntity) {
-        if (responseEntity == null)
+    private static int logTwitchRateLimit(@Nullable Response<?> response) {
+        if (response == null)
             return 0;
-        HttpHeaders headers = responseEntity.getHeaders();
-        String limit = headers.getFirst("RateLimit-Limit");
-        String remaining = headers.getFirst("RateLimit-Remaining");
-        String reset = headers.getFirst("RateLimit-Reset");
+        String limit = response.getHeaderField("RateLimit-Limit");
+        String remaining = response.getHeaderField("RateLimit-Remaining");
+        String reset = response.getHeaderField("RateLimit-Reset");
         String log = String.format("Rate Limit:\n\tLimit: %s\n\tRemaining: %s,\n\tReset: %s",
                 limit, remaining, reset);
         Logger.debug(log);
@@ -271,21 +271,23 @@ public class TwitchUnofficialApi {
                 throw new RuntimeException("Invalid type specified");
         }
         String hlsTokenUrl = String.format(API_RAW + url, id);
-        RestTemplate restTemplate = getRestTemplate();
+        Webb webb = getWebb();
         // TODO When the API transitions to Helix the Authentication header will change
         if (userToken != null)
-            restTemplate = getPrivilegedRestTemplateKraken(new OAuthCredential(userToken));
-        ResponseEntity<String> tokenResponse;
+            webb = getPrivilegedWebbKraken(userToken);
+        String tokenJsonString;
         try {
-            tokenResponse = restTemplate.exchange(hlsTokenUrl, HttpMethod.GET, null,
-                    String.class);
+            Logger.verbose( "Rest Request to [%s]", hlsTokenUrl);
+            Response<String> response = webb.get(hlsTokenUrl).ensureSuccess().asString();
+            tokenJsonString = response.getBody();
         }
-        catch (RestException e) {
+        catch (WebbException e) {
+            Logger.warn("Request failed: " + e.getMessage());
             throw halt(404, "Not found");
         }
         Token token;
         try {
-            token = gson.fromJson(tokenResponse.getBody(), Token.class);
+            token = gson.fromJson(tokenJsonString, Token.class);
             if (token == null || token.getToken() == null || token.getSig() == null)
                 throw halt(SERVER_ERROR, "Invalid data: Twitch API may have changed");
         }
@@ -303,7 +305,7 @@ public class TwitchUnofficialApi {
      */
     @Nullable
     @Cached
-    static String getVodData(Request request, Response response) {
+    static String getVodData(Request request, spark.Response response) {
         checkAuth(request);
         if (request.splat().length < 1)
             return null;
@@ -336,47 +338,54 @@ public class TwitchUnofficialApi {
             return null;
         String vodId = idSplit[0];
         // Check cache
-        String requestId = ApiCache.createKey("vod", fps, quality, fileName, model,
-                AuthUtil.hashString(userToken, null));
+        String requestId = ApiCache.createKey("vod", vodId, AuthUtil.hashString(userToken, null));
         String cachedResponse = cache.get(requestId);
-        if (cachedResponse != null)
-            return cachedResponse;
+        if (cachedResponse != null) {
+            response.type("audio/mpegurl");
+            return cleanMasterPlaylist(cachedResponse, fps, quality, model);
+        }
         // Fetch live data
-        RestTemplate restTemplate = getRestTemplate();
+        Webb webb = getWebb();
         // TODO When the API transitions to Helix the Authentication header will change
         if (userToken != null)
-            restTemplate = getPrivilegedRestTemplateKraken(new OAuthCredential(userToken));
+            webb = getPrivilegedWebbKraken(userToken);
         // Request VOD token
         Token token = getVideoAccessToken(Token.TYPE.VOD, vodId, userToken);
 
         // Request HLS playlist
         String hlsPlaylistUrl = String.format(API_USHER + "/vod/%s.m3u8", vodId);
-        restTemplate.getInterceptors().add(new HeaderRequestInterceptor("Accept", "*/*"));
-        restTemplate.getInterceptors().add(new QueryRequestInterceptor("nauth", token.getToken()));
-        restTemplate.getInterceptors().add(new QueryRequestInterceptor("nauthsig", token.getSig()));
-        restTemplate.getInterceptors().add(new QueryRequestInterceptor("p",
-                String.valueOf((int)(Math.random() * Integer.MAX_VALUE))));
-        restTemplate.getInterceptors().add(new QueryRequestInterceptor("type", "any"));
-        restTemplate.getInterceptors().add(new QueryRequestInterceptor("allow_audio_only", "false"));
-        restTemplate.getInterceptors().add(new QueryRequestInterceptor("allow_source", "true"));
-        ResponseEntity<String> playlist = restTemplate.exchange(hlsPlaylistUrl, HttpMethod.GET, null,
-                String.class);
-
-        // Redirect to sub only warning video
-        if (playlist.getStatusCodeValue() == 403) {
-            response.redirect(SUB_ONLY_VIDEO);
-            return "";
+        String playlistString = null;
+        try {
+            Logger.verbose( "Rest Request to [%s]", hlsPlaylistUrl);
+            Response<String> webbResponse = webb.get(hlsPlaylistUrl)
+                    .header("Accept", "*/*")
+                    .param("nauth", token.getToken())
+                    .param("nauthsig", token.getSig())
+                    .param("p", String.valueOf((int) (Math.random() * Integer.MAX_VALUE)))
+                    .param("type", "any")
+                    .param("allow_audio_only", "true")
+                    .param("allow_source", "true")
+                    .ensureSuccess()
+                    .asString();
+            playlistString = webbResponse.getBody();
+        }
+        catch (WebbException e) {
+            Logger.warn("Request failed: " + e.getMessage());
+            Logger.exception(e);
+            // Redirect to sub only warning video
+            if (e.getResponse().getStatusCode() == 403) {
+                response.redirect(SUB_ONLY_VIDEO);
+                return "";
+            }
         }
 
         // Parse playlist
-        String playlistString = playlist.getBody();
         if (playlistString == null)
             return null;
-        playlistString = cleanMasterPlaylist(playlistString, fps, quality, model);
         // Cache and return
         cache.set(requestId, playlistString);
         response.type("audio/mpegurl");
-        return playlistString;
+        return cleanMasterPlaylist(playlistString, fps, quality, model);
     }
 
     /**
@@ -580,17 +589,9 @@ public class TwitchUnofficialApi {
     @NotCached
     static void init(String twitchClientId, String twitchClientSecret) {
         TwitchUnofficialApi.gson = new Gson();
-        TwitchUnofficialApi.twitch = TwitchClientBuilder.init()
-                .withClientId(twitchClientId)
-                .withClientSecret(twitchClientSecret)
-                .withCredential(getAppToken(twitchClientId, twitchClientSecret))
-                .build();
-        // Set credential
-        for (Map.Entry<String, OAuthCredential>credentialEntry :
-                twitch.getCredentialManager().getOAuthCredentials().entrySet()) {
-            twitchOauth = credentialEntry.getValue();
-        }
-        if (twitchOauth == null)
+        TwitchUnofficialApi.twitchCredentials = new TwitchCredentials(twitchClientId, twitchClientSecret,
+                getAppToken(twitchClientId, twitchClientSecret));
+        if (TwitchUnofficialApi.twitchCredentials.getAppToken() == null)
             Logger.warn("No Oauth token provided. Requests will be rate limited to 30 per minute.");
         // Start background thread
         TwitchUnofficialApi.followsThread = new Thread(new FollowsCacher());
@@ -608,36 +609,33 @@ public class TwitchUnofficialApi {
     @Nullable
     private static String getAppToken(String twitchClientId, String twitchClientSecret) {
         // Construct template
-        RestTemplate restTemplate = new RestTemplate();
-        restTemplate.setInterceptors(new ArrayList<>());
-        restTemplate.setErrorHandler(new RestErrorHandler());
-
+        Webb webb = TwitchedApi.getWebb();
         // Request app token
         String appTokenUrl = API_AUTH + "/oauth2/token";
-
-        restTemplate.getInterceptors().add(new QueryRequestInterceptor("client_id", twitchClientId));
-        restTemplate.getInterceptors().add(new QueryRequestInterceptor("client_secret", twitchClientSecret));
-        restTemplate.getInterceptors().add(new QueryRequestInterceptor("grant_type", "client_credentials"));
-        restTemplate.getInterceptors().add(new QueryRequestInterceptor("scope", ""));
-
-        ResponseEntity<String> tokenResponse;
+        String tokenJsonString;
         try {
-            tokenResponse = restTemplate.exchange(appTokenUrl, HttpMethod.POST, null,
-                    String.class);
-            logTwitchRateLimit(tokenResponse);
+            Logger.verbose( "Rest Request to [%s]", appTokenUrl);
+            Response<String> response = webb.post(appTokenUrl)
+                    .param("client_id", twitchClientId)
+                    .param("client_secret", twitchClientSecret)
+                    .param("grant_type", "client_credentials")
+                    .param("scope", "")
+                    .ensureSuccess()
+                    .asString();
+            logTwitchRateLimit(response);
+            tokenJsonString = response.getBody();
         }
-        catch (RestException e) {
+        catch (WebbException e) {
             Logger.warn(StringUtils.repeat("=", 80));
             Logger.warn("Failed to get Twitch app token!");
-            Logger.warn(e.getRestError().getError());
-            Logger.warn(e.getRestError().getMessage());
+            Logger.warn(e.getMessage());
             Logger.warn(StringUtils.repeat("=", 80));
             Logger.exception(e);
             return null;
         }
         AppToken token;
         try {
-            token = gson.fromJson(tokenResponse.getBody(), AppToken.class);
+            token = gson.fromJson(tokenJsonString, AppToken.class);
             if (token.getAccessToken() == null) {
                 Logger.warn(StringUtils.repeat("=", 80));
                 Logger.warn("Failed to get Twitch app token!");
@@ -663,7 +661,7 @@ public class TwitchUnofficialApi {
      */
     @Cached
     @Deprecated
-    static String getCommunitiesKraken(Request request, @SuppressWarnings("unused") Response response) {
+    static String getCommunitiesKraken(Request request, @SuppressWarnings("unused") spark.Response response) {
         checkAuth(request);
         // Params
         Long limit = null;
@@ -679,8 +677,26 @@ public class TwitchUnofficialApi {
         if (cachedResponse != null)
             return cachedResponse;
         // Request live
-        CommunityList communities = twitch.getCommunityEndpoint()
-                .getTopCommunities(Optional.ofNullable(limit), Optional.ofNullable(cursor));
+        Webb webb = getWebbKraken();
+        Map<String, Object> params = new HashMap<>();
+        if (limit != null)
+            params.put("limit", limit);
+        if (cursor != null)
+             params.put("cursor", cursor);
+        CommunityList communities = null;
+        try {
+            String url = API_KRAKEN + "/communities/top";
+            Logger.verbose( "Rest Request to [%s]", url);
+            Response<String> webbResponse = webb.get(url)
+                    .params(params)
+                    .ensureSuccess()
+                    .asString();
+            communities = gson.fromJson(webbResponse.getBody(), CommunityList.class);
+        }
+        catch (WebbException | JsonSyntaxException e) {
+            Logger.warn("Request failed: " + e.getMessage());
+            Logger.exception(e);
+        }
         if (communities == null)
             throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
         String json = gson.toJson(communities);
@@ -696,7 +712,7 @@ public class TwitchUnofficialApi {
      */
     @Cached
     @Deprecated
-    static String getCommunityKraken(Request request, @SuppressWarnings("unused") Response response) {
+    static String getCommunityKraken(Request request, @SuppressWarnings("unused") spark.Response response) {
         checkAuth(request);
         // Params
         String name = request.queryParams("name");
@@ -709,11 +725,32 @@ public class TwitchUnofficialApi {
         if (cachedResponse != null)
             return cachedResponse;
         // Request live
+        Webb webb = getWebbKraken();
         Community community;
-        if (name != null && !name.isEmpty())
-            community = twitch.getCommunityEndpoint().getCommunityByName(name);
-        else
-            community = twitch.getCommunityEndpoint().getCommunityById(id);
+        try {
+            if (name != null && !name.isEmpty()) {
+                String url = API_KRAKEN + "/communities";
+                Logger.verbose( "Rest Request to [%s]", url);
+                Response<String> webbResponse = webb.get(url)
+                        .param("name", name)
+                        .ensureSuccess()
+                        .asString();
+                community = gson.fromJson(webbResponse.getBody(), Community.class);
+            }
+            else {
+                String url = API_KRAKEN + "/communities/" + id;
+                Logger.verbose( "Rest Request to [%s]", url);
+                Response<String> webbResponse = webb.get(url)
+                        .ensureSuccess()
+                        .asString();
+                community = gson.fromJson(webbResponse.getBody(), Community.class);
+            }
+        }
+        catch (WebbException | JsonSyntaxException e) {
+            Logger.warn("Request failed: " + e.getMessage());
+            Logger.exception(e);
+            throw halt(BAD_GATEWAY, e.getMessage());
+        }
         String json = gson.toJson(community);
         cache.set(requestId, json);
         return json;
@@ -726,7 +763,7 @@ public class TwitchUnofficialApi {
      * @return stream json with usernames added to each stream as "user_name"
      */
     @Cached
-    static String getStreamsHelix(Request request, @SuppressWarnings("unused") Response response) {
+    static String getStreamsHelix(Request request, @SuppressWarnings("unused") spark.Response response) {
         checkAuth(request);
         // Params
         String after = request.queryParams("after");
@@ -778,7 +815,7 @@ public class TwitchUnofficialApi {
         if (after == null && before == null && community == null && game == null && languages.size() == 0 &&
                 streamType.equals("all") && userIds.size() > 0 && userLogins.size() == 0) {
             @NotNull CachedStreams cachedStreams = cache.getStreams(userIds);
-            List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> cachedStreamsList =
+            List<Stream> cachedStreamsList =
                     cachedStreams.getStreams();
             if (cachedStreamsList != null && cachedStreamsList.size() == userIds.size()) {
                 return gson.toJson(cachedStreamsList);
@@ -803,7 +840,7 @@ public class TwitchUnofficialApi {
             return cachedResponse;
 
         // Request live
-        List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streams = getStreams(
+        List<Stream> streams = getStreams(
                 after,
                 before,
                 community == null ? null : Collections.singletonList(community),
@@ -827,7 +864,7 @@ public class TwitchUnofficialApi {
      */
     @NotNull
     @Cached
-    private static List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> getStreams(
+    private static List<Stream> getStreams(
             @Nullable String after,
             @Nullable String before,
             @Nullable List<String> communities,
@@ -859,7 +896,7 @@ public class TwitchUnofficialApi {
      */
     @NotNull
     @Cached
-    private static List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> getStreams(
+    private static List<Stream> getStreams(
             @Nullable String after,
             @Nullable String before,
             @Nullable List<String> communities,
@@ -871,7 +908,7 @@ public class TwitchUnofficialApi {
             @Nullable List<String> userLoginsParam,
             @Nullable ComparableVersion version,
             @Nullable Boolean shouldFetchLive) {
-        List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streams = new ArrayList<>();
+        List<Stream> streams = new ArrayList<>();
         if ((userIdsParam != null && userIdsParam.size() > 0) ||
                 (userLoginsParam != null && userLoginsParam.size() > 0)) {
             // Check cache
@@ -883,7 +920,7 @@ public class TwitchUnofficialApi {
             }
             CachedStreams cachedStreams = cache.getStreams(allIds);
             if (version != null && version.compareTo(new ComparableVersion("1.4.2400")) == 0) {
-                for (com.rolandoislas.twitchunofficial.util.twitch.helix.Stream stream : cachedStreams.getStreams()) {
+                for (Stream stream : cachedStreams.getStreams()) {
                     UserName username = stream.getUserName();
                     username.setLogin("");
                     stream.setUserName(username);
@@ -904,72 +941,65 @@ public class TwitchUnofficialApi {
         // Request live
         // Endpoint
         String requestUrl = String.format("%s/streams", API);
-        RestTemplate restTemplate;
-        if (twitchOauth != null)
-            restTemplate = getPrivilegedRestTemplate(twitchOauth);
+        Webb webb;
+        if (getTwitchCredentials().getAppToken() != null)
+            webb = getPrivilegedWebb(getTwitchCredentials().getAppToken());
         else
-            restTemplate = getRestTemplate();
+            webb = getWebb();
         // Parameters
+        Map<String, Object> params = new HashMap<>();
         if (after != null)
-            restTemplate.getInterceptors().add(new QueryRequestInterceptor("after", after));
+            params.put("after", after);
         if (before != null)
-            restTemplate.getInterceptors().add(new QueryRequestInterceptor("before", before));
+            params.put("before", before);
         if (communities != null)
-            for (String community : communities)
-                restTemplate.getInterceptors().add(new QueryRequestInterceptor("community_id", community));
+            params.put("community_id", communities);
         if (first != null)
-            restTemplate.getInterceptors().add(new QueryRequestInterceptor("first", first));
+            params.put("first", first);
         if (games != null)
-            for (String game : games)
-                restTemplate.getInterceptors().add(new QueryRequestInterceptor("game_id", game));
+            params.put("game_id", games);
         if (languages != null)
-            for (String language : languages)
-                restTemplate.getInterceptors().add(new QueryRequestInterceptor("language", language));
+            params.put("language", languages);
         if (streamType != null)
-            restTemplate.getInterceptors().add(new QueryRequestInterceptor("type", streamType));
+            params.put("type", streamType);
         if (userIdsParam != null)
-            for (String userId : userIdsParam)
-                restTemplate.getInterceptors().add(new QueryRequestInterceptor("user_id", userId));
+            params.put("user_id", userIdsParam);
         if (userLoginsParam != null)
-            for (String userLogin : userLoginsParam)
-                restTemplate.getInterceptors().add(new QueryRequestInterceptor("user_login", userLogin));
+            params.put("user_login", userLoginsParam);
         // REST Request
         try {
             Logger.verbose( "Rest Request to [%s]", requestUrl);
-            ResponseEntity<String> responseObject = restTemplate.exchange(requestUrl, HttpMethod.GET, null,
-                    String.class);
-            logTwitchRateLimit(responseObject);
+            Response<String> response = webb.get(requestUrl)
+                    .params(params)
+                    .ensureSuccess()
+                    .asString();
+            logTwitchRateLimit(response);
             try {
-                com.rolandoislas.twitchunofficial.util.twitch.helix.StreamList streamList = gson.fromJson(
-                        responseObject.getBody(),
-                        com.rolandoislas.twitchunofficial.util.twitch.helix.StreamList.class);
+                StreamList streamList = gson.fromJson(response.getBody(), StreamList.class);
                 streams.addAll(streamList.getStreams());
             }
             catch (JsonSyntaxException e) {
                 Logger.exception(e);
-                throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
+                throw halt(BAD_GATEWAY, e.getMessage());
             }
         }
-        catch (RestClientException | RestException e) {
-            if (e instanceof RestException)
-                Logger.warn("Request failed: " + ((RestException) e).getRestError().getMessage());
-            else
-                Logger.warn("Request failed: " + e.getMessage());
+        catch (WebbException e) {
+            Logger.warn("Request failed: " + e.getMessage());
             Logger.exception(e);
-            throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
+            throw halt(BAD_GATEWAY, e.getMessage());
         }
 
         // Add user names and game names to data
         addNamesToStreams(streams, version);
 
         // Cache streams
-        ArrayList<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> offlineAndOnlineStreams =
+        ArrayList<Stream> offlineAndOnlineStreams =
                 new ArrayList<>(streams);
         if (userIdsParam != null) {
             for (String userId : userIdsParam) {
                 if (!StreamUtil.streamListContainsId(streams, userId)) {
-                    com.rolandoislas.twitchunofficial.util.twitch.helix.Stream stream =
-                            new com.rolandoislas.twitchunofficial.util.twitch.helix.Stream();
+                    Stream stream =
+                            new Stream();
                     stream.setUserId(userId);
                     stream.setUserName(new UserName("", ""));
                     stream.setOnline(false);
@@ -980,8 +1010,8 @@ public class TwitchUnofficialApi {
         if (userLoginsParam != null) {
             for (String userLogin : userLoginsParam) {
                 if (!StreamUtil.streamListContainsLogin(streams, userLogin)) {
-                    com.rolandoislas.twitchunofficial.util.twitch.helix.Stream stream =
-                            new com.rolandoislas.twitchunofficial.util.twitch.helix.Stream();
+                    Stream stream =
+                            new Stream();
                     stream.setUserId("");
                     stream.setUserName(new UserName(userLogin, ""));
                     stream.setOnline(false);
@@ -1021,7 +1051,7 @@ public class TwitchUnofficialApi {
      * @see TwitchUnofficialApi#addNamesToStreams(List, ComparableVersion)
      */
     @NotCached
-    private static void addNamesToStreams(List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream>
+    private static void addNamesToStreams(List<Stream>
                                                   streams) {
         addNamesToStreams(streams, null);
     }
@@ -1031,11 +1061,11 @@ public class TwitchUnofficialApi {
      * @param streams stream list
      */
     @NotCached
-    private static void addNamesToStreams(List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream>
+    private static void addNamesToStreams(List<Stream>
                                                       streams, @Nullable ComparableVersion version) {
         List<String> gameIds = new ArrayList<>();
         List<String> userIds = new ArrayList<>();
-        for (com.rolandoislas.twitchunofficial.util.twitch.helix.Stream stream : streams) {
+        for (Stream stream : streams) {
             userIds.add(stream.getUserId());
             gameIds.add(stream.getGameId());
         }
@@ -1043,7 +1073,7 @@ public class TwitchUnofficialApi {
         try {
             userNames = getUserNames(userIds);
         }
-        catch (HaltException | RestException e) {
+        catch (HaltException | WebbException e) {
             Logger.exception(e);
             userNames = new HashMap<>();
         }
@@ -1058,11 +1088,11 @@ public class TwitchUnofficialApi {
             else
                 gameNames = new HashMap<>();
         }
-        catch (HaltException | RestException e) {
+        catch (HaltException | WebbException e) {
             Logger.exception(e);
             gameNames = new HashMap<>();
         }
-        for (com.rolandoislas.twitchunofficial.util.twitch.helix.Stream stream : streams) {
+        for (Stream stream : streams) {
             String userString = userNames.get(stream.getUserId());
             try {
                 User user = gson.fromJson(userString, User.class);
@@ -1083,42 +1113,51 @@ public class TwitchUnofficialApi {
 
     /**
      * Get a rest template with the oauth token added as a bearer token
-     * @param oauth token to add to header
+     * @param oauthToken token to add to header
      * @return rest template with bearer token
      */
     @NotCached
-    private static RestTemplate getPrivilegedRestTemplate(OAuthCredential oauth) {
-        RestTemplate restTemplate = getRestTemplate();
-        restTemplate.getInterceptors().add(new HeaderRequestInterceptor("Authorization",
-                String.format("Bearer %s", oauth.getToken())));
-        return restTemplate;
+    private static Webb getPrivilegedWebb(String oauthToken) {
+        Webb webb = getWebb();
+        webb.setDefaultHeader("Authorization", String.format("Bearer %s", oauthToken));
+        return webb;
     }
 
     /**
-     * Get a rest template with the oauth token added as an authorization token
-     * @param oauth token
-     * @return rest template with
+     * Get a webb instance with the oauth token added as an authorization token
+     * @param oauthToken token
+     * @return webb instance
      */
     @NotCached
     @Deprecated
-    private static RestTemplate getPrivilegedRestTemplateKraken(OAuthCredential oauth) {
-        RestTemplate restTemplate = getRestTemplate();
-        restTemplate.getInterceptors().add(new HeaderRequestInterceptor("Authorization",
-                String.format("OAuth %s", oauth.getToken())));
-        return restTemplate;
+    private static Webb getPrivilegedWebbKraken(String oauthToken) {
+        Webb webb = getWebbKraken();
+        webb.setDefaultHeader("Authorization", String.format("OAuth %s", oauthToken));
+        return webb;
     }
 
     /**
-     * Get a generic rest template with twitch client ID
-     * If available, an SSL context with TLS 1.2 will be added
+     * Get a webb instance with client id and Twitch v5 API accept header
+     * @return webb instance
+     */
+    @NotCached
+    @Deprecated
+    private static Webb getWebbKraken() {
+        Webb webb = getWebb();
+        webb.setDefaultHeader("Accept", "application/vnd.twitchtv.v5+json");
+        return webb;
+    }
+
+    /**
+     * Get a generic Webb template with twitch client ID
      * @return rest template with client id
      */
     @NotCached
-    private static RestTemplate getRestTemplate() {
-        RestTemplate restTemplate = twitch.getRestClient().getPlainRestTemplate();
-        restTemplate.getInterceptors().add(new HeaderRequestInterceptor("Accept", "*/*"));
-        restTemplate.getInterceptors().add(new HeaderRequestInterceptor("Client-ID", twitch.getClientId()));
-        return restTemplate;
+    private static Webb getWebb() {
+        Webb webb = TwitchedApi.getWebb();
+        webb.setDefaultHeader("Accept", "*/*");
+        webb.setDefaultHeader("Client-ID", getTwitchCredentials().getClientId());
+        return webb;
     }
 
     /**
@@ -1227,41 +1266,42 @@ public class TwitchUnofficialApi {
         List<Game> games = null;
         // Endpoint
         String requestUrl = String.format("%s/games", API);
-        RestTemplate restTemplate;
-        if (twitchOauth != null)
-            restTemplate = getPrivilegedRestTemplate(twitchOauth);
+        Webb webb;
+        if (getTwitchCredentials().getAppToken() != null)
+            webb = getPrivilegedWebb(getTwitchCredentials().getAppToken());
         else
-            restTemplate = getRestTemplate();
+            webb = getWebb();
         // Parameters
+        Map<String, Object> params = new HashMap<>();
         if (ids != null)
-            for (String id : ids)
-                restTemplate.getInterceptors().add(new QueryRequestInterceptor("id", id));
+            params.put("id", ids);
         if (names != null)
-            for (String name : names)
-                restTemplate.getInterceptors().add(new QueryRequestInterceptor("name", name));
+            params.put("name", names);
         // REST Request
         try {
             Logger.verbose( "Rest Request to [%s]", requestUrl);
-            ResponseEntity<String> responseObject = restTemplate.exchange(requestUrl, HttpMethod.GET, null, String.class);
-            logTwitchRateLimit(responseObject);
+            Response<String> response = webb.get(requestUrl)
+                    .params(params)
+                    .ensureSuccess()
+                    .asString();
+            logTwitchRateLimit(response);
             try {
-                GameList gameList = gson.fromJson(responseObject.getBody(), GameList.class);
+                GameList gameList = gson.fromJson(response.getBody(), GameList.class);
                 games = gameList.getGames();
             }
-            catch (JsonSyntaxException ignore) {}
+            catch (JsonSyntaxException e) {
+                Logger.exception(e);
+            }
         }
-        catch (RestClientException | RestException e) {
-            if (e instanceof RestException)
-                Logger.warn("Request failed: " + ((RestException) e).getRestError().getMessage());
-            else
-                Logger.warn("Request failed: " + e.getMessage());
+        catch (WebbException e) {
+            Logger.warn("Request failed: " + e.getMessage());
             Logger.exception(e);
         }
         return games;
     }
 
     /**
-     * @see TwitchUnofficialApi#getUsers(List, List, String, Request, Response)
+     * @see TwitchUnofficialApi#getUsers(List, List, String, Request, spark.Response)
      */
     @Contract("null, null, null -> fail")
     @NotCached
@@ -1272,14 +1312,14 @@ public class TwitchUnofficialApi {
     }
 
     /**
-     * @see TwitchUnofficialApi#getUsersWithRate(List, List, String, Request, Response)
+     * @see TwitchUnofficialApi#getUsersWithRate(List, List, String, Request, spark.Response)
      */
     @Contract("null, null, null, _, _ -> fail")
     @NotCached
     @Nullable
     private static List<User> getUsers(@Nullable List<String> userIds, @Nullable List<String> userNames,
                                        @Nullable String token, @Nullable Request request,
-                                       @Nullable Response response) {
+                                       @Nullable spark.Response response) {
         UsersWithRate usersWithRate = getUsersWithRate(userIds, userNames, token, request, response);
         return usersWithRate.getUsers();
     }
@@ -1295,63 +1335,61 @@ public class TwitchUnofficialApi {
     @NotCached
     public static UsersWithRate getUsersWithRate(@Nullable List<String> userIds, @Nullable List<String> userNames,
                                        @Nullable String token, @Nullable Request request,
-                                       @Nullable Response response) {
+                                       @Nullable spark.Response response) {
         if ((userIds == null || userIds.isEmpty()) && (userNames == null || userNames.isEmpty()) && token == null)
             throw halt(BAD_REQUEST, "Bad request: missing user id or user name");
         // Request live
         List<User> users = null;
         // Endpoint
         String requestUrl = String.format("%s/users", API);
-        RestTemplate restTemplate;
-        if (token != null) {
-            OAuthCredential oauth = new OAuthCredential(token);
-            restTemplate = getPrivilegedRestTemplate(oauth);
-        }
-        else if (twitchOauth != null)
-            restTemplate = getPrivilegedRestTemplate(twitchOauth);
+        Webb webb;
+        if (token != null)
+            webb = getPrivilegedWebb(token);
+        else if (getTwitchCredentials().getAppToken() != null)
+            webb = getPrivilegedWebb(getTwitchCredentials().getAppToken());
         else
-            restTemplate = getRestTemplate();
+            webb = getWebb();
         // Parameters
+        Map<String, Object> params = new HashMap<>();
         if (userIds != null)
-            for (String id : userIds)
-                restTemplate.getInterceptors().add(new QueryRequestInterceptor("id", id));
+            params.put("id", userIds);
         if (userNames != null)
-            for (String name : userNames)
-                restTemplate.getInterceptors().add(new QueryRequestInterceptor("login", name));
+            params.put("login", userNames);
         int rateLimit = 0;
         // REST Request
         try {
             Logger.verbose( "Rest Request to [%s]", requestUrl);
-            ResponseEntity<String> responseObject = restTemplate.exchange(requestUrl, HttpMethod.GET, null, String.class);
-            logTwitchRateLimit(responseObject);
-            rateLimit = (int) StringUtil.parseLong(responseObject.getHeaders().getFirst("RateLimit-Remaining"));
+            Response<String> webbResponse = webb.get(requestUrl)
+                    .params(params)
+                    .ensureSuccess()
+                    .asString();
+            rateLimit = logTwitchRateLimit(webbResponse);
             try {
-                UserList userList = gson.fromJson(responseObject.getBody(), UserList.class);
+                UserList userList = gson.fromJson(webbResponse.getBody(), UserList.class);
                 users = userList.getUsers();
             }
-            catch (JsonSyntaxException ignore) {}
-        }
-        catch (RestClientException | RestException e) {
-            if (e instanceof RestException) {
-                // Handle an expired auth token gracefully
-                if (((RestException) e).getRestError().getStatus() == 400 &&
-                        (userIds == null || userIds.isEmpty()) && (userNames == null || userNames.isEmpty()) &&
-                        token != null) {
-                    // Redirect to the validate endpoint for versions prior to 1.4
-                    if (request != null && response != null) {
-                        ComparableVersion version = HeaderUtil.extractVersion(request);
-                        if (version.compareTo(new ComparableVersion("1.4")) < 0) {
-                            response.redirect("/api/link/validate");
-                        }
-                    }
-                    users = new ArrayList<>();
-                }
-                else
-                    Logger.warn("Request failed: " + ((RestException) e).getRestError().getMessage());
+            catch (JsonSyntaxException e) {
+                Logger.exception(e);
             }
-            else
+        }
+        catch (WebbException e) {
+            // Handle an expired auth token gracefully
+            if (e.getResponse().getStatusCode() == 400 &&
+                    (userIds == null || userIds.isEmpty()) && (userNames == null || userNames.isEmpty()) &&
+                    token != null) {
+                // Redirect to the validate endpoint for versions prior to 1.4
+                if (request != null && response != null) {
+                    ComparableVersion version = HeaderUtil.extractVersion(request);
+                    if (version.compareTo(new ComparableVersion("1.4")) < 0) {
+                        response.redirect("/api/link/validate");
+                    }
+                }
+                users = new ArrayList<>();
+            }
+            else {
                 Logger.warn("Request failed: " + e.getMessage());
-            Logger.exception(e);
+                Logger.exception(e);
+            }
         }
         return new UsersWithRate(users, rateLimit);
     }
@@ -1363,7 +1401,7 @@ public class TwitchUnofficialApi {
      * @return game json
      */
     @Cached
-    static String getGamesHelix(Request request, @SuppressWarnings("unused") Response response) {
+    static String getGamesHelix(Request request, @SuppressWarnings("unused") spark.Response response) {
         checkAuth(request);
         // Parse query params
         List<String> ids = new ArrayList<>();
@@ -1412,7 +1450,7 @@ public class TwitchUnofficialApi {
      * @return json
      */
     @Cached
-    static String getUserFollowedStreamsHelix(Request request, Response response) {
+    static String getUserFollowedStreamsHelix(Request request, spark.Response response) {
         checkAuth(request);
         // Params
         String limit = request.queryParamOrDefault("limit", "20");
@@ -1434,7 +1472,7 @@ public class TwitchUnofficialApi {
         }
         response.header("Twitch-User-ID", fromId);
         // Get follows
-        List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streams =
+        List<Stream> streams =
                 getUserFollowedStreamsWithTimeout(fromId, 15000, HeaderUtil.extractVersion(request));
         // Sort streams
         streams.sort(new StreamViewComparator().reversed());
@@ -1452,10 +1490,10 @@ public class TwitchUnofficialApi {
      * @return streams
      */
     @Cached
-    private static List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> getUserFollowedStreamsWithTimeout(
+    private static List<Stream> getUserFollowedStreamsWithTimeout(
             String fromId, @SuppressWarnings("SameParameterValue") int timeout,
             ComparableVersion twitchedVersion) throws HaltException {
-        List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streams = new ArrayList<>();
+        List<Stream> streams = new ArrayList<>();
         List<String> followIds = new ArrayList<>();
         List<Follow> followsOffline = new ArrayList<>();
         String pagination = null;
@@ -1489,14 +1527,14 @@ public class TwitchUnofficialApi {
                     // channels
                     shouldFetchLive = userFollows.getRateLimitRemaining() > RATE_LIMIT_MAX / 2 ||
                             (userFollows.getRateLimitRemaining() > RATE_LIMIT_MAX / 4 && userFollows.getTotal() <= 300);
-                    @NotNull List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streamSublist =
+                    @NotNull List<Stream> streamSublist =
                             getStreams(after, null, null, first, null, null,
                                     null, followsSublist, null, twitchedVersion,
                                     shouldFetchLive);
                     // Add streams to array
                     streams.addAll(streamSublist);
                     // Add follows to offline list
-                    for (com.rolandoislas.twitchunofficial.util.twitch.helix.Stream stream : streamSublist)
+                    for (Stream stream : streamSublist)
                         if (stream != null && stream.getUserId() != null)
                             followIds.remove(stream.getUserId());
                     if (followIds.size() > 0) {
@@ -1530,12 +1568,12 @@ public class TwitchUnofficialApi {
             for (Follow follow : followsOffline)
                 followIdsOffline.add(follow.getToId());
             Map<String, String> offlineUsers = getUserNames(followIdsOffline, shouldFetchLive);
-            List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> offlineStreams = new ArrayList<>();
+            List<Stream> offlineStreams = new ArrayList<>();
             for (Map.Entry<String, String> offlineUser : offlineUsers.entrySet()) {
                 if (offlineUser.getValue() == null || offlineUser.getValue().isEmpty())
                     continue;
-                com.rolandoislas.twitchunofficial.util.twitch.helix.Stream offlineStream =
-                        new com.rolandoislas.twitchunofficial.util.twitch.helix.Stream();
+                Stream offlineStream =
+                        new Stream();
                 offlineStream.setUserId(offlineUser.getKey());
                 try {
                     User user = gson.fromJson(offlineUser.getValue(), User.class);
@@ -1647,30 +1685,33 @@ public class TwitchUnofficialApi {
 
         // Endpoint
         String requestUrl = String.format("%s/users/follows", API);
-        RestTemplate restTemplate;
-        if (twitchOauth != null)
-            restTemplate = getPrivilegedRestTemplate(twitchOauth);
+        Webb webb;
+        if (getTwitchCredentials().getAppToken() != null)
+            webb = getPrivilegedWebb(getTwitchCredentials().getAppToken());
         else
-            restTemplate = getRestTemplate();
+            webb = getWebb();
         // Parameters
+        Map<String, Object> params = new HashMap<>();
         if (after != null)
-            restTemplate.getInterceptors().add(new QueryRequestInterceptor("after", after));
+            params.put("after", after);
         if (before != null)
-            restTemplate.getInterceptors().add(new QueryRequestInterceptor("before", before));
+            params.put("before", before);
         if (first != null)
-            restTemplate.getInterceptors().add(new QueryRequestInterceptor("first", first));
+            params.put("first", first);
         if (fromId != null)
-            restTemplate.getInterceptors().add(new QueryRequestInterceptor("from_id", fromId));
+            params.put("from_id", fromId);
         if (toId != null)
-            restTemplate.getInterceptors().add(new QueryRequestInterceptor("to_id", toId));
+            params.put("to_id", toId);
         // REST Request
         try {
             Logger.verbose( "Rest Request to [%s]", requestUrl);
-            ResponseEntity<String> responseObject = restTemplate.exchange(requestUrl, HttpMethod.GET, null,
-                    String.class);
-            int rateLimitRemaining = logTwitchRateLimit(responseObject);
+            Response<String> response = webb.get(requestUrl)
+                    .params(params)
+                    .ensureSuccess()
+                    .asString();
+            int rateLimitRemaining = logTwitchRateLimit(response);
             try {
-                String json = responseObject.getBody();
+                String json = response.getBody();
                 FollowList followList = gson.fromJson(json, FollowList.class);
                 followList.setRateLimitRemaining(rateLimitRemaining);
                 return followList;
@@ -1679,11 +1720,8 @@ public class TwitchUnofficialApi {
                 Logger.exception(e);
             }
         }
-        catch (RestClientException | RestException e) {
-            if (e instanceof RestException)
-                Logger.warn("Request failed: " + ((RestException) e).getRestError().getMessage());
-            else
-                Logger.warn("Request failed: " + e.getMessage());
+        catch (WebbException e) {
+            Logger.warn("Request failed: " + e.getMessage());
             Logger.exception(e);
         }
         return null;
@@ -1721,7 +1759,7 @@ public class TwitchUnofficialApi {
      * @return json
      */
     @Cached
-    static String getUserFollowHelix(Request request, @SuppressWarnings("unused") Response response) {
+    static String getUserFollowHelix(Request request, @SuppressWarnings("unused") spark.Response response) {
         checkAuth(request);
         // Params
         String after = request.queryParams("after");
@@ -1779,7 +1817,7 @@ public class TwitchUnofficialApi {
      */
     @Cached
     @Deprecated
-    static String getSearchKraken(Request request, @SuppressWarnings("unused") Response response) {
+    static String getSearchKraken(Request request, @SuppressWarnings("unused") spark.Response response) {
         checkAuth(request);
         // All
         @Nullable String query = request.queryParams("query");
@@ -1791,13 +1829,6 @@ public class TwitchUnofficialApi {
         // Check params
         if (query == null || query.isEmpty())
             throw halt(BAD_REQUEST, "Empty query");
-        long limitLong;
-        try {
-            limitLong = Long.parseLong(limit);
-        }
-        catch (NumberFormatException e) {
-            throw halt(BAD_REQUEST, "Invalid limit");
-        }
         // Check cache
         String requestId = ApiCache.createKey("kraken/search", query, type, limit, offset, hls, live);
         String cachedResponse = cache.get(requestId);
@@ -1807,15 +1838,34 @@ public class TwitchUnofficialApi {
         String json;
         // Used by switch case
         ArrayList<String> userIds = new ArrayList<>();
-        List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> streamsHelix = new ArrayList<>();
+        List<Stream> streamsHelix = new ArrayList<>();
         List<Game> games = new ArrayList<>();
+        Webb webb = getWebbKraken();
         switch (type) {
             case "streams":
-                // HLS param is ignored
-                List<Stream> streams = twitch.getSearchEndpoint().getStreams(query, Optional.of(limitLong));
+                List<com.rolandoislas.twitchunofficial.util.twitch.kraken.Stream> streams = null;
+                try {
+                    String url = API_KRAKEN + "/search/streams";
+                    Logger.verbose( "Rest Request to [%s]", url);
+                    Response<String> webbResponse = webb.get(url)
+                            .param("query", query)
+                            .param("limit", limit)
+                            .param("hls", hls)
+                            .param("offset", offset)
+                            .ensureSuccess()
+                            .asString();
+                    com.rolandoislas.twitchunofficial.util.twitch.kraken.StreamList streamList =
+                            gson.fromJson(webbResponse.getBody(),
+                                    com.rolandoislas.twitchunofficial.util.twitch.kraken.StreamList.class);
+                    streams = streamList.getStreams();
+                }
+                catch (WebbException | JsonSyntaxException e) {
+                    Logger.warn("Request failed: " + e.getMessage());
+                    Logger.exception(e);
+                }
                 if (streams == null)
                     throw halt(BAD_GATEWAY, "Failed to get streams");
-                for (Stream stream : streams)
+                for (com.rolandoislas.twitchunofficial.util.twitch.kraken.Stream stream : streams)
                     userIds.add(String.valueOf(stream.getChannel().getId()));
                 if (userIds.size() > 0)
                     streamsHelix = getStreams(
@@ -1834,7 +1884,23 @@ public class TwitchUnofficialApi {
                 break;
             case "channels":
                 // Get channels from search
-                List<Channel> channels = twitch.getSearchEndpoint().getChannels(query, Optional.of(limitLong));
+                List<Channel> channels = null;
+                try {
+                    String url = API_KRAKEN + "/search/channels";
+                    Logger.verbose( "Rest Request to [%s]", url);
+                    Response<String> webbResponse = webb.get(url)
+                            .param("query", query)
+                            .param("limit", limit)
+                            .param("offset", offset)
+                            .ensureSuccess()
+                            .asString();
+                    ChannelList channelList = gson.fromJson(webbResponse.getBody(), ChannelList.class);
+                    channels = channelList.getChannels();
+                }
+                catch (WebbException | JsonSyntaxException e) {
+                    Logger.warn("Request failed: " + e.getMessage());
+                    Logger.exception(e);
+                }
                 if (channels == null)
                     throw halt(BAD_GATEWAY, "Failed to get channels");
                 // Get games
@@ -1861,17 +1927,17 @@ public class TwitchUnofficialApi {
                 );
                 // Populate Streams
                 SimpleDateFormat krakenDateFormat = new SimpleDateFormat("E MMM dd HH:mm:ss z yyyy");
+                SimpleDateFormat krakenAlternateDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'");
                 // ISO8601
                 SimpleDateFormat hexlixDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
                 channelToStream:
                 for (Channel channel : channels) {
                     // Check if stream is live
-                    for (com.rolandoislas.twitchunofficial.util.twitch.helix.Stream stream : streamsHelix)
+                    for (Stream stream : streamsHelix)
                         if (String.valueOf(stream.getUserId()).equals(String.valueOf(channel.getId())))
                             continue channelToStream;
                     // Add stream from channel data
-                    com.rolandoislas.twitchunofficial.util.twitch.helix.Stream stream =
-                            new com.rolandoislas.twitchunofficial.util.twitch.helix.Stream();
+                    Stream stream = new Stream();
                     stream.setId("null"); // No stream id
                     stream.setUserId(String.valueOf(channel.getId()));
                     for (Game game : games)
@@ -1886,8 +1952,14 @@ public class TwitchUnofficialApi {
                     // Converts the time string to ISO8601
                     String createdAt = "";
                     try {
-                        Date krakenDate = krakenDateFormat.parse(String.valueOf(channel.getCreatedAt()));
-                        createdAt =  hexlixDateFormat.format(krakenDate);
+                        try {
+                            Date krakenDate = krakenAlternateDateFormat.parse(String.valueOf(channel.getCreatedAt()));
+                            createdAt = hexlixDateFormat.format(krakenDate);
+                        }
+                        catch (ParseException e) {
+                            Date krakenDate = krakenDateFormat.parse(String.valueOf(channel.getCreatedAt()));
+                            createdAt = hexlixDateFormat.format(krakenDate);
+                        }
                     }
                     catch (ParseException e) {
                         e.printStackTrace();
@@ -1908,21 +1980,37 @@ public class TwitchUnofficialApi {
                 break;
             case "games":
                 // Search
-                List<me.philippheuer.twitch4j.model.Game> gamesKraken =
-                        twitch.getSearchEndpoint().getGames(query, Optional.of(live.equals("true")));
+                List<com.rolandoislas.twitchunofficial.util.twitch.kraken.Game> gamesKraken = null;
+                try {
+                    String url = API_KRAKEN + "/search/games";
+                    Logger.verbose( "Rest Request to [%s]", url);
+                    Response<String> webbResponse = webb.get(url)
+                            .param("query", query)
+                            .param("live", live)
+                            .ensureSuccess()
+                            .asString();
+                    com.rolandoislas.twitchunofficial.util.twitch.kraken.GameList gameList =
+                            gson.fromJson(webbResponse.getBody(),
+                                    com.rolandoislas.twitchunofficial.util.twitch.kraken.GameList.class);
+                    gamesKraken = gameList.getGames();
+                }
+                catch (WebbException | JsonSyntaxException e) {
+                    Logger.warn("Request failed: " + e.getMessage());
+                    Logger.exception(e);
+                }
                 // Get games from the Helix endpoint
                 List<String> gameIds = new ArrayList<>();
                 if (gamesKraken != null)
-                    for (me.philippheuer.twitch4j.model.Game game : gamesKraken)
+                    for (com.rolandoislas.twitchunofficial.util.twitch.kraken.Game game : gamesKraken)
                         gameIds.add(String.valueOf(game.getId()));
                 if (gameIds.size() > 0)
                     games = getGames(gameIds, null);
                 // Add viewers to helix data
                 if (games != null && gamesKraken != null) {
                     for (Game game : games)
-                        for (me.philippheuer.twitch4j.model.Game gameKraken : gamesKraken)
+                        for (com.rolandoislas.twitchunofficial.util.twitch.kraken.Game gameKraken : gamesKraken)
                             if (String.valueOf(game.getId()).equals(String.valueOf(gameKraken.getId())))
-                                game.setViewers(gameKraken.getPopularity());
+                                game.setViewers((int) gameKraken.getPopularity());
                     games.sort(new GameViewComparator().reversed());
                 }
                 json = gson.toJson(games);
@@ -1942,7 +2030,7 @@ public class TwitchUnofficialApi {
      * @return json
      */
     @Cached
-    static String getTopGamesHelix(Request request, @SuppressWarnings("unused") Response response) {
+    static String getTopGamesHelix(Request request, @SuppressWarnings("unused") spark.Response response) {
         checkAuth(request);
         // Params
         String after = request.queryParams("after");
@@ -1964,32 +2052,37 @@ public class TwitchUnofficialApi {
 
         // Fetch live data
         String requestUrl = String.format("%s/games/top", API);
-        RestTemplate restTemplate;
-        if (twitchOauth != null)
-            restTemplate = getPrivilegedRestTemplate(twitchOauth);
+        Webb webb;
+        if (getTwitchCredentials().getAppToken() != null)
+            webb = getPrivilegedWebb(getTwitchCredentials().getAppToken());
         else
-            restTemplate = getRestTemplate();
+            webb = getWebb();
+        // Params
+        Map<String, Object> params = new HashMap<>();
         if (after != null)
-            restTemplate.getInterceptors().add(new QueryRequestInterceptor("after", after));
+            params.put("after", after);
         if (before != null)
-            restTemplate.getInterceptors().add(new QueryRequestInterceptor("before", before));
-        restTemplate.getInterceptors().add(new QueryRequestInterceptor("first", first));
+            params.put("before", before);
+        params.put("first", first);
         // REST Request
         List<Game> games = null;
+        //noinspection Duplicates
         try {
             Logger.verbose( "Rest Request to [%s]", requestUrl);
-            ResponseEntity<String> responseObject = restTemplate.exchange(requestUrl, HttpMethod.GET, null,
-                    String.class);
-            logTwitchRateLimit(responseObject);
+            Response<String> webbResponse = webb.get(requestUrl)
+                    .params(params)
+                    .ensureSuccess()
+                    .asString();
+            logTwitchRateLimit(webbResponse);
             try {
-                GameList gameList = gson.fromJson(responseObject.getBody(), GameList.class);
+                GameList gameList = gson.fromJson(webbResponse.getBody(), GameList.class);
                 games = gameList.getGames();
             }
             catch (JsonSyntaxException e) {
                 Logger.exception(e);
             }
         }
-        catch (RestClientException | RestException e) {
+        catch (WebbException e) {
             Logger.warn("Request failed: " + e.getMessage());
             Logger.exception(e);
         }
@@ -2009,7 +2102,7 @@ public class TwitchUnofficialApi {
      * @return json
      */
     @Cached
-    static String getUsersHelix(Request request, Response response) {
+    static String getUsersHelix(Request request, spark.Response response) {
         checkAuth(request);
         // Params
         String token = AuthUtil.extractTwitchToken(request);
@@ -2085,7 +2178,7 @@ public class TwitchUnofficialApi {
      * @return video json
      */
     @Cached
-    static String getVideosHelix(Request request, @SuppressWarnings("unused") Response response) {
+    static String getVideosHelix(Request request, @SuppressWarnings("unused") spark.Response response) {
         checkAuth(request);
         // Parse query params
         String userId = request.queryParams("user_id");
@@ -2138,7 +2231,7 @@ public class TwitchUnofficialApi {
         if (cachedResponse != null)
             return cachedResponse;
         // Request live data
-        List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> videos = getVideos(ids, userId, gameId, after,
+        List<Stream> videos = getVideos(ids, userId, gameId, after,
                 before, first, language, period, sort, type);
         if (videos == null)
             throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
@@ -2169,7 +2262,7 @@ public class TwitchUnofficialApi {
      */
     @NotCached
     @Nullable
-    private static List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> getVideos(
+    private static List<Stream> getVideos(
             @Nullable List<String> ids,
             @Nullable String userId,
             @Nullable String gameId,
@@ -2181,76 +2274,71 @@ public class TwitchUnofficialApi {
             @Nullable String sort,
             @Nullable String type) {
         // Rest template
-        RestTemplate restTemplate;
-        if (twitchOauth != null)
-            restTemplate = getPrivilegedRestTemplate(twitchOauth);
+        Webb webb;
+        if (getTwitchCredentials().getAppToken() != null)
+            webb = getPrivilegedWebb(getTwitchCredentials().getAppToken());
         else
-            restTemplate = getRestTemplate();
+            webb = getWebb();
         // Rest URL
         String requestUrl = String.format("%s/videos", API);
+        // Params
+        Map<String, Object> params = new HashMap<>();
         if (ids != null)
-            for (String id : ids)
-                restTemplate.getInterceptors().add(new QueryRequestInterceptor("id", id));
+            params.put("id", ids);
         if (userId != null)
-            restTemplate.getInterceptors().add(new QueryRequestInterceptor("user_id", userId));
+            params.put("user_id", userId);
         if (gameId != null)
-            restTemplate.getInterceptors().add(new QueryRequestInterceptor("game_id", gameId));
+            params.put("game_id", gameId);
         if (after != null)
-            restTemplate.getInterceptors().add(new QueryRequestInterceptor("after", after));
+            params.put("after", after);
         if (before != null)
-            restTemplate.getInterceptors().add(new QueryRequestInterceptor("before", before));
+            params.put("before", before);
         if (first != null)
-            restTemplate.getInterceptors().add(new QueryRequestInterceptor("first", first));
+            params.put("first", first);
         if (language != null)
-            restTemplate.getInterceptors().add(new QueryRequestInterceptor("language", language));
+            params.put("language", language);
         if (period != null)
-            restTemplate.getInterceptors().add(new QueryRequestInterceptor("period", period));
+            params.put("period", period);
         if (sort != null)
-            restTemplate.getInterceptors().add(new QueryRequestInterceptor("sort", sort));
+            params.put("sort", sort);
         if (type != null)
-            restTemplate.getInterceptors().add(new QueryRequestInterceptor("type", type));
+            params.put("type", type);
         // REST Request
-        List<com.rolandoislas.twitchunofficial.util.twitch.helix.Stream> videos = null;
+        List<Stream> videos = null;
         try {
             Logger.verbose( "Rest Request to [%s]", requestUrl);
-            ResponseEntity<String> responseObject = restTemplate.exchange(requestUrl, HttpMethod.GET, null,
-                    String.class);
-            logTwitchRateLimit(responseObject);
-            try {
-                StreamList streamList = gson.fromJson(responseObject.getBody(), StreamList.class);
-                videos = streamList.getStreams();
-                // Convert the duration string to seconds
-                for (com.rolandoislas.twitchunofficial.util.twitch.helix.Stream video : videos) {
-                    if (video.getDuration() == null)
-                        continue;
-                    Matcher matcher = DURATION_REGEX.matcher(video.getDuration());
-                    if (!matcher.matches())
-                        continue;
-                    long durationSeconds = 0;
-                    // Seconds
-                    if (matcher.groupCount() >= 4)
-                        durationSeconds += StringUtil.parseLong(matcher.group(4));
-                    // Minutes
-                    if (matcher.groupCount() >= 3)
-                        durationSeconds += StringUtil.parseLong(matcher.group(3)) * 60;
-                    // Hours
-                    if (matcher.groupCount() >= 2)
-                        durationSeconds += StringUtil.parseLong(matcher.group(2)) * 60 * 60;
-                    // Days
-                    if (matcher.groupCount() >= 1)
-                        durationSeconds += StringUtil.parseLong(matcher.group(1)) * 24 * 60 * 60;
-                    video.setDurationSeconds(durationSeconds);
-                }
-            }
-            catch (JsonSyntaxException e) {
-                Logger.exception(e);
+            Response<String> response = webb.get(requestUrl)
+                    .params(params)
+                    .ensureSuccess()
+                    .asString();
+            logTwitchRateLimit(response);
+            StreamList streamList = gson.fromJson(response.getBody(), StreamList.class);
+            videos = streamList.getStreams();
+            // Convert the duration string to seconds
+            for (Stream video : videos) {
+                if (video.getDuration() == null)
+                    continue;
+                Matcher matcher = DURATION_REGEX.matcher(video.getDuration());
+                if (!matcher.matches())
+                    continue;
+                long durationSeconds = 0;
+                // Seconds
+                if (matcher.groupCount() >= 4)
+                    durationSeconds += StringUtil.parseLong(matcher.group(4));
+                // Minutes
+                if (matcher.groupCount() >= 3)
+                    durationSeconds += StringUtil.parseLong(matcher.group(3)) * 60;
+                // Hours
+                if (matcher.groupCount() >= 2)
+                    durationSeconds += StringUtil.parseLong(matcher.group(2)) * 60 * 60;
+                // Days
+                if (matcher.groupCount() >= 1)
+                    durationSeconds += StringUtil.parseLong(matcher.group(1)) * 24 * 60 * 60;
+                video.setDurationSeconds(durationSeconds);
             }
         }
-        catch (RestClientException | RestException e) {
-            if (e instanceof RestException)
-                Logger.warn("Request failed: " + ((RestException)e).getRestError().getMessage());
-            else
-                Logger.warn("Request failed: " + e.getMessage());
+        catch (WebbException | JsonSyntaxException e) {
+            Logger.warn("Request failed: " + e.getMessage());
             Logger.exception(e);
         }
         if (videos != null)
@@ -2266,7 +2354,7 @@ public class TwitchUnofficialApi {
      */
     @NotCached
     @Deprecated
-    static String followKraken(Request request, @SuppressWarnings("unused") Response response) {
+    static String followKraken(Request request, @SuppressWarnings("unused") spark.Response response) {
         checkAuth(request);
         // Params
         String id = request.queryParams("id");
@@ -2277,29 +2365,28 @@ public class TwitchUnofficialApi {
         if (token == null)
             throw halt(BAD_REQUEST, "No token");
         // Follow
-        OAuthCredential oauth = new OAuthCredential(token);
         List<User> users = getUsers(null, null, token);
         if (users == null || users.size() != 1)
             throw halt(BAD_REQUEST, "Invalid token");
-        oauth.setUserId(StringUtil.parseLong(users.get(0).getId()));
+        String userId = users.get(0).getId();
 
         // Endpoint
-        String requestUrl = String.format("%s/users/%s/follows/channels/%s", Endpoints.API.getURL(), oauth.getUserId(),
-                followIdLong);
-        RestTemplate restTemplate = getPrivilegedRestTemplateKraken(oauth);
+        String requestUrl = String.format("%s/users/%s/follows/channels/%s", API_KRAKEN, userId, id);
+        Webb webb = getPrivilegedWebbKraken(token);
 
         // REST Request
         try {
             Logger.verbose("Rest Request to [%s]", requestUrl);
-            restTemplate.put(requestUrl, "");
+            webb.put(requestUrl).body("").ensureSuccess().asVoid();
         }
-        catch (RestException e) {
-            Logger.extra("RestException: " + e.getRestError().toString());
+        catch (WebbException e) {
+            Logger.warn("Request failed: " + e.getMessage());
+            Logger.exception(e);
         }
         catch (Exception e) {
             Logger.exception(e);
         }
-        cacheFollows(String.valueOf(oauth.getUserId()), true);
+        cacheFollows(userId, true);
         return "{}";
     }
 
@@ -2311,7 +2398,7 @@ public class TwitchUnofficialApi {
      */
     @NotCached
     @Deprecated
-    static String unfollowKraken(Request request, @SuppressWarnings("unused") Response response) {
+    static String unfollowKraken(Request request, @SuppressWarnings("unused") spark.Response response) {
         checkAuth(request);
         // Params
         String id = request.queryParams("id");
@@ -2322,13 +2409,30 @@ public class TwitchUnofficialApi {
         if (token == null)
             throw halt(BAD_REQUEST, "No token");
         // Unfollow
-        OAuthCredential oauth = new OAuthCredential(token);
         List<User> users = getUsers(null, null, token);
         if (users == null || users.size() != 1)
             throw halt(BAD_REQUEST, "Invalid token");
-        oauth.setUserId(StringUtil.parseLong(users.get(0).getId()));
-        twitch.getUserEndpoint().unfollowChannel(oauth, followIdLong);
-        cacheFollows(String.valueOf(oauth.getUserId()), true);
+        String userId = users.get(0).getId();
+        // Rest request
+        String requestUrl = String.format("%s/users/%s/follows/channels/%s", API_KRAKEN, userId, id);
+        Webb webb = getPrivilegedWebbKraken(token);
+        try {
+            Logger.verbose("Rest Request to [%s]", requestUrl);
+            webb.delete(requestUrl).body("").ensureSuccess().asVoid();
+        }
+        catch (WebbException e) {
+            Logger.warn("Request failed: " + e.getMessage());
+            Logger.exception(e);
+        }
+        cacheFollows(userId, true);
         return "{}";
+    }
+
+    /**
+     * Getter
+     * @return twitch credentials
+     */
+    static TwitchCredentials getTwitchCredentials() {
+        return TwitchUnofficialApi.twitchCredentials;
     }
 }

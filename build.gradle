@@ -27,8 +27,7 @@ dependencies {
     compile "redis.clients:jedis:$jedisVersion"
     compile "com.google.code.gson:gson:$gsonVersion"
     compile "com.goebl:david-webb:$webbVersion"
-    //compile "org.slf4j:slf4j-simple:$slf4jSimpleVersion"
-    compile "com.github.twitch4j:twitch4j:$twitch4jVersion"
+    compile "org.slf4j:slf4j-simple:$slf4jSimpleVersion"
     compile "org.jetbrains:annotations:$annotationVersion"
     compile "com.github.spotbugs:spotbugs:$spotBugsVersion"
 

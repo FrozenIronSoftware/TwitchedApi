@@ -5,6 +5,7 @@
 
 package com.rolandoislas.twitchunofficial;
 
+import com.rolandoislas.twitchunofficial.data.Constants;
 import com.rolandoislas.twitchunofficial.util.ApiCache;
 import com.rolandoislas.twitchunofficial.util.AuthUtil;
 import com.rolandoislas.twitchunofficial.util.Logger;
@@ -41,7 +42,7 @@ public class TwitchUnofficial {
             AuthUtil.setAuthenticate(false);
         // Init logger
         Logger.setLevel(Level.parse(logLevel));
-        Logger.info("Starting");
+        Logger.info("Starting Twitched %s", Constants.VERSION);
         // Parse port
         int port = 5000;
         String portString = System.getenv("PORT");
