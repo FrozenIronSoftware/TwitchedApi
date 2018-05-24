@@ -50,8 +50,6 @@ import me.philippheuer.util.rest.HeaderRequestInterceptor;
 import me.philippheuer.util.rest.QueryRequestInterceptor;
 import me.philippheuer.util.rest.RestErrorHandler;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.maven.artifact.versioning.ComparableVersion;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
@@ -59,7 +57,6 @@ import org.jetbrains.annotations.Nullable;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import spark.HaltException;
@@ -67,11 +64,8 @@ import spark.Request;
 import spark.Response;
 import spark.Spark;
 
-import javax.net.ssl.SSLContext;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
-import java.security.KeyManagementException;
-import java.security.NoSuchAlgorithmException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -614,10 +608,7 @@ public class TwitchUnofficialApi {
     @Nullable
     private static String getAppToken(String twitchClientId, String twitchClientSecret) {
         // Construct template
-        HttpComponentsClientHttpRequestFactory factory = getHttpFactoryWithTls();
         RestTemplate restTemplate = new RestTemplate();
-        if (factory != null)
-            restTemplate.setRequestFactory(factory);
         restTemplate.setInterceptors(new ArrayList<>());
         restTemplate.setErrorHandler(new RestErrorHandler());
 
@@ -662,24 +653,6 @@ public class TwitchUnofficialApi {
             Logger.warn(StringUtils.repeat("=", 80));
             return null;
         }
-    }
-
-    /**
-     * Construct an http components client http factory with TLS 1.2
-     * @return factory or null on error
-     */
-    @Nullable
-    private static HttpComponentsClientHttpRequestFactory getHttpFactoryWithTls() {
-        HttpComponentsClientHttpRequestFactory factory = null;
-        try {
-            SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
-            sslContext.init(null, null, null);
-            CloseableHttpClient httpClient = HttpClientBuilder.create().setSSLContext(sslContext).build();
-            factory = new HttpComponentsClientHttpRequestFactory(httpClient);
-        } catch (NoSuchAlgorithmException | KeyManagementException e) {
-            Logger.exception(e);
-        }
-        return factory;
     }
 
     /**
@@ -1143,9 +1116,6 @@ public class TwitchUnofficialApi {
     @NotCached
     private static RestTemplate getRestTemplate() {
         RestTemplate restTemplate = twitch.getRestClient().getPlainRestTemplate();
-        @Nullable HttpComponentsClientHttpRequestFactory factory = getHttpFactoryWithTls();
-        if (factory != null)
-            restTemplate.setRequestFactory(factory);
         restTemplate.getInterceptors().add(new HeaderRequestInterceptor("Accept", "*/*"));
         restTemplate.getInterceptors().add(new HeaderRequestInterceptor("Client-ID", twitch.getClientId()));
         return restTemplate;

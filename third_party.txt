@@ -962,14 +962,6 @@ under the License.
 
 SpotBugs is licensed under the GNU Lesser General Public License Version 2.1.
 
-[Apache HttpClient]
-
-Apache HttpComponents Client
-Copyright 1999-2018 The Apache Software Foundation
-
-This product includes software developed at
-The Apache Software Foundation (http://www.apache.org/).
-
 -------------------------------------------------------------------------------
 
 [Apache License 2.0]
