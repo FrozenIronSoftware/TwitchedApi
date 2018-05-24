@@ -9,6 +9,8 @@ This web applet is powered by the Gradle build system and designed to
  
 ## Building
 
+**IDE: The project must be built with gradle first for the constants class to be generated and available to the IDE.**
+
 ```
 ./gradlew jar
 ```

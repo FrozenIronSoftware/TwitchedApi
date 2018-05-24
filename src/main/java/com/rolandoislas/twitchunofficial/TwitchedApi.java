@@ -497,7 +497,8 @@ class TwitchedApi {
         Webb webb = Webb.create();
         webb.setDefaultHeader("Accept", "*/*");
         webb.setDefaultHeader("User-Agent",
-                String.format("Twitched/%s (Java/%s)",
+                String.format("%s/%s (Java/%s)",
+                        Constants.NAME,
                         Constants.VERSION,
                         System.getProperty("java.version")));
         return webb;

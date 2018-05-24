@@ -1,8 +1,12 @@
-version = "1.4"
+plugins {
+    id "de.fuerstenau.buildconfig" version "1.1.8"
+}
 
 apply plugin: "java"
 apply plugin: "project-report"
+apply plugin: "idea"
 
+version = "1.5"
 sourceCompatibility = 1.8
 
 repositories {
@@ -38,4 +42,12 @@ jar {
         attributes "Main-Class": "com.rolandoislas.twitchunofficial.TwitchUnofficial"
     }
     from {configurations.compile.collect {zipTree(it)}}
+}
+
+buildConfig {
+    appName = project.name
+    version = project.version
+    clsName = "Constants"
+    packageName = "com.rolandoislas.twitchunofficial.data"
+    charset = "UTF-8"
 }
