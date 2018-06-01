@@ -2242,7 +2242,7 @@ public class TwitchUnofficialApi {
         //}
         // Cache and return
         String json = gson.toJson(videos);
-        cache.set(requestId, json);
+        cache.set(requestId, json, ApiCache.TIMEOUT_HOUR);
         return json;
     }
 

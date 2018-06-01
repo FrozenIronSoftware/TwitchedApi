@@ -28,7 +28,7 @@ import java.util.Set;
 
 public class ApiCache {
     private static final int TIMEOUT = 60 * 3; // Seconds before a cache value should be considered invalid
-    private static final int TIMEOUT_HOUR = 60 * 60;
+    public static final int TIMEOUT_HOUR = 60 * 60;
     private static final int TIMEOUT_DAY = 24 * 60 * 60; // 1 Day
     @SuppressWarnings("unused")
     private static final String USER_NAME_FIELD_PREFIX = "_u_";
@@ -111,16 +111,24 @@ public class ApiCache {
     }
 
     /**
-     * Set a key with the default cache timeout
      * @param key key to set
      * @param value value to set the key
+     * @param timeout cache expire time in seconds
      */
-    public void set(String key, String value) {
+    public void set(String key, String value, int timeout) {
         try (Jedis redis = getAuthenticatedJedis()) {
-            redis.setex(key, TIMEOUT, value);
+            redis.setex(key, timeout, value);
         } catch (Exception e) {
             Logger.exception(e);
         }
+    }
+
+    /**
+     * Set a key with the default cache timeout
+     * @see #set(String, String, int)
+     */
+    public void set(String key, String value) {
+        set(key, value, TIMEOUT);
     }
 
     /**
