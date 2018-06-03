@@ -2232,7 +2232,7 @@ public class TwitchUnofficialApi {
             return cachedResponse;
         // Request live data
         List<Stream> videos = getVideos(ids, userId, gameId, after,
-                before, first, language, period, sort, type);
+                before, first, language, period, sort, type, HeaderUtil.extractVersion(request));
         if (videos == null)
             throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
         // Add game to video
@@ -2258,6 +2258,7 @@ public class TwitchUnofficialApi {
      * @param period time period - all, day, month, week
      * @param sort sort method - time, trending, views
      * @param type type - all, upload, archive, highlight
+     * @param version requesting client version
      * @return list of videos
      */
     @NotCached
@@ -2272,7 +2273,8 @@ public class TwitchUnofficialApi {
             @Nullable String language,
             @Nullable String period,
             @Nullable String sort,
-            @Nullable String type) {
+            @Nullable String type,
+            @NotNull ComparableVersion version) {
         // Rest template
         Webb webb;
         if (getTwitchCredentials().getAppToken() != null)
@@ -2341,8 +2343,17 @@ public class TwitchUnofficialApi {
             Logger.warn("Request failed: " + e.getMessage());
             Logger.exception(e);
         }
-        if (videos != null)
+        if (videos != null) {
             addNamesToStreams(videos);
+            if (version.compareTo(new ComparableVersion("1.5")) >= 0) {
+                for (Stream video : videos) {
+                    if (video.getThumbnailUrl() != null && !video.getThumbnailUrl().isEmpty()) {
+                        video.setThumbnailUrl(video.getThumbnailUrl().replace("%{width}", "{width}")
+                                .replace("%{height}", "{height}"));
+                    }
+                }
+            }
+        }
         return videos;
     }
 
