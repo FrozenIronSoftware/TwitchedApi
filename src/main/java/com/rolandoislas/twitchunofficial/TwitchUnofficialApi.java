@@ -1743,7 +1743,7 @@ public class TwitchUnofficialApi {
                 long firstLong = Long.parseLong(first);
                 Pagination pagination = new Pagination(
                         (offsetLong - 1) * firstLong,
-                        (offsetLong + 1) * firstLong
+                        offsetLong * firstLong
                 );
                 return pagination.getCursor();
             }
@@ -2190,6 +2190,15 @@ public class TwitchUnofficialApi {
         String period = request.queryParams("period");
         String sort = request.queryParams("sort");
         String type = request.queryParams("type");
+        // Non-spec params
+        String offset = request.queryParams("offset");
+        if (first == null)
+            first = request.queryParamOrDefault("limit", "20");
+        // Set after based on offset
+        String afterFromOffset = getAfterFromOffset(offset, first);
+        if (afterFromOffset != null)
+            after = afterFromOffset;
+        // Request
         List<String> ids = new ArrayList<>();
         String[] queryParams = request.queryString() != null ? request.queryString().split("&") : new String[0];
         for (String queryParam : queryParams) {
@@ -2209,9 +2218,6 @@ public class TwitchUnofficialApi {
                     ids.add(value);
             }
         }
-        // Additional params
-        if (first == null || first.isEmpty())
-            first = request.queryParams("limit");
         // Check params
         if ((userId == null || userId.isEmpty()) && (gameId == null || gameId.isEmpty()) && ids.isEmpty())
             throw halt(BAD_REQUEST, "Missing user_id, game_id, or id");
