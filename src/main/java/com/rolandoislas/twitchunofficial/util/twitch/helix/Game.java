@@ -37,4 +37,20 @@ public class Game {
     public long getViewersPrimitive() {
         return viewers != null ? viewers : 0;
     }
+
+    public void setViewers(long viewers) {
+        this.viewers = viewers;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public void setBoxArtUrl(String boxArtUrl) {
+        this.boxArtUrl = boxArtUrl;
+    }
 }

@@ -11,6 +11,12 @@ public class Game {
     private Preview logo;
     private String name;
     private long popularity;
+    private Object properties;
+    @SerializedName(value = "links", alternate = "_links")
+    private Object links;
+    @SerializedName("localized_name")
+    private String localizedName;
+    private String locale;
 
     public long getId() {
         return id;
@@ -18,5 +24,13 @@ public class Game {
 
     public long getPopularity() {
         return popularity;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public Preview getBox() {
+        return box;
     }
 }

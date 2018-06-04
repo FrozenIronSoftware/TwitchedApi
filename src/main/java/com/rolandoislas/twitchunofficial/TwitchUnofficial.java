@@ -116,6 +116,13 @@ public class TwitchUnofficial {
                 get("/vod/*/*/*", TwitchUnofficialApi::getVodData);
                 get("/vod/*/*", TwitchUnofficialApi::getVodData);
                 get("/vod/*", TwitchUnofficialApi::getVodData);
+                // Undocumented game follows endpoint
+                path("/games", () -> {
+                    get("/follows", TwitchUnofficialApi::getFollowedGames);
+                    get("/follow", TwitchUnofficialApi::followGame);
+                    get("/unfollow", TwitchUnofficialApi::unfollowGame);
+                    get("/following", TwitchUnofficialApi::getFollowingGame);
+                });
             });
             // Twitched
             path("/link", () -> {
