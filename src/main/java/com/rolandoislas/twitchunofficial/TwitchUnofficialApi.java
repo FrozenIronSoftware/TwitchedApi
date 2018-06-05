@@ -2480,7 +2480,7 @@ public class TwitchUnofficialApi {
             Logger.verbose("Rest request to [%s]", url);
             Response<String> webbResponse = webb.get(url)
                     .param("limit", limit)
-                    .param("offset", offset)
+                    .param("offset", StringUtil.parseLong(offset) * StringUtil.parseLong(limit))
                     .ensureSuccess()
                     .asString();
             FollowedGameList followedGameList = gson.fromJson(webbResponse.getBody(), FollowedGameList.class);
