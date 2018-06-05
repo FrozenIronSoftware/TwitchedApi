@@ -2544,8 +2544,14 @@ public class TwitchUnofficialApi {
         checkAuth(request);
         // Params
         String name = request.queryParams("name");
+        // Id to name
+        String id = request.queryParams("id");
+        if (id != null && !id.isEmpty()) {
+            Map<String, String> gameNames = getGameNames(Collections.singletonList(id));
+            name = gameNames.get(id);
+        }
         if (name == null || name.isEmpty())
-            throw halt(BAD_REQUEST, "No game name provided");
+            throw halt(BAD_REQUEST, "Missing name or id");
         String token = AuthUtil.extractTwitchToken(request);
         if (token == null || token.isEmpty())
             throw halt(BAD_REQUEST, "No Twitch token provided");
@@ -2584,8 +2590,14 @@ public class TwitchUnofficialApi {
         checkAuth(request);
         // Params
         String name = request.queryParams("name");
+        // Id to name
+        String id = request.queryParams("id");
+        if (id != null && !id.isEmpty()) {
+            Map<String, String> gameNames = getGameNames(Collections.singletonList(id));
+            name = gameNames.get(id);
+        }
         if (name == null || name.isEmpty())
-            throw halt(BAD_REQUEST, "No game name provided");
+            throw halt(BAD_REQUEST, "Missing name or id");
         String token = AuthUtil.extractTwitchToken(request);
         if (token == null || token.isEmpty())
             throw halt(BAD_REQUEST, "No Twitch token provided");
@@ -2618,6 +2630,14 @@ public class TwitchUnofficialApi {
         checkAuth(request);
         // Params
         String name = request.queryParams("name");
+        // Id to name
+        String id = request.queryParams("id");
+        if (id != null && !id.isEmpty()) {
+            Map<String, String> gameNames = getGameNames(Collections.singletonList(id));
+            name = gameNames.get(id);
+        }
+        if (name == null || name.isEmpty())
+            throw halt(BAD_REQUEST, "Missing name or id");
         String noCache = request.queryParamOrDefault("no_cache", "false");
         String token = AuthUtil.extractTwitchToken(request);
         if (token == null || token.isEmpty())
