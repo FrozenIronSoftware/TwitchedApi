@@ -506,15 +506,8 @@ public class TwitchUnofficialApi {
                 maxQuality60 = 0;
                 maxBitrate = 4 * ONE_MILLION;
                 break;
-            // Liberty - Roku TV - Cannot play 60 FPS from Twitch
-            case "5000X":
-                maxQuality30 = 1080;
-                maxQuality60 = 0;
-                maxBitrate = 7 * ONE_MILLION;
-                break;
             // 1080 60 FPS
             case "8000X": // Midland - Roku TV
-            case "3800X": // Amarillo - Roku Streaming Stick
             case "3910X": // Gilbert - Roku Express Plus
             case "3900X": // Gilbert - Roku Express
             case "3710X": // Littlefield - Roku Express Plus
@@ -535,6 +528,8 @@ public class TwitchUnofficialApi {
             case "3420X": // Jackson - Roku Streaming Stick
             case "3100X": // Giga - Roku 2 XS
             case "3050X": // Giga - Roku 2 XD
+            case "5000X": // Liberty - Roku TV - gh#4
+            case "3800X": // Amarillo - Roku Streaming Stick - gh#23
                 maxQuality30 = 1080;
                 maxQuality60 = 0;
                 maxBitrate = 7 * ONE_MILLION;
