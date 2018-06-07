@@ -266,3 +266,22 @@ hr {
 .screenshots img {
     width: 100%;
 }
+
+/*
+ * Dependencies list
+ */
+
+.dep-item {
+    background: rgba(124, 125, 124, 0.63);
+    cursor: pointer;
+    padding: 10px;
+    margin: 5px;
+}
+
+.dep-header {
+
+}
+
+.dep-text {
+    display: none;
+}

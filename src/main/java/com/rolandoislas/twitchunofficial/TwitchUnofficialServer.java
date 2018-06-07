@@ -16,6 +16,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 class TwitchUnofficialServer {
@@ -29,14 +31,26 @@ class TwitchUnofficialServer {
      */
     private static String getPartialWithHtmlLineBreaks(String fileName,
                                                        @SuppressWarnings("SameParameterValue")
-                                                               boolean replaceOnlyDouble) {
+                                                               boolean replaceOnlyDouble, boolean keepOriginalBreaks) {
         InputStream fileStream = ClassLoader.getSystemResourceAsStream("templates/partial/" + fileName);
         String fileString = new BufferedReader(new InputStreamReader(fileStream))
                 .lines().collect(Collectors.joining("\n"));
         fileString = fileString
                 .replaceAll("<", "&lt;")
-                .replaceAll(replaceOnlyDouble ? "\n\n" : "\n", replaceOnlyDouble ? "<br><br>" : "<br>");
+                .replaceAll(replaceOnlyDouble ? "\n\n" : "\n",
+                        replaceOnlyDouble ?
+                                keepOriginalBreaks ? "\n\n<br><br>" : "<br><br>" :
+                                keepOriginalBreaks ? "\n<br>" : "<br>");
         return fileString;
+    }
+
+    /**
+     * @see #getPartialWithHtmlLineBreaks(String, boolean, boolean)
+     */
+    private static String getPartialWithHtmlLineBreaks(String fileName,
+                                                       @SuppressWarnings("SameParameterValue")
+                                                               boolean replaceOnlyDouble) {
+        return getPartialWithHtmlLineBreaks(fileName, replaceOnlyDouble, false);
     }
 
     /**
@@ -122,10 +136,47 @@ class TwitchUnofficialServer {
     static String getInfoOss(@SuppressWarnings("unused") Request request,
                              @SuppressWarnings("unused") Response response) {
         Map<String, Object> model = new HashMap<>();
-        model.put("text_website", getPartialWithHtmlLineBreaks("third_party.txt", true));
-        model.put("text_roku", getPartialWithHtmlLineBreaks("third_party_roku.txt", true));
-        model.put("text_apple_tv", getPartialWithHtmlLineBreaks("third_party_apple_tv.txt", true));
+        model.put("text_website",
+                parseBrackets(getPartialWithHtmlLineBreaks("third_party.txt", true,
+                        true)));
+        model.put("text_roku",
+                parseBrackets(getPartialWithHtmlLineBreaks("third_party_roku.txt", true,
+                        true)));
+        model.put("text_apple_tv",
+                parseBrackets(getPartialWithHtmlLineBreaks("third_party_apple_tv.txt", true,
+                        true)));
         return new HandlebarsTemplateEngine().render(new ModelAndView(model, "info_oss.hbs"));
+    }
+
+    /**
+     * Parse text as a list of items. Each item should start with a title wrapped in brackets (e.g. [foo bar])
+     * @param text text
+     * @return html
+     */
+    private static String parseBrackets(String text) {
+        StringBuilder html = new StringBuilder();
+        String[] lines = text.split("(?<=\n|<br>)");
+        StringBuilder item = null;
+        for (int lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+            String line = lines[lineIndex];
+            if (line.startsWith("[") || lineIndex == lines.length - 1) {
+                if (item != null) {
+                    item.append("</p>");
+                    item.append("</div>");
+                    html.append(item);
+                }
+                item = new StringBuilder();
+                item.append("<div class=\"dep-item dep-closed\">");
+                item.append("<h4 class=\"dep-header\">");
+                item.append(line.replace("[", "").replace("]", ""));
+                item.append("</h4>");
+                item.append("<p class=\"dep-text\">");
+            }
+            else if (item != null) {
+                item.append(line);
+            }
+        }
+        return html.toString();
     }
 
     /**
