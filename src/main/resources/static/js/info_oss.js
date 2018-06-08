@@ -37,6 +37,5 @@ function addDependencyItemClickHandler() {
     }
 }
 
-window.onload = function () {
-    addDependencyItemClickHandler()
-};
+
+window.addEventListener("load", addDependencyItemClickHandler, false);

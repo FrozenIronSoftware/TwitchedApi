@@ -68,7 +68,8 @@ public class TwitchUnofficial {
         port(port);
         staticFiles.location("/static/");
         TwitchUnofficial.cache = new ApiCache(redisServer);
-        TwitchUnofficialApi.init(twitchClientId, twitchClientSecret);
+        // TODO DEV disabled
+        //TwitchUnofficialApi.init(twitchClientId, twitchClientSecret);
         // Redirect paths with a trailing slash
         before((Filter) (request, response) -> {
             if (request.pathInfo().endsWith("/") && !request.pathInfo().equals("/"))

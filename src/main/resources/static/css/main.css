@@ -24,6 +24,7 @@
 
 body {
     background: rgb(47, 47, 47);
+    min-width: 160px;
 }
 
 hr {
@@ -116,6 +117,24 @@ hr {
     font-family: sans-serif;
     margin: 0 auto;
     text-align: center;
+    font-size: 1.5em;
+}
+
+.info-links a {
+    text-decoration: none;
+}
+
+.info-link {
+    width: 21%;
+    height: auto;
+    margin: 1% 0 0 1%;
+    background: rgb(185, 185, 185);
+    padding: 5%;
+    cursor: pointer;
+}
+
+.info-link:hover {
+    background: rgb(146, 146, 146);
 }
 
 /**
@@ -212,6 +231,14 @@ hr {
     color: rgb(255, 255, 255);
 }
 
+#nav-expander {
+    width: 39px;
+    height: 39px;
+    background: url("/image/nav-expander.png");
+    float: left;
+    cursor: pointer;
+}
+
 /*
  * Form
  */
@@ -221,7 +248,7 @@ hr {
 }
 
 .link-code-field {
-    width: 600px;
+    width: 100%;
     height: 100px;
     margin: 0 auto;
     color: rgb(201, 201, 201);
@@ -235,14 +262,14 @@ hr {
 }
 
 .link-submit {
-    width: 200px;
+    width: 27%;
     height: 50px;
     margin: 0 auto;
     display: block;
     font-size: 40px;
     line-height: 50px;
     text-align: center;
-    cursor: hand;
+    cursor: pointer;
 }
 
 .error {
@@ -284,4 +311,173 @@ hr {
 
 .dep-text {
     display: none;
+}
+
+/*
+ * Responsive
+ */
+
+/* Medium screens */
+@media only screen and (max-width: 960px) {
+    .button {
+        width: 40%;
+        font-size: 50px;
+        height: 50px;
+        line-height: 50px;
+    }
+
+    .button-tall {
+        height: 70px;
+        line-height: 70px;
+    }
+
+    .title {
+        font-size: 50px;
+    }
+
+    .sub-title {
+        font-size: 1em;
+    }
+
+    .screenshots {
+        width: 80%;
+    }
+
+    .nav ul, .nav-links {
+        margin: 60px 0 0 -10000px;
+        position: absolute;
+        width: 127%;
+        background: rgb(232, 232, 232);
+    }
+
+    .nav ul li {
+        display: block;
+        border-bottom: 1px solid rgb(124, 125, 124);
+        margin: 0;
+        padding: 0 0 0 10%;
+    }
+
+    .nav ul li a {
+        color: rgb(0, 0, 0);
+        font-size: 50px;
+        line-height: 80px;
+        display: block;
+        width: 100%;
+    }
+
+    .nav ul li a:hover {
+        color: rgb(51, 51, 51);
+    }
+
+    #nav-expander {
+        display: block;
+    }
+
+    .nav-logo {
+        margin: 0;
+        float: right;
+    }
+
+    .text-inner {
+        width: 90%;
+    }
+
+    .link-submit {
+        font-size: 30px;
+        line-height: 40px;
+    }
+
+    .link-code-field {
+        font-size: 50px;
+        line-height: 50px;
+    }
+}
+
+/* Small screens */
+@media only screen and (max-width: 600px) {
+    .nav ul li a {
+        color: rgb(0, 0, 0);
+        font-size: 25px;
+        line-height: 55px;
+    }
+
+    .title {
+        font-size: 35px;
+    }
+
+    .sub-title {
+        font-size: .8em;
+    }
+
+    .button {
+        font-size: 25px;
+        height: 25px;
+        line-height: 25px;
+    }
+
+    .button-tall {
+        height: 45px;
+        line-height: 45px;
+    }
+
+    .link-submit {
+        font-size: 20px;
+        line-height: 30px;
+        min-width: 130px;
+    }
+
+    .link-code-field {
+        font-size: 35px;
+        line-height: 35px;
+    }
+}
+
+/* Very Small screens */
+@media only screen and (max-width: 300px) {
+    .nav ul li a {
+        color: rgb(0, 0, 0);
+        font-size: 15px;
+        line-height: 35px;
+    }
+
+    .nav-logo {
+        display: none;
+    }
+
+    .title {
+        font-size: 25px;
+    }
+
+    .sub-title {
+        font-size: .75em;
+    }
+
+    .button {
+        min-width: 160px;
+        font-size: 25px;
+        height: 25px;
+        line-height: 25px;
+    }
+
+    .button-tall {
+        height: 45px;
+        line-height: 45px;
+    }
+
+    .link-submit {
+        font-size: 20px;
+        line-height: 30px;
+    }
+
+    .link-code-field {
+        font-size: 25px;
+        line-height: 25px;
+    }
+}
+
+/* Large screens */
+@media only screen and (min-width: 960px) {
+    #nav-expander {
+        display: none;
+    }
 }
