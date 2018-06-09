@@ -29,7 +29,7 @@ import java.util.Set;
 public class ApiCache {
     private static final int TIMEOUT = 60 * 3; // Seconds before a cache value should be considered invalid
     public static final int TIMEOUT_HOUR = 60 * 60;
-    private static final int TIMEOUT_DAY = 24 * 60 * 60; // 1 Day
+    public static final int TIMEOUT_DAY = 24 * 60 * 60; // 1 Day
     @SuppressWarnings("unused")
     private static final String USER_NAME_FIELD_PREFIX = "_u_";
     @SuppressWarnings("unused")

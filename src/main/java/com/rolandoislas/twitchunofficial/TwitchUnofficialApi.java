@@ -22,6 +22,7 @@ import com.rolandoislas.twitchunofficial.data.model.TwitchCredentials;
 import com.rolandoislas.twitchunofficial.data.model.UsersWithRate;
 import com.rolandoislas.twitchunofficial.util.ApiCache;
 import com.rolandoislas.twitchunofficial.util.AuthUtil;
+import com.rolandoislas.twitchunofficial.util.DatabaseUtil;
 import com.rolandoislas.twitchunofficial.util.FollowsCacher;
 import com.rolandoislas.twitchunofficial.util.HeaderUtil;
 import com.rolandoislas.twitchunofficial.util.Logger;
@@ -69,6 +70,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -722,6 +724,25 @@ public class TwitchUnofficialApi {
         if (cachedResponse != null)
             return cachedResponse;
         // Request live
+        Community community = getCommunityKraken(name, id);
+        if (community == null)
+            throw halt(BAD_GATEWAY, "");
+        String json = gson.toJson(community);
+        cache.set(requestId, json);
+        return json;
+    }
+
+    /**
+     * Get a specified community
+     * @return community or null on error
+     */
+    @NotCached
+    @Nullable
+    @Deprecated
+    static Community getCommunityKraken(@Nullable String name, @Nullable String id) {
+        if (name == null && id == null)
+            return null;
+        // Request live
         Webb webb = getWebbKraken();
         Community community;
         try {
@@ -746,11 +767,9 @@ public class TwitchUnofficialApi {
         catch (WebbException | JsonSyntaxException e) {
             Logger.warn("Request failed: " + e.getMessage());
             Logger.exception(e);
-            throw halt(BAD_GATEWAY, e.getMessage());
+            return null;
         }
-        String json = gson.toJson(community);
-        cache.set(requestId, json);
-        return json;
+        return community;
     }
 
     /**
@@ -2674,5 +2693,101 @@ public class TwitchUnofficialApi {
         String json = status.toString();
         cache.set(cacheId, json, ApiCache.TIMEOUT_HOUR);
         return json;
+    }
+
+    /**
+     * Get user followed communities
+     * @param request request
+     * @param response response
+     * @return json
+     */
+    static String getFollowedCommunities(Request request, spark.Response response) {
+        checkAuth(request);
+        // Params
+        String limit = request.queryParamOrDefault("limit", "20");
+        String offset = request.queryParamOrDefault("offset", "0");
+        String toId = request.queryParams("to_id");
+        String token = AuthUtil.extractTwitchToken(request);
+        if (token == null || token.isEmpty())
+            unauthorized();
+        // Parse
+        int limitInt = (int) StringUtil.parseLong(limit);
+        int offsetInt = (int) StringUtil.parseLong(offset);
+        if (limitInt > 100 || limitInt < 1)
+            throw halt(BAD_REQUEST, "Limit out of range: 1 - 100");
+        // User
+        @Nullable User user = getUserFromToken(token);
+        if (user == null || user.getId() == null || user.getId().isEmpty())
+            throw halt(SERVER_ERROR, "Failed to get user id.");
+        // Database
+        List<Community> communities = DatabaseUtil.getUserFollowedCommunities(user.getId(), limitInt, offsetInt, toId);
+        if (communities == null)
+            throw halt(SERVER_ERROR, "");
+        // Check cache
+        return gson.toJson(communities);
+    }
+
+    /**
+     * Follow a community
+     * @param request request
+     * @param response response
+     * @return json
+     */
+    @NotNull
+    static String followCommunity(Request request, spark.Response response) {
+        return setFollowCommunity(request, true);
+    }
+
+    /**
+     * Follow or unfollow a community for a user id
+     * @param request request
+     * @param setFollow should set following or delete
+     * @return empty json object
+     */
+    @NotNull
+    private static String setFollowCommunity(Request request, boolean setFollow) {
+        checkAuth(request);
+        // Params
+        String id = request.queryParams("id");
+        String token = AuthUtil.extractTwitchToken(request);
+        if (token == null || token.isEmpty())
+            unauthorized();
+        // Parse
+        try {
+            //noinspection ResultOfMethodCallIgnored
+            UUID.fromString(id);
+        }
+        catch (IllegalArgumentException e) {
+            throw halt(BAD_REQUEST, "Invalid community id");
+        }
+        // User
+        @Nullable User user = getUserFromToken(token);
+        if (user == null || user.getId() == null || user.getId().isEmpty())
+            throw halt(SERVER_ERROR, "Failed to get user id.");
+        // Update community
+        if (setFollow) {
+            Community community = DatabaseUtil.getCommunity(id);
+            if (community == null ||
+                    System.currentTimeMillis() - community.getModified() >= ApiCache.TIMEOUT_DAY * 1000) {
+                community = getCommunityKraken(null, id);
+                if (community != null)
+                    if (!DatabaseUtil.cacheCommunity(community))
+                        Logger.debug("Failed to cache community");
+            }
+        }
+        // Database
+        if (!DatabaseUtil.setUserFollowCommunity(user.getId(), id, setFollow))
+            throw halt(SERVER_ERROR, "");
+        return "{}";
+    }
+
+    /**
+     * Unfollow a community
+     * @param request request
+     * @param response response
+     * @return json
+     */
+    static String unfollowCommunity(Request request, spark.Response response) {
+        return setFollowCommunity(request, false);
     }
 }

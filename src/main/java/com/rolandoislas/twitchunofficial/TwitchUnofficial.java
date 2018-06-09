@@ -8,6 +8,7 @@ package com.rolandoislas.twitchunofficial;
 import com.rolandoislas.twitchunofficial.data.Constants;
 import com.rolandoislas.twitchunofficial.util.ApiCache;
 import com.rolandoislas.twitchunofficial.util.AuthUtil;
+import com.rolandoislas.twitchunofficial.util.DatabaseUtil;
 import com.rolandoislas.twitchunofficial.util.Logger;
 import spark.Filter;
 
@@ -61,6 +62,14 @@ public class TwitchUnofficial {
             Logger.warn("Missing env: %s", redisUrlEnvName);
             System.exit(1);
         }
+        // SQL address
+        String sqlUrlEnv = System.getenv("SQL_URL_ENV");
+        String sqlUrlEnvName = sqlUrlEnv == null || sqlUrlEnv.isEmpty() ? "SQL_URL" : sqlUrlEnv;
+        String sqlServer = System.getenv(sqlUrlEnvName);
+        if (sqlServer == null || sqlServer.isEmpty()) {
+            Logger.warn("Missing env: %s", sqlUrlEnvName);
+            System.exit(1);
+        }
         // Twitch details
         String twitchClientId = getenv("TWITCH_CLIENT_ID");
         String twitchClientSecret = getenv("TWITCH_CLIENT_SECRET");
@@ -69,6 +78,7 @@ public class TwitchUnofficial {
         staticFiles.location("/static/");
         TwitchUnofficial.cache = new ApiCache(redisServer);
         TwitchUnofficialApi.init(twitchClientId, twitchClientSecret);
+        DatabaseUtil.setServer(sqlServer);
         // Redirect paths with a trailing slash
         before((Filter) (request, response) -> {
             if (request.pathInfo().endsWith("/") && !request.pathInfo().equals("/"))
@@ -140,6 +150,11 @@ public class TwitchUnofficial {
             //noinspection CodeBlock2Expr
             path("/ad", () -> {
                 get("/server", TwitchedApi::getAdServer);
+            });
+            path("/communities", () -> {
+                get("/follows", TwitchUnofficialApi::getFollowedCommunities);
+                get("/follow", TwitchUnofficialApi::followCommunity);
+                get("/unfollow", TwitchUnofficialApi::unfollowCommunity);
             });
         });
         // Web
