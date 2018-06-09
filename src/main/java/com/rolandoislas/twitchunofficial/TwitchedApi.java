@@ -612,6 +612,7 @@ class TwitchedApi {
      * @return json
      */
     static String getTwitchedConfig(Request request, Response response) {
+        checkAuth(request);
         return System.getenv().getOrDefault("TWITCHED_CONFIG", "{}");
     }
 }
