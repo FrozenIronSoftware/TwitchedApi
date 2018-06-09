@@ -156,6 +156,7 @@ public class TwitchUnofficial {
                 get("/follow", TwitchedApi::followCommunity);
                 get("/unfollow", TwitchedApi::unfollowCommunity);
             });
+            get("/config", TwitchedApi::getTwitchedConfig);
         });
         // Web
         get("/", TwitchUnofficialServer::getIndex);

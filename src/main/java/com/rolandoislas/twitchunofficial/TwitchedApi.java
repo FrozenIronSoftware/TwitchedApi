@@ -604,4 +604,14 @@ class TwitchedApi {
     static String unfollowCommunity(Request request, spark.Response response) {
         return setFollowCommunity(request, false);
     }
+
+    /**
+     * Return configuration json
+     * @param request request
+     * @param response response
+     * @return json
+     */
+    static String getTwitchedConfig(Request request, Response response) {
+        return System.getenv().getOrDefault("TWITCHED_CONFIG", "{}");
+    }
 }
