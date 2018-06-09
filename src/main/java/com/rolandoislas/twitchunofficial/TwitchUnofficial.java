@@ -152,9 +152,9 @@ public class TwitchUnofficial {
                 get("/server", TwitchedApi::getAdServer);
             });
             path("/communities", () -> {
-                get("/follows", TwitchUnofficialApi::getFollowedCommunities);
-                get("/follow", TwitchUnofficialApi::followCommunity);
-                get("/unfollow", TwitchUnofficialApi::unfollowCommunity);
+                get("/follows", TwitchedApi::getFollowedCommunities);
+                get("/follow", TwitchedApi::followCommunity);
+                get("/unfollow", TwitchedApi::unfollowCommunity);
             });
         });
         // Web
