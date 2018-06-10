@@ -131,7 +131,7 @@ public class DatabaseUtil {
             List<Community> communities = connection.createQuery(sqlCommunities.toString(), false)
                     .withParams(communityIds.toArray())
                     .addColumnMapping("community_id", "id")
-                    .addColumnMapping("cover_image_url", "coverImageUrl")
+                    .addColumnMapping("avatar_image_url", "avatarImageUrl")
                     .executeAndFetch(Community.class);
             // Clean up
             connection.commit();
@@ -200,9 +200,9 @@ public class DatabaseUtil {
     public static boolean cacheCommunity(Community community) {
         String sqlSelect = "select community_id from cached_communities where community_id = :community_id;";
         String sqlUpdate = "update cached_communities set name = :name, description = :description," +
-                " cover_image_url = :cover_image_url, modified = :modified where community_id = :community_id;";
-        String sqlInsert = "insert into cached_communities (community_id, name, description, cover_image_url," +
-                " modified) values (:community_id, :name, :description, :cover_image_url, :modified);";
+                " avatar_image_url = :avatar_image_url, modified = :modified where community_id = :community_id;";
+        String sqlInsert = "insert into cached_communities (community_id, name, description, avatar_image_url," +
+                " modified) values (:community_id, :name, :description, :avatar_image_url, :modified);";
         Connection connection = null;
         try {
             connection = getTransaction();
@@ -214,7 +214,7 @@ public class DatabaseUtil {
                 connection.createQuery(sqlUpdate, false)
                         .addParameter("name", community.getName())
                         .addParameter("description", community.getDescription())
-                        .addParameter("cover_image_url", community.getCoverImageUrl())
+                        .addParameter("avatar_image_url", community.getCoverImageUrl())
                         .addParameter("community_id", community.getId())
                         .addParameter("modified", System.currentTimeMillis())
                         .executeUpdate();
@@ -224,7 +224,7 @@ public class DatabaseUtil {
                 connection.createQuery(sqlInsert, false)
                         .addParameter("name", community.getName())
                         .addParameter("description", community.getDescription())
-                        .addParameter("cover_image_url", community.getCoverImageUrl())
+                        .addParameter("avatar_image_url", community.getCoverImageUrl())
                         .addParameter("community_id", community.getId())
                         .addParameter("modified", System.currentTimeMillis())
                         .executeUpdate();
@@ -254,7 +254,7 @@ public class DatabaseUtil {
             List<Community> communities = connection.createQuery(sql, false)
                     .addParameter("community_id", id)
                     .addColumnMapping("community_id", "id")
-                    .addColumnMapping("cover_image_url", "coverImageUrl")
+                    .addColumnMapping("avatar_image_url", "avatarImageUrl")
                     .executeAndFetch(Community.class);
             releaseConnection(connection);
             if (communities.size() == 1)
