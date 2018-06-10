@@ -218,7 +218,7 @@ public class DatabaseUtil {
                 connection.createQuery(sqlUpdate, false)
                         .addParameter("name", community.getName())
                         .addParameter("description", community.getDescription())
-                        .addParameter("avatar_image_url", community.getCoverImageUrl())
+                        .addParameter("avatar_image_url", community.getAvatarImageUrl())
                         .addParameter("community_id", community.getId())
                         .addParameter("modified", System.currentTimeMillis())
                         .executeUpdate();
@@ -228,7 +228,7 @@ public class DatabaseUtil {
                 connection.createQuery(sqlInsert, false)
                         .addParameter("name", community.getName())
                         .addParameter("description", community.getDescription())
-                        .addParameter("avatar_image_url", community.getCoverImageUrl())
+                        .addParameter("avatar_image_url", community.getAvatarImageUrl())
                         .addParameter("community_id", community.getId())
                         .addParameter("modified", System.currentTimeMillis())
                         .executeUpdate();

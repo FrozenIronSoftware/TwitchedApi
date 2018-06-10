@@ -45,4 +45,8 @@ public class Community {
     public long getModified() {
         return modified;
     }
+
+    public String getAvatarImageUrl() {
+        return avatarImageUrl;
+    }
 }
