@@ -7,6 +7,7 @@ import org.sql2o.Query;
 import org.sql2o.Sql2o;
 import org.sql2o.Sql2oException;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -124,15 +125,18 @@ public class DatabaseUtil {
                 return null;
             }
             // Get cached communities
-            for (int communityIdIndex = 0; communityIdIndex < communityIds.size(); communityIdIndex++) {
-                sqlCommunities.append(communityIdIndex == 0 ? " " : " or ")
-                        .append(String.format(communitySql, ":p" + (communityIdIndex + 1)));
+            List<Community> communities = new ArrayList<>();
+            if (communityIds.size() > 0) {
+                for (int communityIdIndex = 0; communityIdIndex < communityIds.size(); communityIdIndex++) {
+                    sqlCommunities.append(communityIdIndex == 0 ? " " : " or ")
+                            .append(String.format(communitySql, ":p" + (communityIdIndex + 1)));
+                }
+                communities = connection.createQuery(sqlCommunities.toString(), false)
+                        .withParams(communityIds.toArray())
+                        .addColumnMapping("community_id", "id")
+                        .addColumnMapping("avatar_image_url", "avatarImageUrl")
+                        .executeAndFetch(Community.class);
             }
-            List<Community> communities = connection.createQuery(sqlCommunities.toString(), false)
-                    .withParams(communityIds.toArray())
-                    .addColumnMapping("community_id", "id")
-                    .addColumnMapping("avatar_image_url", "avatarImageUrl")
-                    .executeAndFetch(Community.class);
             // Clean up
             connection.commit();
             releaseConnection(connection);
