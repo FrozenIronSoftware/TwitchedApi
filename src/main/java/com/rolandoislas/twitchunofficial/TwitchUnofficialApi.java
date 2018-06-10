@@ -1260,8 +1260,8 @@ public class TwitchUnofficialApi {
             return nameIdMap;
         // Request missing ids
         if (type.equals(Id.USER)) {
-            for (int idIndex = 0; idIndex < ids.size(); idIndex += 100) {
-                List<String> idsSubList = ids.subList(idIndex, Math.min(idIndex + 100, ids.size()));
+            for (int idIndex = 0; idIndex < missingIds.size(); idIndex += 100) {
+                List<String> idsSubList = missingIds.subList(idIndex, Math.min(idIndex + 100, missingIds.size()));
                 List<User> users = getUsers(idsSubList, null, null);
                 if (users == null)
                     throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
@@ -1273,11 +1273,15 @@ public class TwitchUnofficialApi {
                         Logger.exception(e);
                     }
                 }
+                // Ensure missing ids are cached
+                for (String missingId : missingIds)
+                    if (nameIdMap.get(missingId) == null)
+                        nameIdMap.put(missingId, gson.toJson(new User()));
                 cache.setUserNames(nameIdMap);
             }
         }
         else if (type.equals(Id.GAME)) {
-            List<Game> games = getGames(ids, null);
+            List<Game> games = getGames(missingIds, null);
             if (games == null)
                 throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
             // Store missing ids
