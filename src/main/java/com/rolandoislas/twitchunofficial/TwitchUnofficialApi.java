@@ -63,6 +63,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -661,23 +662,23 @@ public class TwitchUnofficialApi {
     static String getCommunitiesKraken(Request request, @SuppressWarnings("unused") spark.Response response) {
         checkAuth(request);
         // Params
-        Long limit = null;
-        String cursor;
-        try {
-            limit = Long.parseLong(request.queryParams("limit"));
+        long limit = StringUtil.parseLong(request.queryParamOrDefault("limit", "20"));
+        String cursor = request.queryParams("cursor");
+        String offset = request.queryParams("offset");
+        if (offset != null) {
+            long offsetLong = StringUtil.parseLong(offset) * limit;
+            cursor = Base64.getEncoder().encodeToString(String.valueOf(offsetLong).getBytes());
         }
-        catch (NumberFormatException ignore) {}
-        cursor = request.queryParams("cursor");
+        boolean returnArray = Boolean.parseBoolean(request.queryParamOrDefault("array", "false"));
         // Check cache
-        String requestId = ApiCache.createKey("kraken/communities/top", limit, cursor);
+        String requestId = ApiCache.createKey("kraken/communities/top", limit, cursor, offset, returnArray);
         String cachedResponse = cache.get(requestId);
         if (cachedResponse != null)
             return cachedResponse;
         // Request live
         Webb webb = getWebbKraken();
         Map<String, Object> params = new HashMap<>();
-        if (limit != null)
-            params.put("limit", limit);
+        params.put("limit", limit);
         if (cursor != null)
              params.put("cursor", cursor);
         CommunityList communities = null;
@@ -696,7 +697,7 @@ public class TwitchUnofficialApi {
         }
         if (communities == null)
             throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
-        String json = gson.toJson(communities);
+        String json = gson.toJson(returnArray ? communities.getCommunities() : communities);
         cache.set(requestId, json);
         return json;
     }
@@ -2458,6 +2459,7 @@ public class TwitchUnofficialApi {
      * Getter
      * @return twitch credentials
      */
+    @NotCached
     static TwitchCredentials getTwitchCredentials() {
         return TwitchUnofficialApi.twitchCredentials;
     }
@@ -2468,6 +2470,7 @@ public class TwitchUnofficialApi {
      * @param response response
      * @return json array of followed games
      */
+    @Cached
     static String getFollowedGames(Request request, spark.Response response) {
         checkAuth(request);
         // Params
@@ -2477,7 +2480,8 @@ public class TwitchUnofficialApi {
         if (token == null || token.isEmpty())
             unauthorized();
         // Check cache
-        String cacheId = ApiCache.createKey("games/follows", limit, offset);
+        String cacheId = ApiCache.createKey("games/follows", limit, offset,
+                AuthUtil.hashString(token, null));
         String cachedFollowsJson = cache.get(cacheId);
         if (cachedFollowsJson != null)
             return cachedFollowsJson;
@@ -2552,6 +2556,7 @@ public class TwitchUnofficialApi {
      * @param response response
      * @return empty object
      */
+    @NotCached
     static String followGame(Request request, spark.Response response) {
         checkAuth(request);
         // Params
@@ -2598,6 +2603,7 @@ public class TwitchUnofficialApi {
      * @param response response
      * @return empty object
      */
+    @NotCached
     static String unfollowGame(Request request, spark.Response response) {
         checkAuth(request);
         // Params
@@ -2637,7 +2643,10 @@ public class TwitchUnofficialApi {
         return "{}";
     }
 
-    /// Checks if a user is following a game
+    /**
+     * Checks if a user is following a game
+     */
+    @Cached
     static String getFollowingGame(Request request, spark.Response response) {
         checkAuth(request);
         // Params
@@ -2655,7 +2664,7 @@ public class TwitchUnofficialApi {
         if (token == null || token.isEmpty())
             unauthorized();
         // Check cache
-        String cacheId = ApiCache.createKey("games/following", name);
+        String cacheId = ApiCache.createKey("games/following", name, AuthUtil.hashString(token, null));
         if (!Boolean.valueOf(noCache)) {
             String cachedFollowsJson = cache.get(cacheId);
             if (cachedFollowsJson != null)

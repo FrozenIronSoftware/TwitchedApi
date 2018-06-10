@@ -10,4 +10,8 @@ public class CommunityList {
     @SerializedName(value = "total", alternate = "_total")
     private long total;
     private List<Community> communities;
+
+    public List<Community> getCommunities() {
+        return communities;
+    }
 }
