@@ -79,6 +79,7 @@ import static com.rolandoislas.twitchunofficial.TwitchUnofficial.cache;
 public class TwitchUnofficialApi {
     public static final Queue<String> followIdsToCache = new ConcurrentLinkedQueue<>();
     private static final Pattern DURATION_REGEX = Pattern.compile("(?:(\\d+)d)?(?:(\\d+)h)?(?:(\\d+)m)?(?:(\\d+)s)");
+    private static final String IMAGE_SIZE_REGEX = "-\\d+x\\d+\\.";
     static final int BAD_REQUEST = 400;
     static final int NOT_FOUND = 404;
     static final int SERVER_ERROR =  500;
@@ -695,8 +696,14 @@ public class TwitchUnofficialApi {
             Logger.warn("Request failed: " + e.getMessage());
             Logger.exception(e);
         }
-        if (communities == null)
+        if (communities == null || communities.getCommunities() == null)
             throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
+        // Clean communities
+        List<Community> cleanedCommunities = new ArrayList<>();
+        for (Community community : communities.getCommunities())
+            cleanedCommunities.add(cleanCommunityAvatarUrl(community));
+        communities.setCommunities(cleanedCommunities);
+        // Cache and return
         String json = gson.toJson(returnArray ? communities.getCommunities() : communities);
         cache.set(requestId, json);
         return json;
@@ -729,6 +736,21 @@ public class TwitchUnofficialApi {
         String json = gson.toJson(community);
         cache.set(requestId, json);
         return json;
+    }
+
+    /**
+     * Replace hardcoded width and height in the community's avatar image url with template
+     * @param community community to parse
+     * @return cleaned community or null
+     */
+    @Nullable
+    private static Community cleanCommunityAvatarUrl(@Nullable Community community) {
+        if (community == null)
+            return null;
+        if (community.getAvatarImageUrl() != null)
+            community.setAvatarImageUrl(community.getAvatarImageUrl().replaceAll(IMAGE_SIZE_REGEX,
+                    "-{width}x{height}."));
+        return community;
     }
 
     /**
@@ -768,7 +790,7 @@ public class TwitchUnofficialApi {
             Logger.exception(e);
             return null;
         }
-        return community;
+        return cleanCommunityAvatarUrl(community);
     }
 
     /**
@@ -1537,6 +1559,7 @@ public class TwitchUnofficialApi {
                     // Do not fetch if the rate limit is at half and the user follows more than 300 channels
                     // Allow fetching if the rate limit is at a fourth and the user follows less than or equal to 300
                     // channels
+                    // TODO send this to a background thread
                     shouldFetchLive = userFollows.getRateLimitRemaining() > RATE_LIMIT_MAX / 2 ||
                             (userFollows.getRateLimitRemaining() > RATE_LIMIT_MAX / 4 && userFollows.getTotal() <= 300);
                     @NotNull List<Stream> streamSublist =
@@ -1594,10 +1617,7 @@ public class TwitchUnofficialApi {
                         continue;
                     offlineStream.setUserName(new UserName(user.getLogin(), user.getDisplayName()));
                     offlineStream.setThumbnailUrl(user.getOfflineImageUrl()
-                            .replace("-1920x", "-{width}x")
-                            .replace("x1080.", "x{height}.")
-                            .replace("-1280x", "-{width}x")
-                            .replace("x720.", "x{height}."));
+                            .replaceAll(IMAGE_SIZE_REGEX, "-{width}x{height}."));
                     offlineStream.setTitle(user.getDescription() == null ? "" : user.getDescription());
                     offlineStream.setViewerCount(user.getViewCount());
                     offlineStream.setGameName("IRL");

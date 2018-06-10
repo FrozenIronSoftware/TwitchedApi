@@ -14,4 +14,8 @@ public class CommunityList {
     public List<Community> getCommunities() {
         return communities;
     }
+
+    public void setCommunities(List<Community> communities) {
+        this.communities = communities;
+    }
 }

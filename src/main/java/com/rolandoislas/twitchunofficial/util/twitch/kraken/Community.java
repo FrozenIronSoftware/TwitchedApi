@@ -49,4 +49,8 @@ public class Community {
     public String getAvatarImageUrl() {
         return avatarImageUrl;
     }
+
+    public void setAvatarImageUrl(String avatarImageUrl) {
+        this.avatarImageUrl = avatarImageUrl;
+    }
 }
