@@ -192,6 +192,8 @@ public class Community {
             out.value(community.getViewers());
             out.name("display_name");
             out.value(community.getDisplayName());
+            out.name("modified");
+            out.value(community.getModified());
             out.endObject();
         }
 
@@ -243,6 +245,9 @@ public class Community {
                         break;
                     case "display_name":
                         community.setDisplayName(in.nextString());
+                        break;
+                    case "modified":
+                        community.setModified(in.nextLong());
                         break;
                     default:
                         in.skipValue();
