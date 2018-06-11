@@ -2122,7 +2122,6 @@ public class TwitchUnofficialApi {
         }
         if (games == null)
             throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
-        // TODO Add viewer counts. Kraken data was used previously to get viewers
         // Store and return
         String json = gson.toJson(games);
         cache.set(requestId, json);
