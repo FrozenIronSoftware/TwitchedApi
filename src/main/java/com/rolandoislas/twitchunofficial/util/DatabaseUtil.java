@@ -31,7 +31,7 @@ public class DatabaseUtil {
             Logger.warn("Could not parse mysql database connection string.");
             System.exit(1);
         }
-        String mysqlUrl = mysqlMatches.group(1) + mysqlMatches.group(4) + "?useSSL=false";
+        String mysqlUrl = mysqlMatches.group(1) + mysqlMatches.group(4);
         String mysqlUsername = mysqlMatches.group(2);
         String mysqlPassword = mysqlMatches.group(3);
         return new Sql2o(mysqlUrl, mysqlUsername, mysqlPassword);
