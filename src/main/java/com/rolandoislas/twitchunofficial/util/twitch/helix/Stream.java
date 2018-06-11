@@ -140,4 +140,8 @@ public class Stream {
     public boolean isOnline() {
         return online;
     }
+
+    public String getThumbnailUrl() {
+        return thumbnailUrl;
+    }
 }

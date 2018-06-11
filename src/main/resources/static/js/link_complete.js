@@ -58,6 +58,4 @@ function storeToken(token, id) {
     request.send(JSON.stringify(data));
 }
 
-window.onload = function () {
-    extractAccessToken();
-};
+window.addEventListener("load", extractAccessToken, false);

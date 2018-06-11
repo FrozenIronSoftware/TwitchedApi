@@ -1,4 +1,4 @@
-{{>partial/header.hbs append="Open Source Software"}}
+{{>partial/header.hbs append="Open Source Software" desc="Information about open source software used in Twitched"}}
 
 {{>partial/nav.hbs}}
 
@@ -7,17 +7,19 @@
 
 <div class="text">
     <h3 class="text-inner">Roku</h3>
-    <p class="text-inner">
+    <div class="text-inner">
         {{{text_roku}}}
-    </p>
+    </div>
     <h3 class="text-inner">Apple TV</h3>
-    <p class="text-inner">
+    <div class="text-inner">
         {{{text_apple_tv}}}
-    </p>
+    </div>
     <h3 class="text-inner">Website</h3>
-    <p class="text-inner">
+    <div class="text-inner">
         {{{text_website}}}
-    </p>
+    </div>
 </div>
+
+<script src="/js/info_oss.js"></script>
 
 {{>partial/footer.hbs}}

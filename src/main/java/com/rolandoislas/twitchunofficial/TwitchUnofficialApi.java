@@ -46,6 +46,8 @@ import com.rolandoislas.twitchunofficial.util.twitch.kraken.Channel;
 import com.rolandoislas.twitchunofficial.util.twitch.kraken.ChannelList;
 import com.rolandoislas.twitchunofficial.util.twitch.kraken.Community;
 import com.rolandoislas.twitchunofficial.util.twitch.kraken.CommunityList;
+import com.rolandoislas.twitchunofficial.util.twitch.kraken.FollowedGameList;
+import com.rolandoislas.twitchunofficial.util.twitch.kraken.Preview;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.maven.artifact.versioning.ComparableVersion;
 import org.jetbrains.annotations.Contract;
@@ -61,13 +63,16 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -76,6 +81,7 @@ import static com.rolandoislas.twitchunofficial.TwitchUnofficial.cache;
 public class TwitchUnofficialApi {
     public static final Queue<String> followIdsToCache = new ConcurrentLinkedQueue<>();
     private static final Pattern DURATION_REGEX = Pattern.compile("(?:(\\d+)d)?(?:(\\d+)h)?(?:(\\d+)m)?(?:(\\d+)s)");
+    private static final String IMAGE_SIZE_REGEX = "-\\d+x\\d+\\.";
     static final int BAD_REQUEST = 400;
     static final int NOT_FOUND = 404;
     static final int SERVER_ERROR =  500;
@@ -91,6 +97,7 @@ public class TwitchUnofficialApi {
     static Gson gson;
     private static Thread followsThread;
     private static TwitchCredentials twitchCredentials;
+    private static final Map<String, ReentrantLock> hlsLocks = Collections.synchronizedMap(new WeakHashMap<>());
 
     /**
      * Send a JSON error message to the current requester
@@ -113,7 +120,7 @@ public class TwitchUnofficialApi {
      */
     @Contract(" -> fail")
     @NotCached
-    private static void unauthorized() {
+    static void unauthorized() {
         throw halt(401, "Unauthorized");
     }
 
@@ -184,54 +191,67 @@ public class TwitchUnofficialApi {
             return null;
         // Check cache
         String requestId = ApiCache.createKey("hls", username, AuthUtil.hashString(userToken, null));
-        String cachedResponse = cache.get(requestId);
-        if (cachedResponse != null) {
-            response.type("audio/mpegurl");
-            return cleanMasterPlaylist(cachedResponse, fps, quality, model);
-        }
-        // Get live data
-
-        // Construct template
-        Webb webb = getWebb();
-        // TODO When the API transitions to Helix the Authentication header will change
-        if (userToken != null)
-            webb = getPrivilegedWebbKraken(userToken);
-
-        // Request channel token
-        Token token = getVideoAccessToken(Token.TYPE.CHANNEL, username, userToken);
-
-        // Request HLS playlist
-        String hlsPlaylistUrl = String.format(API_USHER + "/api/channel/hls/%s.m3u8", username);
-        String playlistString = null;
-        try {
-            Logger.verbose( "Rest Request to [%s]", hlsPlaylistUrl);
-            Response<String> webbResponse = webb.get(hlsPlaylistUrl)
-                    .header("Accept", "*/*")
-                    .param("player", "Twitched")
-                    .param("token", token.getToken())
-                    .param("sig", token.getSig())
-                    .param("p", String.valueOf((int) (Math.random() * Integer.MAX_VALUE)))
-                    .param("type", "any")
-                    .param("allow_audio_only", "true")
-                    .param("allow_source", "true")
-                    .ensureSuccess()
-                    .asString();
-            playlistString = webbResponse.getBody();
-        }
-        catch (WebbException e) {
-            if (e.getResponse().getStatusCode() != 404) {
-                Logger.warn("Request failed: " + e.getMessage());
-                Logger.exception(e);
+        ReentrantLock lock;
+        synchronized (hlsLocks) {
+            lock = hlsLocks.get(requestId);
+            if (lock == null) {
+                lock = new ReentrantLock();
+                hlsLocks.put(requestId, lock);
             }
         }
+        lock.lock();
+        try {
+            String cachedResponse = cache.get(requestId);
+            if (cachedResponse != null) {
+                response.type("audio/mpegurl");
+                return cleanMasterPlaylist(cachedResponse, fps, quality, model);
+            }
+            // Get live data
 
-        // Parse playlist
-        if (playlistString == null)
-            return null;
-        // Cache and return
-        cache.set(requestId, playlistString);
-        response.type("audio/mpegurl");
-        return cleanMasterPlaylist(playlistString, fps, quality, model);
+            // Construct template
+            Webb webb = getWebb();
+            // TODO When the API transitions to Helix the Authentication header will change
+            if (userToken != null)
+                webb = getPrivilegedWebbKraken(userToken);
+
+            // Request channel token
+            Token token = getVideoAccessToken(Token.TYPE.CHANNEL, username, userToken);
+
+            // Request HLS playlist
+            String hlsPlaylistUrl = String.format(API_USHER + "/api/channel/hls/%s.m3u8", username);
+            String playlistString = null;
+            try {
+                Logger.verbose("Rest Request to [%s]", hlsPlaylistUrl);
+                Response<String> webbResponse = webb.get(hlsPlaylistUrl)
+                        .header("Accept", "*/*")
+                        .param("player", "Twitched")
+                        .param("token", token.getToken())
+                        .param("sig", token.getSig())
+                        .param("p", String.valueOf((int) (Math.random() * Integer.MAX_VALUE)))
+                        .param("type", "any")
+                        .param("allow_audio_only", "true")
+                        .param("allow_source", "true")
+                        .ensureSuccess()
+                        .asString();
+                playlistString = webbResponse.getBody();
+            } catch (WebbException e) {
+                if (e.getResponse().getStatusCode() != 404) {
+                    Logger.warn("Request failed: " + e.getMessage());
+                    Logger.exception(e);
+                }
+            }
+
+            // Parse playlist
+            if (playlistString == null)
+                return null;
+            // Cache and return
+            cache.set(requestId, playlistString);
+            response.type("audio/mpegurl");
+            return cleanMasterPlaylist(playlistString, fps, quality, model);
+        }
+        finally {
+            lock.unlock();
+        }
     }
 
     /**
@@ -659,23 +679,23 @@ public class TwitchUnofficialApi {
     static String getCommunitiesKraken(Request request, @SuppressWarnings("unused") spark.Response response) {
         checkAuth(request);
         // Params
-        Long limit = null;
-        String cursor;
-        try {
-            limit = Long.parseLong(request.queryParams("limit"));
+        long limit = StringUtil.parseLong(request.queryParamOrDefault("limit", "20"));
+        String cursor = request.queryParams("cursor");
+        String offset = request.queryParams("offset");
+        if (offset != null) {
+            long offsetLong = StringUtil.parseLong(offset) * limit;
+            cursor = Base64.getEncoder().encodeToString(String.valueOf(offsetLong).getBytes());
         }
-        catch (NumberFormatException ignore) {}
-        cursor = request.queryParams("cursor");
+        boolean returnArray = Boolean.parseBoolean(request.queryParamOrDefault("array", "false"));
         // Check cache
-        String requestId = ApiCache.createKey("kraken/communities/top", limit, cursor);
+        String requestId = ApiCache.createKey("kraken/communities/top", limit, cursor, offset, returnArray);
         String cachedResponse = cache.get(requestId);
         if (cachedResponse != null)
             return cachedResponse;
         // Request live
         Webb webb = getWebbKraken();
         Map<String, Object> params = new HashMap<>();
-        if (limit != null)
-            params.put("limit", limit);
+        params.put("limit", limit);
         if (cursor != null)
              params.put("cursor", cursor);
         CommunityList communities = null;
@@ -692,9 +712,15 @@ public class TwitchUnofficialApi {
             Logger.warn("Request failed: " + e.getMessage());
             Logger.exception(e);
         }
-        if (communities == null)
+        if (communities == null || communities.getCommunities() == null)
             throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
-        String json = gson.toJson(communities);
+        // Clean communities
+        List<Community> cleanedCommunities = new ArrayList<>();
+        for (Community community : communities.getCommunities())
+            cleanedCommunities.add(cleanCommunityAvatarUrl(community));
+        communities.setCommunities(cleanedCommunities);
+        // Cache and return
+        String json = gson.toJson(returnArray ? communities.getCommunities() : communities);
         cache.set(requestId, json);
         return json;
     }
@@ -720,6 +746,40 @@ public class TwitchUnofficialApi {
         if (cachedResponse != null)
             return cachedResponse;
         // Request live
+        Community community = getCommunityKraken(name, id);
+        if (community == null)
+            throw halt(BAD_GATEWAY, "");
+        String json = gson.toJson(community);
+        cache.set(requestId, json);
+        return json;
+    }
+
+    /**
+     * Replace hardcoded width and height in the community's avatar image url with template
+     * @param community community to parse
+     * @return cleaned community or null
+     */
+    @Nullable
+    private static Community cleanCommunityAvatarUrl(@Nullable Community community) {
+        if (community == null)
+            return null;
+        if (community.getAvatarImageUrl() != null)
+            community.setAvatarImageUrl(community.getAvatarImageUrl().replaceAll(IMAGE_SIZE_REGEX,
+                    "-{width}x{height}."));
+        return community;
+    }
+
+    /**
+     * Get a specified community
+     * @return community or null on error
+     */
+    @NotCached
+    @Nullable
+    @Deprecated
+    static Community getCommunityKraken(@Nullable String name, @Nullable String id) {
+        if (name == null && id == null)
+            return null;
+        // Request live
         Webb webb = getWebbKraken();
         Community community;
         try {
@@ -744,11 +804,9 @@ public class TwitchUnofficialApi {
         catch (WebbException | JsonSyntaxException e) {
             Logger.warn("Request failed: " + e.getMessage());
             Logger.exception(e);
-            throw halt(BAD_GATEWAY, e.getMessage());
+            return null;
         }
-        String json = gson.toJson(community);
-        cache.set(requestId, json);
-        return json;
+        return cleanCommunityAvatarUrl(community);
     }
 
     /**
@@ -1218,8 +1276,8 @@ public class TwitchUnofficialApi {
             return nameIdMap;
         // Request missing ids
         if (type.equals(Id.USER)) {
-            for (int idIndex = 0; idIndex < ids.size(); idIndex += 100) {
-                List<String> idsSubList = ids.subList(idIndex, Math.min(idIndex + 100, ids.size()));
+            for (int idIndex = 0; idIndex < missingIds.size(); idIndex += 100) {
+                List<String> idsSubList = missingIds.subList(idIndex, Math.min(idIndex + 100, missingIds.size()));
                 List<User> users = getUsers(idsSubList, null, null);
                 if (users == null)
                     throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
@@ -1231,11 +1289,15 @@ public class TwitchUnofficialApi {
                         Logger.exception(e);
                     }
                 }
+                // Ensure missing ids are cached
+                for (String missingId : missingIds)
+                    if (nameIdMap.get(missingId) == null)
+                        nameIdMap.put(missingId, gson.toJson(new User()));
                 cache.setUserNames(nameIdMap);
             }
         }
         else if (type.equals(Id.GAME)) {
-            List<Game> games = getGames(ids, null);
+            List<Game> games = getGames(missingIds, null);
             if (games == null)
                 throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
             // Store missing ids
@@ -1273,6 +1335,7 @@ public class TwitchUnofficialApi {
         if (names != null)
             params.put("name", names);
         // REST Request
+        //noinspection Duplicates
         try {
             Logger.verbose( "Rest Request to [%s]", requestUrl);
             Response<String> response = webb.get(requestUrl)
@@ -1456,14 +1519,10 @@ public class TwitchUnofficialApi {
         // Calculate the from id from the token
         String fromId = userId;
         if (fromId == null || userId.isEmpty()) {
-            fromId = cache.getUserIdFromToken(token);
-            if (fromId == null || fromId.isEmpty()) {
-                List<User> fromUsers = getUsers(null, null, token);
-                if (fromUsers == null || fromUsers.size() == 0)
-                    throw halt(BAD_REQUEST, "User token invalid");
-                fromId = fromUsers.get(0).getId();
-                cache.cacheUserIdFromToken(fromId, token);
-            }
+            User user = getUserFromToken(token);
+            if (user == null || user.getId() == null || user.getId().isEmpty())
+                throw halt(BAD_REQUEST, "User token invalid");
+            fromId = user.getId();
         }
         response.header("Twitch-User-ID", fromId);
         // Get follows
@@ -1520,6 +1579,7 @@ public class TwitchUnofficialApi {
                     // Do not fetch if the rate limit is at half and the user follows more than 300 channels
                     // Allow fetching if the rate limit is at a fourth and the user follows less than or equal to 300
                     // channels
+                    // TODO send this to a background thread
                     shouldFetchLive = userFollows.getRateLimitRemaining() > RATE_LIMIT_MAX / 2 ||
                             (userFollows.getRateLimitRemaining() > RATE_LIMIT_MAX / 4 && userFollows.getTotal() <= 300);
                     @NotNull List<Stream> streamSublist =
@@ -1577,10 +1637,7 @@ public class TwitchUnofficialApi {
                         continue;
                     offlineStream.setUserName(new UserName(user.getLogin(), user.getDisplayName()));
                     offlineStream.setThumbnailUrl(user.getOfflineImageUrl()
-                            .replace("-1920x", "-{width}x")
-                            .replace("x1080.", "x{height}.")
-                            .replace("-1280x", "-{width}x")
-                            .replace("x720.", "x{height}."));
+                            .replaceAll(IMAGE_SIZE_REGEX, "-{width}x{height}."));
                     offlineStream.setTitle(user.getDescription() == null ? "" : user.getDescription());
                     offlineStream.setViewerCount(user.getViewCount());
                     offlineStream.setGameName("IRL");
@@ -1738,7 +1795,7 @@ public class TwitchUnofficialApi {
                 long firstLong = Long.parseLong(first);
                 Pagination pagination = new Pagination(
                         (offsetLong - 1) * firstLong,
-                        (offsetLong + 1) * firstLong
+                        offsetLong * firstLong
                 );
                 return pagination.getCursor();
             }
@@ -1775,14 +1832,12 @@ public class TwitchUnofficialApi {
             after = afterFromOffset;
         // Convert logins to ids
         if (fromLogin != null) {
-            List<User> users = getUsers(null, Collections.singletonList(fromLogin), null);
-            if (users != null && users.size() == 1)
-                fromId = users.get(0).getId();
+            Map<String, String> userIds = getUserIds(Collections.singletonList(fromLogin));
+            fromId = userIds.get(fromLogin);
         }
         if (toLogin != null) {
-            List<User> users = getUsers(null, Collections.singletonList(toLogin), null);
-            if (users != null && users.size() == 1)
-                toId = users.get(0).getId();
+            Map<String, String> userIds = getUserIds(Collections.singletonList(toLogin));
+            toId = userIds.get(toLogin);
         }
         // Check cache
         boolean loadCache = (noCache == null || !noCache.equals("true"));
@@ -2083,7 +2138,6 @@ public class TwitchUnofficialApi {
         }
         if (games == null)
             throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
-        // TODO Add viewer counts. Kraken data was used previously to get viewers
         // Store and return
         String json = gson.toJson(games);
         cache.set(requestId, json);
@@ -2185,6 +2239,15 @@ public class TwitchUnofficialApi {
         String period = request.queryParams("period");
         String sort = request.queryParams("sort");
         String type = request.queryParams("type");
+        // Non-spec params
+        String offset = request.queryParams("offset");
+        if (first == null)
+            first = request.queryParamOrDefault("limit", "20");
+        // Set after based on offset
+        String afterFromOffset = getAfterFromOffset(offset, first);
+        if (afterFromOffset != null)
+            after = afterFromOffset;
+        // Request
         List<String> ids = new ArrayList<>();
         String[] queryParams = request.queryString() != null ? request.queryString().split("&") : new String[0];
         for (String queryParam : queryParams) {
@@ -2204,9 +2267,6 @@ public class TwitchUnofficialApi {
                     ids.add(value);
             }
         }
-        // Additional params
-        if (first == null || first.isEmpty())
-            first = request.queryParams("limit");
         // Check params
         if ((userId == null || userId.isEmpty()) && (gameId == null || gameId.isEmpty()) && ids.isEmpty())
             throw halt(BAD_REQUEST, "Missing user_id, game_id, or id");
@@ -2227,7 +2287,7 @@ public class TwitchUnofficialApi {
             return cachedResponse;
         // Request live data
         List<Stream> videos = getVideos(ids, userId, gameId, after,
-                before, first, language, period, sort, type);
+                before, first, language, period, sort, type, HeaderUtil.extractVersion(request));
         if (videos == null)
             throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
         // Add game to video
@@ -2253,6 +2313,7 @@ public class TwitchUnofficialApi {
      * @param period time period - all, day, month, week
      * @param sort sort method - time, trending, views
      * @param type type - all, upload, archive, highlight
+     * @param version requesting client version
      * @return list of videos
      */
     @NotCached
@@ -2267,7 +2328,8 @@ public class TwitchUnofficialApi {
             @Nullable String language,
             @Nullable String period,
             @Nullable String sort,
-            @Nullable String type) {
+            @Nullable String type,
+            @NotNull ComparableVersion version) {
         // Rest template
         Webb webb;
         if (getTwitchCredentials().getAppToken() != null)
@@ -2336,8 +2398,17 @@ public class TwitchUnofficialApi {
             Logger.warn("Request failed: " + e.getMessage());
             Logger.exception(e);
         }
-        if (videos != null)
+        if (videos != null) {
             addNamesToStreams(videos);
+            if (version.compareTo(new ComparableVersion("1.5")) >= 0) {
+                for (Stream video : videos) {
+                    if (video.getThumbnailUrl() != null && !video.getThumbnailUrl().isEmpty()) {
+                        video.setThumbnailUrl(video.getThumbnailUrl().replace("%{width}", "{width}")
+                                .replace("%{height}", "{height}"));
+                    }
+                }
+            }
+        }
         return videos;
     }
 
@@ -2360,10 +2431,10 @@ public class TwitchUnofficialApi {
         if (token == null)
             throw halt(BAD_REQUEST, "No token");
         // Follow
-        List<User> users = getUsers(null, null, token);
-        if (users == null || users.size() != 1)
+        User user = getUserFromToken(token);
+        if (user == null || user.getId() == null || user.getId().isEmpty())
             throw halt(BAD_REQUEST, "Invalid token");
-        String userId = users.get(0).getId();
+        String userId = user.getId();
 
         // Endpoint
         String requestUrl = String.format("%s/users/%s/follows/channels/%s", API_KRAKEN, userId, id);
@@ -2404,10 +2475,10 @@ public class TwitchUnofficialApi {
         if (token == null)
             throw halt(BAD_REQUEST, "No token");
         // Unfollow
-        List<User> users = getUsers(null, null, token);
-        if (users == null || users.size() != 1)
+        User user = getUserFromToken(token);
+        if (user == null || user.getId() == null || user.getId().isEmpty())
             throw halt(BAD_REQUEST, "Invalid token");
-        String userId = users.get(0).getId();
+        String userId = user.getId();
         // Rest request
         String requestUrl = String.format("%s/users/%s/follows/channels/%s", API_KRAKEN, userId, id);
         Webb webb = getPrivilegedWebbKraken(token);
@@ -2427,7 +2498,246 @@ public class TwitchUnofficialApi {
      * Getter
      * @return twitch credentials
      */
+    @NotCached
     static TwitchCredentials getTwitchCredentials() {
         return TwitchUnofficialApi.twitchCredentials;
+    }
+
+    /**
+     * Request followed games from the Twitch undocumented API
+     * @param request request
+     * @param response response
+     * @return json array of followed games
+     */
+    @Cached
+    static String getFollowedGames(Request request, spark.Response response) {
+        checkAuth(request);
+        // Params
+        String limit = request.queryParamOrDefault("limit", "20");
+        String offset = request.queryParamOrDefault("offset", "0");
+        String token = AuthUtil.extractTwitchToken(request);
+        if (token == null || token.isEmpty())
+            unauthorized();
+        // Check cache
+        String cacheId = ApiCache.createKey("games/follows", limit, offset,
+                AuthUtil.hashString(token, null));
+        String cachedFollowsJson = cache.get(cacheId);
+        if (cachedFollowsJson != null)
+            return cachedFollowsJson;
+        // Request live
+        @Nullable User user = getUserFromToken(token);
+        if (user == null || user.getLogin() == null || user.getLogin().isEmpty())
+            throw halt(SERVER_ERROR, "Failed to get user name.");
+        Webb webb = getPrivilegedWebbKraken(token);
+        String url = String.format("%s/users/%s/follows/games", API_RAW, user.getLogin());
+        List<Game> followedGames = new ArrayList<>();
+        try {
+            Logger.verbose("Rest request to [%s]", url);
+            Response<String> webbResponse = webb.get(url)
+                    .param("limit", limit)
+                    .param("offset", StringUtil.parseLong(offset) * StringUtil.parseLong(limit))
+                    .ensureSuccess()
+                    .asString();
+            FollowedGameList followedGameList = gson.fromJson(webbResponse.getBody(), FollowedGameList.class);
+            for (com.rolandoislas.twitchunofficial.util.twitch.kraken.Game follow : followedGameList.getFollows()) {
+                Game game = new Game();
+                game.setId(String.valueOf(follow.getId()));
+                game.setName(follow.getName());
+                Preview boxArt = follow.getBox();
+                if (boxArt != null) {
+                    game.setBoxArtUrl(boxArt.getTemplate());
+                }
+                game.setViewers(follow.getPopularity());
+                followedGames.add(game);
+            }
+        }
+        catch (WebbException | JsonSyntaxException e) {
+            Logger.warn("Request failed: " + e.getMessage());
+            Logger.exception(e);
+        }
+        // Cache
+        String json = gson.toJson(followedGames);
+        cache.set(cacheId, json, ApiCache.TIMEOUT_HOUR);
+        return json;
+    }
+
+    /**
+     * Fetch a user name from a user token
+     * The endpoint returns kraken data
+     * @param token RAW TOKEN!
+     * @return user name
+     */
+    @Cached
+    @Nullable
+    static User getUserFromToken(String token) {
+        String userId = cache.getUserIdFromToken(token);
+        if (userId == null || userId.isEmpty()) {
+            @Nullable List<User> users = getUsers(null, null, token);
+            if (users != null && users.size() == 1)
+                userId = users.get(0).getId();
+            if (userId == null || userId.isEmpty())
+                return null;
+            cache.cacheUserIdFromToken(userId, token);
+        }
+        Map<String, String> users = getUserNames(Collections.singletonList(userId));
+        String userJson = users.get(userId);
+        try {
+            return gson.fromJson(userJson, User.class);
+        }
+        catch (JsonSyntaxException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Follow a game on the Twitch undocumented endpoint
+     * @param request request
+     * @param response response
+     * @return empty object
+     */
+    @NotCached
+    static String followGame(Request request, spark.Response response) {
+        checkAuth(request);
+        // Params
+        String name = request.queryParams("name");
+        // Id to name
+        String id = request.queryParams("id");
+        if (id != null && !id.isEmpty()) {
+            Map<String, String> gameNames = getGameNames(Collections.singletonList(id));
+            name = gameNames.get(id);
+        }
+        if (name == null || name.isEmpty())
+            throw halt(BAD_REQUEST, "Missing name or id");
+        String token = AuthUtil.extractTwitchToken(request);
+        if (token == null || token.isEmpty())
+            throw halt(BAD_REQUEST, "No Twitch token provided");
+        // Request
+        @Nullable User user = getUserFromToken(token);
+        if (user == null || user.getLogin() == null || user.getLogin().isEmpty())
+            throw halt(SERVER_ERROR, "Failed to get user name.");
+        String url = String.format("%s/users/%s/follows/games/follow", API_RAW, user.getLogin());
+        Webb webb = getPrivilegedWebbKraken(token);
+        try {
+            Logger.verbose("Rest Request to [%s]", url);
+            JsonObject body = new JsonObject();
+            body.addProperty("src", "directory");
+            body.addProperty("name", name);
+            webb.put(url)
+                    .header("Content-Type", "application/json")
+                    .body(body.toString())
+                    .ensureSuccess()
+                    .asVoid();
+        }
+        catch (WebbException e) {
+            Logger.warn("Request failed: " + e.getMessage());
+            Logger.exception(e);
+        }
+        return "{}";
+    }
+
+    /**
+     * Unfollow a game on the twitch undocumented api
+     *
+     * @param request request
+     * @param response response
+     * @return empty object
+     */
+    @NotCached
+    static String unfollowGame(Request request, spark.Response response) {
+        checkAuth(request);
+        // Params
+        String name = request.queryParams("name");
+        // Id to name
+        String id = request.queryParams("id");
+        if (id != null && !id.isEmpty()) {
+            Map<String, String> gameNames = getGameNames(Collections.singletonList(id));
+            name = gameNames.get(id);
+        }
+        if (name == null || name.isEmpty())
+            throw halt(BAD_REQUEST, "Missing name or id");
+        String token = AuthUtil.extractTwitchToken(request);
+        if (token == null || token.isEmpty())
+            throw halt(BAD_REQUEST, "No Twitch token provided");
+        // Request
+        @Nullable User user = getUserFromToken(token);
+        if (user == null || user.getLogin() == null || user.getLogin().isEmpty())
+            throw halt(SERVER_ERROR, "Failed to get user name.");
+        String url = String.format("%s/users/%s/follows/games/unfollow", API_RAW, user.getLogin());
+        Webb webb = getPrivilegedWebbKraken(token);
+        try {
+            Logger.verbose("Rest Request to [%s]", url);
+            JsonObject body = new JsonObject();
+            body.addProperty("src", "directory");
+            body.addProperty("name", name);
+            webb.delete(url)
+                    .header("Content-Type", "application/json")
+                    .body(body.toString())
+                    .ensureSuccess()
+                    .asVoid();
+        }
+        catch (WebbException e) {
+            Logger.warn("Request failed: " + e.getMessage());
+            Logger.exception(e);
+        }
+        return "{}";
+    }
+
+    /**
+     * Checks if a user is following a game
+     */
+    @Cached
+    static String getFollowingGame(Request request, spark.Response response) {
+        checkAuth(request);
+        // Params
+        String name = request.queryParams("name");
+        // Id to name
+        String id = request.queryParams("id");
+        if (id != null && !id.isEmpty()) {
+            Map<String, String> gameNames = getGameNames(Collections.singletonList(id));
+            name = gameNames.get(id);
+        }
+        if (name == null || name.isEmpty())
+            throw halt(BAD_REQUEST, "Missing name or id");
+        String noCache = request.queryParamOrDefault("no_cache", "false");
+        String token = AuthUtil.extractTwitchToken(request);
+        if (token == null || token.isEmpty())
+            unauthorized();
+        // Check cache
+        String cacheId = ApiCache.createKey("games/following", name, AuthUtil.hashString(token, null));
+        if (!Boolean.valueOf(noCache)) {
+            String cachedFollowsJson = cache.get(cacheId);
+            if (cachedFollowsJson != null)
+                return cachedFollowsJson;
+        }
+        // Request live
+        @Nullable User user = getUserFromToken(token);
+        if (user == null || user.getLogin() == null || user.getLogin().isEmpty())
+            throw halt(SERVER_ERROR, "Failed to get user name.");
+        Webb webb = getPrivilegedWebbKraken(token);
+        String url = String.format("%s/users/%s/follows/games/isFollowing", API_RAW, user.getLogin());
+        JsonObject status = new JsonObject();
+        try {
+            Logger.verbose("Rest request to [%s]", url);
+            Response<String> webbResponse = webb.get(url)
+                    .param("name", name)
+                    .ensureSuccess()
+                    .asString();
+            JsonObject jsonResponse = gson.fromJson(webbResponse.getBody(), JsonObject.class);
+            if (jsonResponse.has("error"))
+                status.addProperty("status", false);
+            else
+                status.addProperty("status", true);
+        }
+        catch (WebbException e) {
+            if (e.getResponse().getStatusCode() != 404) {
+                Logger.warn("Request failed: " + e.getMessage());
+                Logger.exception(e);
+            }
+            status.addProperty("status", false);
+        }
+        // Cache
+        String json = status.toString();
+        cache.set(cacheId, json, ApiCache.TIMEOUT_HOUR);
+        return json;
     }
 }
