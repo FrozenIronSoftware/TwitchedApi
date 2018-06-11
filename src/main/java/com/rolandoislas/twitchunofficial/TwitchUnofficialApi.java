@@ -70,7 +70,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -95,6 +97,7 @@ public class TwitchUnofficialApi {
     static Gson gson;
     private static Thread followsThread;
     private static TwitchCredentials twitchCredentials;
+    private static final Map<String, ReentrantLock> hlsLocks = Collections.synchronizedMap(new WeakHashMap<>());
 
     /**
      * Send a JSON error message to the current requester
@@ -188,54 +191,67 @@ public class TwitchUnofficialApi {
             return null;
         // Check cache
         String requestId = ApiCache.createKey("hls", username, AuthUtil.hashString(userToken, null));
-        String cachedResponse = cache.get(requestId);
-        if (cachedResponse != null) {
-            response.type("audio/mpegurl");
-            return cleanMasterPlaylist(cachedResponse, fps, quality, model);
-        }
-        // Get live data
-
-        // Construct template
-        Webb webb = getWebb();
-        // TODO When the API transitions to Helix the Authentication header will change
-        if (userToken != null)
-            webb = getPrivilegedWebbKraken(userToken);
-
-        // Request channel token
-        Token token = getVideoAccessToken(Token.TYPE.CHANNEL, username, userToken);
-
-        // Request HLS playlist
-        String hlsPlaylistUrl = String.format(API_USHER + "/api/channel/hls/%s.m3u8", username);
-        String playlistString = null;
-        try {
-            Logger.verbose( "Rest Request to [%s]", hlsPlaylistUrl);
-            Response<String> webbResponse = webb.get(hlsPlaylistUrl)
-                    .header("Accept", "*/*")
-                    .param("player", "Twitched")
-                    .param("token", token.getToken())
-                    .param("sig", token.getSig())
-                    .param("p", String.valueOf((int) (Math.random() * Integer.MAX_VALUE)))
-                    .param("type", "any")
-                    .param("allow_audio_only", "true")
-                    .param("allow_source", "true")
-                    .ensureSuccess()
-                    .asString();
-            playlistString = webbResponse.getBody();
-        }
-        catch (WebbException e) {
-            if (e.getResponse().getStatusCode() != 404) {
-                Logger.warn("Request failed: " + e.getMessage());
-                Logger.exception(e);
+        ReentrantLock lock;
+        synchronized (hlsLocks) {
+            lock = hlsLocks.get(requestId);
+            if (lock == null) {
+                lock = new ReentrantLock();
+                hlsLocks.put(requestId, lock);
             }
         }
+        lock.lock();
+        try {
+            String cachedResponse = cache.get(requestId);
+            if (cachedResponse != null) {
+                response.type("audio/mpegurl");
+                return cleanMasterPlaylist(cachedResponse, fps, quality, model);
+            }
+            // Get live data
 
-        // Parse playlist
-        if (playlistString == null)
-            return null;
-        // Cache and return
-        cache.set(requestId, playlistString);
-        response.type("audio/mpegurl");
-        return cleanMasterPlaylist(playlistString, fps, quality, model);
+            // Construct template
+            Webb webb = getWebb();
+            // TODO When the API transitions to Helix the Authentication header will change
+            if (userToken != null)
+                webb = getPrivilegedWebbKraken(userToken);
+
+            // Request channel token
+            Token token = getVideoAccessToken(Token.TYPE.CHANNEL, username, userToken);
+
+            // Request HLS playlist
+            String hlsPlaylistUrl = String.format(API_USHER + "/api/channel/hls/%s.m3u8", username);
+            String playlistString = null;
+            try {
+                Logger.verbose("Rest Request to [%s]", hlsPlaylistUrl);
+                Response<String> webbResponse = webb.get(hlsPlaylistUrl)
+                        .header("Accept", "*/*")
+                        .param("player", "Twitched")
+                        .param("token", token.getToken())
+                        .param("sig", token.getSig())
+                        .param("p", String.valueOf((int) (Math.random() * Integer.MAX_VALUE)))
+                        .param("type", "any")
+                        .param("allow_audio_only", "true")
+                        .param("allow_source", "true")
+                        .ensureSuccess()
+                        .asString();
+                playlistString = webbResponse.getBody();
+            } catch (WebbException e) {
+                if (e.getResponse().getStatusCode() != 404) {
+                    Logger.warn("Request failed: " + e.getMessage());
+                    Logger.exception(e);
+                }
+            }
+
+            // Parse playlist
+            if (playlistString == null)
+                return null;
+            // Cache and return
+            cache.set(requestId, playlistString);
+            response.type("audio/mpegurl");
+            return cleanMasterPlaylist(playlistString, fps, quality, model);
+        }
+        finally {
+            lock.unlock();
+        }
     }
 
     /**
