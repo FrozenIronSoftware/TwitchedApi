@@ -15,7 +15,8 @@ import java.util.regex.Pattern;
 public class DatabaseUtil {
     private static Sql2o sql2o;
     private static int connections;
-    private static int MAX_CONNECTIONS = 5;
+    private static int MAX_CONNECTIONS =
+            (int) StringUtil.parseLong(System.getenv().getOrDefault("SQL_CONNECTIONS", "5"));
 
     /**
      * Get new sql instance with a parsed connection url
