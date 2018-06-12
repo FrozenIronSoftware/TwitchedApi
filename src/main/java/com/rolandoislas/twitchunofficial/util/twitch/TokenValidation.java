@@ -18,4 +18,8 @@ public class TokenValidation {
     public String getUserId() {
         return userId;
     }
+
+    public String getLogin() {
+        return login;
+    }
 }

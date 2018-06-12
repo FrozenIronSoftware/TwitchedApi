@@ -9,6 +9,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.rolandoislas.twitchunofficial.data.CachedStreams;
 import com.rolandoislas.twitchunofficial.data.Id;
+import com.rolandoislas.twitchunofficial.data.model.FollowQueue;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.Stream;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.StreamUtil;
 import org.jetbrains.annotations.NotNull;
@@ -41,6 +42,8 @@ public class ApiCache {
     private static final String STREAM_PREFIX = "_s_";
     private static final String TOKEN_ID_PREFIX = "_ti_";
     private static final String USER_ID_PREFIX = "_ui_";
+    private static final String FOLLOW_GAME_PREFIX = "_fg_";
+    private static final String FOLLOW_TIME_GAME_PREFIX = "_ftg_";
     private final String redisPassword;
     private final Gson gson;
     private JedisPool redisPool;
@@ -145,8 +148,8 @@ public class ApiCache {
      * Set user names
      * @param userNameIdMap id (key) - user name (value)
      */
-    public void setUserNames(Map<String, String> userNameIdMap) {
-        setNames(userNameIdMap, Id.USER);
+    public void setUsersJson(Map<String, String> userNameIdMap) {
+        setUserOrGameJson(userNameIdMap, Id.USER);
     }
 
     /**
@@ -221,15 +224,15 @@ public class ApiCache {
      * Set user names
      * @param gameNames id (key) - user name (value)
      */
-    public void setGameNames(Map<String, String> gameNames) {
-        setNames(gameNames, Id.GAME);
+    public void setGamesJson(Map<String, String> gameNames) {
+        setUserOrGameJson(gameNames, Id.GAME);
     }
 
     /**
-     * Store names in a map to their key id
-     * @param namesIdMap <id, name>
+     * Store user or game json
+     * @param jsonMap <id, json>
      */
-    private void setNames(Map<String, String> namesIdMap, Id type) {
+    private void setUserOrGameJson(Map<String, String> jsonMap, Id type) {
         // Determine key prefix
         String keyPrefix;
         int keyTimeout;
@@ -246,11 +249,11 @@ public class ApiCache {
                 throw new IllegalArgumentException("Type must be GAME or USER");
         }
         try (Jedis redis = getAuthenticatedJedis()) {
-            for (Map.Entry<String, String> nameId : namesIdMap.entrySet()) {
-                if (nameId.getKey() == null || nameId.getValue() == null)
+            for (Map.Entry<String, String> idJson : jsonMap.entrySet()) {
+                if (idJson.getKey() == null || idJson.getValue() == null)
                     continue;
-                String key = keyPrefix + nameId.getKey();
-                long result = redis.setnx(key, nameId.getValue());
+                String key = keyPrefix + idJson.getKey();
+                long result = redis.setnx(key, idJson.getValue());
                 if (result == 1)
                     redis.expire(key, keyTimeout);
             }
@@ -334,15 +337,7 @@ public class ApiCache {
             Logger.exception(e);
         }
         // Set follows
-        try (Jedis redis = getAuthenticatedJedis()) {
-            if (toIds.size() > 0) {
-                redis.sadd(FOLLOW_PREFIX + fromId, toIds.toArray(new String[0]));
-                redis.expire(FOLLOW_PREFIX + fromId, TIMEOUT_DAY);
-            }
-            redis.setex(FOLLOW_TIME_PREFIX + fromId, TIMEOUT_HOUR, String.valueOf(System.currentTimeMillis()));
-        } catch (Exception e) {
-            Logger.exception(e);
-        }
+        setFollowInSet(fromId, toIds, FOLLOW_PREFIX, FollowQueue.FollowType.CHANNEL);
     }
 
     /**
@@ -350,10 +345,19 @@ public class ApiCache {
      * @param fromId id
      * @return last set time of follows set for an id
      */
-    public long getFollowIdCacheTime(String fromId) {
+    public long getFollowIdCacheTime(String fromId, FollowQueue.FollowType followType) {
+        String prefix = "";
+        switch (followType) {
+            case CHANNEL:
+                prefix = FOLLOW_TIME_PREFIX;
+                break;
+            case GAME:
+                prefix = FOLLOW_TIME_GAME_PREFIX;
+                break;
+        }
         long time = 0;
         try (Jedis redis = getAuthenticatedJedis()) {
-            String timeString = redis.get(FOLLOW_TIME_PREFIX + fromId);
+            String timeString = redis.get(prefix + fromId);
             if (timeString != null && !timeString.isEmpty()) {
                 try {
                     time =  Long.parseLong(timeString);
@@ -478,6 +482,70 @@ public class ApiCache {
                 String key = USER_ID_PREFIX + loginId.getKey();
                 redis.setex(key, TIMEOUT_DAY, loginId.getValue());
             }
+        }
+        catch (Exception e) {
+            Logger.exception(e);
+        }
+    }
+
+    /**
+     * Get followed games from the cache
+     * @param userName Twitch user login name
+     * @return list of game ids the user is following
+     */
+    public List<String> getFollowedGames(String userName) {
+        List<String> followsList = new ArrayList<>();
+        try (Jedis redis = getAuthenticatedJedis()) {
+            Set<String> follows = redis.smembers(FOLLOW_GAME_PREFIX + userName);
+            followsList.addAll(follows);
+        }
+        catch (Exception e) {
+            Logger.exception(e);
+        }
+        return followsList;
+    }
+
+    /**
+     * Set followed game ids for a user
+     * @param userName Twitch user name
+     * @param followedGameIds followed game ids
+     */
+    void setFollowedGames(String userName, List<String> followedGameIds) {
+        // Remove old follows
+        List<String> follows = getFollowedGames(userName);
+        try (Jedis redis = getAuthenticatedJedis()) {
+            if (follows.size() > 0)
+                redis.srem(FOLLOW_GAME_PREFIX + userName, follows.toArray(new String[0]));
+        }
+        catch (Exception e) {
+            Logger.exception(e);
+        }
+        // Set follows
+        setFollowInSet(userName, followedGameIds, FOLLOW_GAME_PREFIX, FollowQueue.FollowType.GAME);
+    }
+
+    /**
+     * Set follows id in a set
+     * @param id set id
+     * @param toIds ids to set the set to
+     * @param prefix set prefix
+     */
+    private void setFollowInSet(String id, List<String> toIds, String prefix, FollowQueue.FollowType followType) {
+        String timePrefix = "";
+        switch (followType) {
+            case CHANNEL:
+                timePrefix = FOLLOW_TIME_PREFIX;
+                break;
+            case GAME:
+                timePrefix = FOLLOW_TIME_GAME_PREFIX;
+                break;
+        }
+        try (Jedis redis = getAuthenticatedJedis()) {
+            if (toIds.size() > 0) {
+                redis.sadd(prefix + id, toIds.toArray(new String[0]));
+                redis.expire(prefix + id, TIMEOUT_DAY);
+            }
+            redis.setex(timePrefix + id, TIMEOUT_HOUR, String.valueOf(System.currentTimeMillis()));
         }
         catch (Exception e) {
             Logger.exception(e);

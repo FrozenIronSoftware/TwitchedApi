@@ -17,6 +17,7 @@ import com.rolandoislas.twitchunofficial.data.json.AdServerList;
 import com.rolandoislas.twitchunofficial.data.json.CfVisitor;
 import com.rolandoislas.twitchunofficial.data.json.LinkId;
 import com.rolandoislas.twitchunofficial.data.json.LinkToken;
+import com.rolandoislas.twitchunofficial.data.model.FollowQueue;
 import com.rolandoislas.twitchunofficial.util.ApiCache;
 import com.rolandoislas.twitchunofficial.util.AuthUtil;
 import com.rolandoislas.twitchunofficial.util.DatabaseUtil;
@@ -377,7 +378,8 @@ class TwitchedApi {
         String userId = tokenValidation != null ? tokenValidation.getUserId() : null;
         if (userId != null && !userId.isEmpty()) {
             cache.cacheUserIdFromToken(userId, token);
-            TwitchUnofficialApi.cacheFollows(userId);
+            TwitchUnofficialApi.cacheFollows(userId, FollowQueue.FollowType.CHANNEL);
+            TwitchUnofficialApi.cacheFollows(tokenValidation.getLogin(), FollowQueue.FollowType.GAME);
         }
         // Return validation data
         return gson.toJson(validationList);

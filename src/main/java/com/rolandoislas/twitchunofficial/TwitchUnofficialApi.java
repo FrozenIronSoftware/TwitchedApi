@@ -18,6 +18,8 @@ import com.rolandoislas.twitchunofficial.data.Playlist;
 import com.rolandoislas.twitchunofficial.data.RokuQuality;
 import com.rolandoislas.twitchunofficial.data.annotation.Cached;
 import com.rolandoislas.twitchunofficial.data.annotation.NotCached;
+import com.rolandoislas.twitchunofficial.data.model.FollowQueue;
+import com.rolandoislas.twitchunofficial.data.model.FollowedGamesWithRate;
 import com.rolandoislas.twitchunofficial.data.model.TwitchCredentials;
 import com.rolandoislas.twitchunofficial.data.model.UsersWithRate;
 import com.rolandoislas.twitchunofficial.util.ApiCache;
@@ -79,7 +81,7 @@ import java.util.regex.Pattern;
 import static com.rolandoislas.twitchunofficial.TwitchUnofficial.cache;
 
 public class TwitchUnofficialApi {
-    public static final Queue<String> followIdsToCache = new ConcurrentLinkedQueue<>();
+    public static final Queue<FollowQueue> followIdsToCache = new ConcurrentLinkedQueue<>();
     private static final Pattern DURATION_REGEX = Pattern.compile("(?:(\\d+)d)?(?:(\\d+)h)?(?:(\\d+)m)?(?:(\\d+)s)");
     private static final String IMAGE_SIZE_REGEX = "-\\d+x\\d+\\.";
     static final int BAD_REQUEST = 400;
@@ -176,16 +178,11 @@ public class TwitchUnofficialApi {
         String username = idSplit[0];
         if (username.startsWith(":")) {
             String userId = username.replaceFirst(":", "");
-            Map<String, String> cachedUsers = getUserNames(Collections.singletonList(userId));
-            String userJson = cachedUsers.get(userId);
-            if (userJson == null)
+            Map<String, User> cachedUsers = getCachedUsers(Collections.singletonList(userId));
+            User user = cachedUsers.get(userId);
+            if (user == null)
                 return null;
-            try {
-                username = gson.fromJson(userJson, User.class).getLogin();
-            }
-            catch (JsonSyntaxException e) {
-                return null;
-            }
+            username = user.getLogin();
         }
         if (username == null || username.isEmpty())
             return null;
@@ -1122,13 +1119,13 @@ public class TwitchUnofficialApi {
             userIds.add(stream.getUserId());
             gameIds.add(stream.getGameId());
         }
-        Map<String, String> userNames;
+        Map<String, User> users;
         try {
-            userNames = getUserNames(userIds);
+            users = getCachedUsers(userIds);
         }
         catch (HaltException | WebbException e) {
             Logger.exception(e);
-            userNames = new HashMap<>();
+            users = new HashMap<>();
         }
         Map<String, String> gameNames;
         try {
@@ -1146,19 +1143,12 @@ public class TwitchUnofficialApi {
             gameNames = new HashMap<>();
         }
         for (Stream stream : streams) {
-            String userString = userNames.get(stream.getUserId());
-            try {
-                User user = gson.fromJson(userString, User.class);
-                boolean shouldSendLogin = version == null || version.compareTo(new ComparableVersion("1.4.2400")) != 0;
-                stream.setUserName(user == null || user.getDisplayName() == null || user.getDisplayName().isEmpty() ||
-                        user.getLogin() == null || user.getLogin().isEmpty() ?
-                        new UserName("" , "") :
-                        new UserName(shouldSendLogin ? user.getLogin() : "", user.getDisplayName()));
-            }
-            catch (JsonSyntaxException e) {
-                Logger.exception(e);
-                stream.setUserName(new UserName("", ""));
-            }
+            User user = users.get(stream.getUserId());
+            boolean shouldSendLogin = version == null || version.compareTo(new ComparableVersion("1.4.2400")) != 0;
+            stream.setUserName(user == null || user.getDisplayName() == null || user.getDisplayName().isEmpty() ||
+                    user.getLogin() == null || user.getLogin().isEmpty() ?
+                    new UserName("" , "") :
+                    new UserName(shouldSendLogin ? user.getLogin() : "", user.getDisplayName()));
             String gameName = gameNames.get(stream.getGameId());
             stream.setGameName(gameName == null ? "" : gameName);
         }
@@ -1220,38 +1210,79 @@ public class TwitchUnofficialApi {
      */
     @Cached
     private static Map<String, String> getGameNames(List<String> gameIds) {
-        return getNameForIds(gameIds, Id.GAME, true);
+        Map<String, @Nullable Game> games = getCachedGames(gameIds);
+        Map<String, String> gameNames = new HashMap<>();
+        for (Map.Entry<String, @Nullable Game> gameEntry : games.entrySet()) {
+            if (gameEntry.getValue() == null || gameEntry.getValue().getName() == null)
+                gameNames.put(gameEntry.getKey(), null);
+            else
+                gameNames.put(gameEntry.getKey(), gameEntry.getValue().getName());
+        }
+        return gameNames;
     }
 
     /**
-     * Get username for ids, checking the cache first
-     * @param userIds ids
-     * @return user names(value) and ids(key)
+     * Get games for ids, checking the cache first
+     * @param gameIds ids
+     * @return user(value) and ids(key) - missing games will be null
      */
     @Cached
-    private static Map<String, String> getUserNames(List<String> userIds, boolean shouldFetchLive) {
-        return getNameForIds(userIds, Id.USER, shouldFetchLive);
+    private static Map<String, @Nullable Game> getCachedGames(List<String> gameIds) {
+        Map<String, String> gamesJson = getCachedJsonForIds(gameIds, Id.GAME, true);
+        Map<String, Game> games = new HashMap<>();
+        for (Map.Entry<String, String> gameJson : gamesJson.entrySet()) {
+            try {
+                Game game = gson.fromJson(gameJson.getValue(), Game.class);
+                games.put(gameJson.getKey(), game);
+            }
+            catch (JsonSyntaxException e) {
+                Logger.exception(e);
+                games.put(gameJson.getKey(), null);
+            }
+        }
+        return games;
     }
 
     /**
-     * Get username for ids, checking the cache first
+     * Get users for ids, checking the cache first
      * @param userIds ids
-     * @return user names(value) and ids(key)
+     * @return users(value) and ids(key) - missing users may be null
      */
     @Cached
-    private static Map<String, String> getUserNames(List<String> userIds) {
-        return getNameForIds(userIds, Id.USER, true);
+    private static Map<String, @Nullable User> getCachedUsers(List<String> userIds, boolean shouldFetchLive) {
+        Map<String, String> usersJson = getCachedJsonForIds(userIds, Id.USER, shouldFetchLive);
+        Map<String, User> users = new HashMap<>();
+        for (Map.Entry<String, String> userJson : usersJson.entrySet()) {
+            try {
+                User user = gson.fromJson(userJson.getValue(), User.class);
+                users.put(userJson.getKey(), user);
+            }
+            catch (JsonSyntaxException e) {
+                Logger.exception(e);
+                users.put(userJson.getKey(), null);
+            }
+        }
+        return users;
     }
 
     /**
-     * Get user name or game name for ids
+     * @see #getCachedUsers(List, boolean)
+     */
+    @Cached
+    private static Map<String, @Nullable User> getCachedUsers(List<String> userIds) {
+        return getCachedUsers(userIds, true);
+    }
+
+    /**
+     * Get user or game json for ids
      * @param ids user or game id - must be all one type
      * @param type type of ids
-     * @return map <id, @Nullable name> all ids passed will be returned.
-     *  in the case of the User type, the name string will be a User object as a json(gson) string
+     * @return map <id, @Nullable json> all ids passed will be returned.
+     *  In the case of the User type, the name string will be a User object as a json(gson) string.
+     *  In the case of the Game type, the string will be a gson serialized game object.
      */
     @Cached
-    private static Map<String, String> getNameForIds(List<String> ids, Id type, boolean shouldFetchLive) {
+    private static Map<String, @Nullable String> getCachedJsonForIds(List<String> ids, Id type, boolean shouldFetchLive) {
         // Get ids in cache
         Map<String, String> nameIdMap;
         switch (type) {
@@ -1293,17 +1324,30 @@ public class TwitchUnofficialApi {
                 for (String missingId : missingIds)
                     if (nameIdMap.get(missingId) == null)
                         nameIdMap.put(missingId, gson.toJson(new User()));
-                cache.setUserNames(nameIdMap);
+                cache.setUsersJson(nameIdMap);
             }
         }
         else if (type.equals(Id.GAME)) {
-            List<Game> games = getGames(missingIds, null);
-            if (games == null)
-                throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
-            // Store missing ids
-            for (Game game : games)
-                nameIdMap.put(game.getId(), game.getName());
-            cache.setGameNames(nameIdMap);
+            for (int idIndex = 0; idIndex < missingIds.size(); idIndex += 100) {
+                List<String> idsSubList = missingIds.subList(idIndex, Math.min(idIndex + 100, missingIds.size()));
+                List<Game> games = getGames(idsSubList, null);
+                if (games == null)
+                    throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
+                // Store missing ids
+                for (Game game : games) {
+                    try {
+                        nameIdMap.put(game.getId(), gson.toJson(game));
+                    }
+                    catch (JsonSyntaxException e) {
+                        Logger.exception(e);
+                    }
+                }
+                // Ensure missing ids are cached
+                for (String missingId : missingIds)
+                    if (nameIdMap.get(missingId) == null)
+                        nameIdMap.put(missingId, gson.toJson(new Game()));
+                cache.setGamesJson(nameIdMap);
+            }
         }
         return nameIdMap;
     }
@@ -1622,39 +1666,33 @@ public class TwitchUnofficialApi {
             List<String> followIdsOffline = new ArrayList<>();
             for (Follow follow : followsOffline)
                 followIdsOffline.add(follow.getToId());
-            Map<String, String> offlineUsers = getUserNames(followIdsOffline, shouldFetchLive);
+            Map<String, @Nullable User> offlineUsers = getCachedUsers(followIdsOffline, shouldFetchLive);
             List<Stream> offlineStreams = new ArrayList<>();
-            for (Map.Entry<String, String> offlineUser : offlineUsers.entrySet()) {
-                if (offlineUser.getValue() == null || offlineUser.getValue().isEmpty())
+            for (Map.Entry<String, User> offlineUser : offlineUsers.entrySet()) {
+                if (offlineUser.getValue() == null)
                     continue;
                 Stream offlineStream =
                         new Stream();
                 offlineStream.setUserId(offlineUser.getKey());
-                try {
-                    User user = gson.fromJson(offlineUser.getValue(), User.class);
-                    if (user == null || user.getLogin() == null || user.getDisplayName() == null ||
-                            user.getOfflineImageUrl() == null)
-                        continue;
-                    offlineStream.setUserName(new UserName(user.getLogin(), user.getDisplayName()));
-                    offlineStream.setThumbnailUrl(user.getOfflineImageUrl()
-                            .replaceAll(IMAGE_SIZE_REGEX, "-{width}x{height}."));
-                    offlineStream.setTitle(user.getDescription() == null ? "" : user.getDescription());
-                    offlineStream.setViewerCount(user.getViewCount());
-                    offlineStream.setGameName("IRL");
-                    offlineStream.setGameId("494717");
-                    offlineStream.setOnline(false);
-                    if (twitchedVersion.compareTo(new ComparableVersion("1.3")) >= 0)
-                        offlineStream.setType("user_follow");
-                    else
-                        offlineStream.setType("user");
-                    for (Follow follow : followsOffline)
-                        if (follow.getToId().equals(offlineUser.getKey()))
-                            offlineStream.setStartedAt(follow.getFollowedAt());
-                }
-                catch (JsonSyntaxException e) {
-                    Logger.exception(e);
+                User user = offlineUser.getValue();
+                if (user == null || user.getLogin() == null || user.getDisplayName() == null ||
+                        user.getOfflineImageUrl() == null)
                     continue;
-                }
+                offlineStream.setUserName(new UserName(user.getLogin(), user.getDisplayName()));
+                offlineStream.setThumbnailUrl(user.getOfflineImageUrl()
+                        .replaceAll(IMAGE_SIZE_REGEX, "-{width}x{height}."));
+                offlineStream.setTitle(user.getDescription() == null ? "" : user.getDescription());
+                offlineStream.setViewerCount(user.getViewCount());
+                offlineStream.setGameName("IRL");
+                offlineStream.setGameId("494717");
+                offlineStream.setOnline(false);
+                if (twitchedVersion.compareTo(new ComparableVersion("1.3")) >= 0)
+                    offlineStream.setType("user_follow");
+                else
+                    offlineStream.setType("user");
+                for (Follow follow : followsOffline)
+                    if (follow.getToId().equals(offlineUser.getKey()))
+                        offlineStream.setStartedAt(follow.getFollowedAt());
                 offlineStreams.add(offlineStream);
             }
             streams.addAll(offlineStreams);
@@ -1662,7 +1700,7 @@ public class TwitchUnofficialApi {
         // Request offline user names from Redis
         // Time expired - Send the data that was retrieved and add the user id to a background thread that caches
         // follows. This is not likely to happen on accounts with less than 300 follows.
-        cacheFollows(fromId);
+        cacheFollows(fromId, FollowQueue.FollowType.CHANNEL);
         return streams;
     }
 
@@ -1672,28 +1710,30 @@ public class TwitchUnofficialApi {
      * @param force ignore cache time
      */
     @NotCached
-    private static void cacheFollows(String fromId, boolean force) {
-        long followIdCacheTime = cache.getFollowIdCacheTime(fromId);
+    private static void cacheFollows(String fromId, FollowQueue.FollowType followType, boolean force) {
+        long followIdCacheTime = cache.getFollowIdCacheTime(fromId, followType);
         // Cache for 1 hour
         if (System.currentTimeMillis() - followIdCacheTime < 60 * 60 * 1000 && !force)
             return;
-        if (!followIdsToCache.contains(fromId)) {
-            Logger.debug("Adding user with id %s to the follows cacher.", fromId);
-            if (!followIdsToCache.offer(fromId))
-                Logger.debug("Failed to add user with id %s to follows cacher queue.");
+        FollowQueue followQueue = new FollowQueue(fromId, followType);
+        synchronized (followIdsToCache) {
+            if (!followIdsToCache.contains(followQueue)) {
+                Logger.debug("Adding user with id %s to the follows cacher.", fromId);
+                if (!followIdsToCache.offer(followQueue))
+                    Logger.debug("Failed to add user with id %s to follows cacher queue.");
+            } else
+                Logger.debug("User with id %s already queued in the follows cacher.", fromId);
         }
-        else
-            Logger.debug("User with id %s already queued in the follows cacher.", fromId);
     }
 
     /**
-     * @see TwitchUnofficialApi#cacheFollows(String, boolean)
+     * @see TwitchUnofficialApi#cacheFollows(String, FollowQueue.FollowType, boolean)
      * Respects cache time
      * @param fromId user id
      */
     @NotCached
-    static void cacheFollows(String fromId) {
-        cacheFollows(fromId, false);
+    static void cacheFollows(String fromId, FollowQueue.FollowType followType) {
+        cacheFollows(fromId, followType, false);
     }
 
     /**
@@ -2167,15 +2207,13 @@ public class TwitchUnofficialApi {
             throw halt(BAD_REQUEST, "Missing token/id/login");
         // Check user cache
         if (ids.size() > 0 && logins.size() == 0) {
-            Map<String, String> cachedUserNames = getUserNames(ids);
+            Map<String, @Nullable User> cachedUserNames = getCachedUsers(ids);
             List<User> cachedUsers = new ArrayList<>();
             try {
-                for (Map.Entry<String, String> userEntry: cachedUserNames.entrySet()) {
-                    if (userEntry.getValue() == null)
-                        throw new NotFoundException("Missing cached user");
-                    User user = gson.fromJson(userEntry.getValue(), User.class);
+                for (Map.Entry<String, @Nullable User> userEntry: cachedUserNames.entrySet()) {
+                    User user = userEntry.getValue();
                     if (user == null)
-                        throw new NotFoundException("Null user data");
+                        throw new NotFoundException("Missing cached user");
                     cachedUsers.add(user);
                 }
                 return gson.toJson(cachedUsers);
@@ -2197,7 +2235,7 @@ public class TwitchUnofficialApi {
                 try {
                     List<User> users = gson.fromJson(cachedResponse, new TypeToken<List<User>>() {}.getType());
                     if (users != null && users.size() == 1 && users.get(0).getId() != null)
-                        cacheFollows(users.get(0).getId(), true);
+                        cacheFollows(users.get(0).getId(), FollowQueue.FollowType.CHANNEL, true);
                 }
                 catch (JsonSyntaxException e) {
                     Logger.exception(e);
@@ -2213,7 +2251,7 @@ public class TwitchUnofficialApi {
         // Preload follows
         if (token != null)
             if (users.size() == 1 && users.get(0).getId() != null)
-                cacheFollows(users.get(0).getId(), true);
+                cacheFollows(users.get(0).getId(), FollowQueue.FollowType.CHANNEL, true);
         // Cache and return
         String json = gson.toJson(users);
         cache.set(requestId, json);
@@ -2452,7 +2490,7 @@ public class TwitchUnofficialApi {
         catch (Exception e) {
             Logger.exception(e);
         }
-        cacheFollows(userId, true);
+        cacheFollows(userId, FollowQueue.FollowType.CHANNEL, true);
         return "{}";
     }
 
@@ -2490,7 +2528,7 @@ public class TwitchUnofficialApi {
             Logger.warn("Request failed: " + e.getMessage());
             Logger.exception(e);
         }
-        cacheFollows(userId, true);
+        cacheFollows(userId, FollowQueue.FollowType.CHANNEL, true);
         return "{}";
     }
 
@@ -2518,24 +2556,64 @@ public class TwitchUnofficialApi {
         String token = AuthUtil.extractTwitchToken(request);
         if (token == null || token.isEmpty())
             unauthorized();
-        // Check cache
+        // Get user name
+        @Nullable User user = getUserFromToken(token);
+        if (user == null || user.getLogin() == null || user.getLogin().isEmpty())
+            throw halt(SERVER_ERROR, "Failed to get user name.");
+        // Check followed game cache
+        List<String> cachedFollowedGameIds = cache.getFollowedGames(user.getLogin());
+        if (cachedFollowedGameIds.size() > 0) {
+            Map<String, @Nullable Game> followedGamesMap = getCachedGames(cachedFollowedGameIds);
+            List<Game> followedGames = new ArrayList<>();
+            for (@Nullable Game followedGame : followedGamesMap.values())
+                if (followedGame != null)
+                    followedGames.add(followedGame);
+            return gson.toJson(followedGames);
+        }
+        // Check page cache
         String cacheId = ApiCache.createKey("games/follows", limit, offset,
                 AuthUtil.hashString(token, null));
         String cachedFollowsJson = cache.get(cacheId);
         if (cachedFollowsJson != null)
             return cachedFollowsJson;
         // Request live
-        @Nullable User user = getUserFromToken(token);
-        if (user == null || user.getLogin() == null || user.getLogin().isEmpty())
-            throw halt(SERVER_ERROR, "Failed to get user name.");
-        Webb webb = getPrivilegedWebbKraken(token);
-        String url = String.format("%s/users/%s/follows/games", API_RAW, user.getLogin());
+        List<Game> followedGames = getFollowedGames(token, user.getLogin(), StringUtil.parseLong(limit),
+                StringUtil.parseLong(offset));
+        // Cache
+        String json = gson.toJson(followedGames);
+        cache.set(cacheId, json, ApiCache.TIMEOUT_HOUR);
+        return json;
+    }
+
+    /**
+     * @see #getFollowedGamesWithRate(String, String, long, long)
+     */
+    @NotCached
+    @NotNull
+    private static List<Game> getFollowedGames(String token, String login, long limit, long offset) {
+        FollowedGamesWithRate followedGamesWithRate = getFollowedGamesWithRate(token, login, limit, offset);
+        return followedGamesWithRate.getFollowedGames();
+    }
+
+    /**
+     * Get followed games from the raw twitch API
+     * @param token RAW user token!
+     * @return list of followed games
+     */
+    @NotNull
+    @NotCached
+    public static FollowedGamesWithRate getFollowedGamesWithRate(@Nullable String token, String userName, long limit, long offset) {
+        Webb webb = getWebbKraken();
+        if (token != null)
+            webb = getPrivilegedWebb(token);
+        String url = String.format("%s/users/%s/follows/games", API_RAW, userName);
         List<Game> followedGames = new ArrayList<>();
+        // This endpoint may switch to the helix endpoint. It should log and return the actual limit
         try {
             Logger.verbose("Rest request to [%s]", url);
             Response<String> webbResponse = webb.get(url)
                     .param("limit", limit)
-                    .param("offset", StringUtil.parseLong(offset) * StringUtil.parseLong(limit))
+                    .param("offset", offset * limit)
                     .ensureSuccess()
                     .asString();
             FollowedGameList followedGameList = gson.fromJson(webbResponse.getBody(), FollowedGameList.class);
@@ -2555,10 +2633,7 @@ public class TwitchUnofficialApi {
             Logger.warn("Request failed: " + e.getMessage());
             Logger.exception(e);
         }
-        // Cache
-        String json = gson.toJson(followedGames);
-        cache.set(cacheId, json, ApiCache.TIMEOUT_HOUR);
-        return json;
+        return new FollowedGamesWithRate(followedGames, RATE_LIMIT_MAX);
     }
 
     /**
@@ -2579,14 +2654,11 @@ public class TwitchUnofficialApi {
                 return null;
             cache.cacheUserIdFromToken(userId, token);
         }
-        Map<String, String> users = getUserNames(Collections.singletonList(userId));
-        String userJson = users.get(userId);
-        try {
-            return gson.fromJson(userJson, User.class);
-        }
-        catch (JsonSyntaxException e) {
+        Map<String, User> users = getCachedUsers(Collections.singletonList(userId));
+        User user = users.get(userId);
+        if (user == null)
             return null;
-        }
+        return user;
     }
 
     /**
@@ -2632,6 +2704,8 @@ public class TwitchUnofficialApi {
             Logger.warn("Request failed: " + e.getMessage());
             Logger.exception(e);
         }
+        // Re-cache follows
+        cacheFollows(user.getLogin(), FollowQueue.FollowType.GAME, true);
         return "{}";
     }
 
@@ -2679,6 +2753,8 @@ public class TwitchUnofficialApi {
             Logger.warn("Request failed: " + e.getMessage());
             Logger.exception(e);
         }
+        // Re-cache follows
+        cacheFollows(user.getLogin(), FollowQueue.FollowType.GAME, true);
         return "{}";
     }
 

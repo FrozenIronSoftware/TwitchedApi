@@ -3,10 +3,14 @@ package com.rolandoislas.twitchunofficial.util;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.rolandoislas.twitchunofficial.TwitchUnofficialApi;
+import com.rolandoislas.twitchunofficial.data.model.FollowQueue;
+import com.rolandoislas.twitchunofficial.data.model.FollowedGamesWithRate;
 import com.rolandoislas.twitchunofficial.data.model.UsersWithRate;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.Follow;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.FollowList;
+import com.rolandoislas.twitchunofficial.util.twitch.helix.Game;
 import com.rolandoislas.twitchunofficial.util.twitch.helix.User;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -51,9 +55,72 @@ public class FollowsCacher implements Runnable {
      */
     private void cacheFollows() throws InterruptedException, NoSuchElementException {
         // Get follows for id
-        String fromId = TwitchUnofficialApi.followIdsToCache.element();
-        getFollowsForId(fromId);
+        FollowQueue followQueue = TwitchUnofficialApi.followIdsToCache.element();
+        String fromId = followQueue.getUserId();
+        if (fromId != null && followQueue.getFollowType() != null) {
+            switch (followQueue.getFollowType()) {
+                case CHANNEL:
+                    getFollowsForId(fromId);
+                    break;
+                case GAME:
+                    getFollowedGamesForId(fromId);
+                    break;
+            }
+        }
         TwitchUnofficialApi.followIdsToCache.remove();
+    }
+
+    /**
+     * Get the games that a user follows
+     * @param fromUserName user name to get follows for
+     */
+    private void getFollowedGamesForId(String fromUserName) throws InterruptedException {
+        Logger.debug("FollowsCacher: Getting followed games for user id %s.", fromUserName);
+        List<Game> followedGames = new ArrayList<>();
+        long limit = 100;
+        long offset = 0;
+        boolean hasNext = true;
+        do {
+            @NotNull FollowedGamesWithRate followedGamesWithRate =
+                    TwitchUnofficialApi.getFollowedGamesWithRate(null, fromUserName, limit, offset);
+            List<Game> followedGameSublist = followedGamesWithRate.getFollowedGames();
+            if (followedGameSublist.size() < limit)
+                hasNext = false;
+            followedGames.addAll(followedGameSublist);
+            offset++;
+            Thread.sleep(1000);
+            // Rate limit is low
+            if (followedGamesWithRate.getRateRemaining() < TwitchUnofficialApi.RATE_LIMIT_MAX / 4) {
+                Logger.debug("FollowsCacher: Rate limit is low. Halting for 10 seconds");
+                Thread.sleep(10000);
+            }
+        }
+        while (hasNext);
+        // Cache followed games
+        List<String> followedIds = new ArrayList<>();
+        for (Game game : followedGames)
+            if (game.getId() != null)
+                followedIds.add(game.getId());
+        cache.setFollowedGames(fromUserName, followedIds);
+        // Cache games
+        Map<String, String> gamesJson = new HashMap<>();
+        for (Game game : followedGames) {
+            if (game.getId() == null)
+                continue;
+            try {
+                gamesJson.put(game.getId(), gson.toJson(game));
+            }
+            catch (JsonSyntaxException e) {
+                Logger.exception(e);
+                try {
+                    gamesJson.put(game.getId(), gson.toJson(new Game()));
+                }
+                catch (JsonSyntaxException ee) {
+                    Logger.exception(ee);
+                }
+            }
+        }
+        cache.setGamesJson(gamesJson);
     }
 
     /**
@@ -126,7 +193,7 @@ public class FollowsCacher implements Runnable {
                         Logger.exception(e);
                     }
                 }
-                cache.setUserNames(userIdMap);
+                cache.setUsersJson(userIdMap);
                 if (usersWithRate.getRateLimit() < TwitchUnofficialApi.RATE_LIMIT_MAX / 4) {
                     Logger.debug("FollowsCacher: Rate limit is low. Halting for 10 seconds");
                     Thread.sleep(10000);
