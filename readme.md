@@ -15,7 +15,7 @@ This web applet is powered by the Gradle build system and designed to
 ./gradlew jar
 ```
 
-The output will be at: `./build/libs/TwitchUnofficialAPI-*.jar`.
+The output will be at: `./server/build/libs/server-*.jar` and `./status/build/libs/status-*.jar`.
  
 ## Environment Variables
 
