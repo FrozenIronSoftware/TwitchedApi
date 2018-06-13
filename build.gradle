@@ -1,61 +1,62 @@
-plugins {
-    id "de.fuerstenau.buildconfig" version "1.1.8"
-}
-
-apply plugin: "java"
-apply plugin: "project-report"
-apply plugin: "idea"
-
-version = "1.5"
-sourceCompatibility = 1.8
-
-repositories {
-    maven {
-        url "https://dl.bintray.com/frozenironsoftware/Maven"
+buildscript {
+    repositories {
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
     }
-    jcenter()
-}
-
-ext {
-    gsonVersion = "2.8.1"
-    sparkVersion = "2.6.0"
-    sparkHandlebarsVersion = "2.5.5"
-    webbVersion = "1.3.1"
-    jedisVersion = "2.9.0"
-    slf4jSimpleVersion = "1.7.25"
-    twitch4jVersion = "v0.10.0"
-    annotationVersion = "15.0"
-    spotBugsVersion = "3.1.3"
-    orgJsonVersion = "20180130"
-    sql2oVersion = "1.5.4"
-    mysqlConnectorVersion = "8.0.11"
-}
-
-dependencies {
-    compile "com.sparkjava:spark-core:$sparkVersion"
-    compile "com.sparkjava:spark-template-handlebars:$sparkHandlebarsVersion"
-    compile "redis.clients:jedis:$jedisVersion"
-    compile "com.google.code.gson:gson:$gsonVersion"
-    compile "com.goebl:david-webb:$webbVersion"
-    compile "org.slf4j:slf4j-simple:$slf4jSimpleVersion"
-    compile "org.jetbrains:annotations:$annotationVersion"
-    compile "com.github.spotbugs:spotbugs:$spotBugsVersion"
-    compile "org.json:json:$orgJsonVersion"
-    compile "org.sql2o:sql2o:$sql2oVersion"
-    compile "mysql:mysql-connector-java:$mysqlConnectorVersion"
-}
-
-jar {
-    manifest {
-        attributes "Main-Class": "com.rolandoislas.twitchunofficial.TwitchUnofficial"
+    dependencies {
+        classpath "gradle.plugin.de.fuerstenau:BuildConfigPlugin:1.1.8"
     }
-    from {configurations.compile.collect {zipTree(it)}}
 }
 
-buildConfig {
-    appName = project.name
-    version = project.version
-    clsName = "Constants"
-    packageName = "com.rolandoislas.twitchunofficial.data"
-    charset = "UTF-8"
+
+allprojects {
+    apply plugin: "idea"
+    apply plugin: "java"
+
+    version = "1.5"
+
+    ext {
+        gsonVersion = "2.8.1"
+        sparkVersion = "2.6.0"
+        sparkHandlebarsVersion = "2.5.5"
+        webbVersion = "1.3.1"
+        jedisVersion = "2.9.0"
+        slf4jSimpleVersion = "1.7.25"
+        twitch4jVersion = "v0.10.0"
+        annotationVersion = "15.0"
+        spotBugsVersion = "3.1.3"
+        orgJsonVersion = "20180130"
+        sql2oVersion = "1.5.4"
+        mysqlConnectorVersion = "8.0.11"
+    }
+
+    repositories {
+        maven {
+            url "https://dl.bintray.com/frozenironsoftware/Maven"
+        }
+        jcenter()
+    }
+}
+
+project(":server") {
+    dependencies {
+        compile "com.sparkjava:spark-core:$sparkVersion"
+        compile "com.sparkjava:spark-template-handlebars:$sparkHandlebarsVersion"
+        compile "redis.clients:jedis:$jedisVersion"
+        compile "com.google.code.gson:gson:$gsonVersion"
+        compile "com.goebl:david-webb:$webbVersion"
+        compile "org.slf4j:slf4j-simple:$slf4jSimpleVersion"
+        compile "org.jetbrains:annotations:$annotationVersion"
+        compile "com.github.spotbugs:spotbugs:$spotBugsVersion"
+        compile "org.json:json:$orgJsonVersion"
+        compile "org.sql2o:sql2o:$sql2oVersion"
+        compile "mysql:mysql-connector-java:$mysqlConnectorVersion"
+    }
+}
+
+project(":status") {
+    dependencies {
+        compile project(":server")
+    }
 }

@@ -1,0 +1,21 @@
+apply plugin: "java"
+apply plugin: "project-report"
+apply plugin: "de.fuerstenau.buildconfig"
+
+sourceCompatibility = 1.8
+sourceSets.main.java.srcDirs = ["src/"]
+
+buildConfig {
+    appName = project.name
+    version = project.version
+    clsName = "Constants"
+    packageName = "com.rolandoislas.twitchunofficial.data"
+    charset = "UTF-8"
+}
+
+jar {
+    manifest {
+        attributes "Main-Class": "com.rolandoislas.twitchunofficial.TwitchUnofficial"
+    }
+    from {configurations.compile.collect {zipTree(it)}}
+}
