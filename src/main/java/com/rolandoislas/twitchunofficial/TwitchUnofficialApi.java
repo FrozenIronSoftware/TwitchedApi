@@ -1289,12 +1289,12 @@ public class TwitchUnofficialApi {
                         Logger.exception(e);
                     }
                 }
-                // Ensure missing ids are cached
-                for (String missingId : missingIds)
-                    if (nameIdMap.get(missingId) == null)
-                        nameIdMap.put(missingId, gson.toJson(new User()));
-                cache.setUserNames(nameIdMap);
             }
+            // Ensure missing ids are cached
+            for (String missingId : missingIds)
+                if (nameIdMap.get(missingId) == null)
+                    nameIdMap.put(missingId, gson.toJson(new User()));
+            cache.setUserNames(nameIdMap);
         }
         else if (type.equals(Id.GAME)) {
             List<Game> games = getGames(missingIds, null);
@@ -1304,6 +1304,7 @@ public class TwitchUnofficialApi {
             for (Game game : games)
                 nameIdMap.put(game.getId(), game.getName());
             cache.setGameNames(nameIdMap);
+            // TODO fix games cache after loop
         }
         return nameIdMap;
     }
