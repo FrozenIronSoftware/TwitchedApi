@@ -1320,12 +1320,12 @@ public class TwitchUnofficialApi {
                         Logger.exception(e);
                     }
                 }
-                // Ensure missing ids are cached
-                for (String missingId : missingIds)
-                    if (nameIdMap.get(missingId) == null)
-                        nameIdMap.put(missingId, gson.toJson(new User()));
-                cache.setUsersJson(nameIdMap);
             }
+            // Ensure missing ids are cached
+            for (String missingId : missingIds)
+                if (nameIdMap.get(missingId) == null)
+                    nameIdMap.put(missingId, gson.toJson(new User()));
+            cache.setUsersJson(nameIdMap);
         }
         else if (type.equals(Id.GAME)) {
             for (int idIndex = 0; idIndex < missingIds.size(); idIndex += 100) {
@@ -1342,12 +1342,12 @@ public class TwitchUnofficialApi {
                         Logger.exception(e);
                     }
                 }
-                // Ensure missing ids are cached
-                for (String missingId : missingIds)
-                    if (nameIdMap.get(missingId) == null)
-                        nameIdMap.put(missingId, gson.toJson(new Game()));
-                cache.setGamesJson(nameIdMap);
             }
+            // Ensure missing ids are cached
+            for (String missingId : missingIds)
+                if (nameIdMap.get(missingId) == null)
+                    nameIdMap.put(missingId, gson.toJson(new Game()));
+            cache.setGamesJson(nameIdMap);
         }
         return nameIdMap;
     }
