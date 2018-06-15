@@ -10,7 +10,6 @@ import com.rolandoislas.twitchunofficial.util.ApiCache;
 import com.rolandoislas.twitchunofficial.util.AuthUtil;
 import com.rolandoislas.twitchunofficial.util.DatabaseUtil;
 import com.rolandoislas.twitchunofficial.util.Logger;
-import spark.Filter;
 
 import java.util.Arrays;
 import java.util.logging.Level;
@@ -25,6 +24,7 @@ import static spark.Spark.staticFiles;
 public class TwitchUnofficial {
 
     public static ApiCache cache;
+    static boolean redirectToHttps;
 
     public static void main(String[] args) {
         // Parse args
@@ -73,17 +73,16 @@ public class TwitchUnofficial {
         // Twitch details
         String twitchClientId = getenv("TWITCH_CLIENT_ID");
         String twitchClientSecret = getenv("TWITCH_CLIENT_SECRET");
+        // Redirect
+        redirectToHttps = Boolean.parseBoolean(System.getenv().getOrDefault("REDIRECT_HTTP", "true"));
         // Set values
         port(port);
         staticFiles.location("/static/");
         TwitchUnofficial.cache = new ApiCache(redisServer);
         TwitchUnofficialApi.init(twitchClientId, twitchClientSecret);
         DatabaseUtil.setServer(sqlServer);
-        // Redirect paths with a trailing slash
-        before((Filter) (request, response) -> {
-            if (request.pathInfo().endsWith("/") && !request.pathInfo().equals("/"))
-                response.redirect(request.pathInfo().substring(0, request.pathInfo().length() - 1));
-        });
+        // Global page rules
+        before(TwitchUnofficialServer::handleGlobalPageRules);
         // API
         path("/api", () -> {
             before("/*", (request, response) -> response.type("application/json"));

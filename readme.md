@@ -81,17 +81,29 @@ Enabled dev api endpoints
 
 ### REDIRECT_URL
 
-Optional
+_Optional_
+
 If specified, this URL will be used in Oauth request to Twitch that require a redirect url.
 The URL will be crafted based the domain name and scheme used to access the site.
  
 ### AD_SERVER
 
-Optional
+_Optional_
+
 Specify a list of ad servers that will be used when the ad server endpoint is called. The string should be a valid JSON
  object with the field ad_servers containing an array populated with one object per server. Each server object shoudl 
  contain a url string field and a countries array. Country strings are expected to be in ISO 3166-1 Alpha 2 format. 
  The country code "INT" is a special case that signifies that the server can be used internationally.
+
+### REDIRECT_HTTP
+
+_Optional_
+
+Values: TRUE | FALSE
+
+Default: TRUE
+
+If set to true, HTTP traffic will be redirected to HTTPS.
 
 ```json
 {
