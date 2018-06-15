@@ -4,16 +4,6 @@
  */
 
 /*
- * Font
- */
-
-/*noinspection CssUnknownTarget*/
-@font-face {
-    font-family: "TimeBurnerBold";
-    src: url("/font/timeburnerbold.ttf");
-}
-
-/*
  * General
  */
 * {
