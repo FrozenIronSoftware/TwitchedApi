@@ -145,8 +145,8 @@ public class ApiCache {
     }
 
     /**
-     * Set user names
-     * @param userNameIdMap id (key) - user name (value)
+     * Set user gson string
+     * @param userNameIdMap id (key) - user gson (value)
      */
     public void setUsersJson(Map<String, String> userNameIdMap) {
         setUserOrGameJson(userNameIdMap, Id.USER);

@@ -183,6 +183,13 @@ public class TwitchUnofficialApi {
             if (user == null)
                 return null;
             username = user.getLogin();
+            if (username == null || username.isEmpty()) {
+                @Nullable List<User> forcedUsers = getUsers(Collections.singletonList(userId), null, null);
+                if (forcedUsers != null && forcedUsers.size() == 1) {
+                    User forcedUser = forcedUsers.get(0);
+                    username = forcedUser.getLogin();
+                }
+            }
         }
         if (username == null || username.isEmpty())
             return null;
@@ -1495,6 +1502,16 @@ public class TwitchUnofficialApi {
             else {
                 Logger.warn("Request failed: " + e.getMessage());
                 Logger.exception(e);
+            }
+        }
+        if (users != null) {
+            for (User user : users) {
+                if (!user.verifyData()) {
+                    Logger.debug(
+                            "User list contained a user with data that did not verify (missing login / id).");
+                    users = null;
+                    break;
+                }
             }
         }
         return new UsersWithRate(users, rateLimit);
