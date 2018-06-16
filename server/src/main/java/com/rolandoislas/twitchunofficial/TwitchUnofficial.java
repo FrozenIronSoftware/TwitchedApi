@@ -78,6 +78,7 @@ public class TwitchUnofficial {
         // Set values
         port(port);
         staticFiles.location("/static/");
+        staticFiles.expireTime(604800); // One Week cache
         TwitchUnofficial.cache = new ApiCache(redisServer);
         TwitchUnofficialApi.init(twitchClientId, twitchClientSecret);
         DatabaseUtil.setServer(sqlServer);
