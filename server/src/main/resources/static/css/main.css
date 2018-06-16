@@ -4,6 +4,20 @@
  */
 
 /*
+ * Font
+ */
+
+/*noinspection CssUnknownTarget*/
+@font-face {
+    font-family: "TimeBurnerBold";
+    font-display: swap;
+    src: url("/font/timeburnerbold.woff2") format("woff2"),
+        url("/font/timeburnerbold.woff") format("woff");
+    font-weight: bold;
+    font-style: normal;
+}
+
+/*
  * General
  */
 * {
