@@ -479,23 +479,23 @@ class TwitchedApi {
     static String getStall(Request request, @SuppressWarnings("unused") Response response) {
         if (!isDevApiEnabled())
             return null;
-        int sleep = 30;
-        String sleepString = request.queryParamOrDefault("delay", "30");
+        int sleep = 30000;
+        String sleepString = request.queryParamOrDefault("delay", "30000");
         UUID uuid = UUID.randomUUID();
-        Logger.debug("Starting /api/dev/stall for %d seconds with UUID %s", sleep, uuid.toString());
         try {
             sleep = Integer.parseInt(sleepString);
         }
         catch (NumberFormatException e) {
             Logger.exception(e);
         }
+        Logger.debug("Starting /api/dev/stall for %d milliseconds with UUID %s", sleep, uuid.toString());
         try {
             Thread.sleep(sleep);
         }
         catch (InterruptedException e) {
             Logger.exception(e);
         }
-        Logger.debug("Finished /api/dev/stall for %d seconds with UUID %s", sleep, uuid.toString());
+        Logger.debug("Finished /api/dev/stall for %d milliseconds with UUID %s", sleep, uuid.toString());
         return null;
     }
 
