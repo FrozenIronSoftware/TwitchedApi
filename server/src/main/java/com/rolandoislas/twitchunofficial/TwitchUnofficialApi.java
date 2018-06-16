@@ -201,7 +201,8 @@ public class TwitchUnofficialApi {
             String cachedResponse = cache.get(requestId);
             if (cachedResponse != null) {
                 response.type("audio/mpegurl");
-                return cleanMasterPlaylist(cachedResponse, fps, quality, model);
+                String cachedPlaylist = cleanMasterPlaylist(cachedResponse, fps, quality, model);
+                return cachedPlaylist.isEmpty() ? null : cachedPlaylist;
             }
             // Get live data
 
@@ -239,12 +240,13 @@ public class TwitchUnofficialApi {
             }
 
             // Parse playlist
-            if (playlistString == null)
+            if (playlistString == null || playlistString.isEmpty())
                 return null;
             // Cache and return
             cache.set(requestId, playlistString);
             response.type("audio/mpegurl");
-            return cleanMasterPlaylist(playlistString, fps, quality, model);
+            String cleanedPlaylist = cleanMasterPlaylist(playlistString, fps, quality, model);
+            return cleanedPlaylist.isEmpty() ? null : cleanedPlaylist;
         }
         finally {
             lock.unlock();
@@ -359,7 +361,8 @@ public class TwitchUnofficialApi {
         String cachedResponse = cache.get(requestId);
         if (cachedResponse != null) {
             response.type("audio/mpegurl");
-            return cleanMasterPlaylist(cachedResponse, fps, quality, model);
+            String cachedPlaylist = cleanMasterPlaylist(cachedResponse, fps, quality, model);
+            return cachedPlaylist.isEmpty() ? null : cachedPlaylist;
         }
         // Fetch live data
         Webb webb = getWebb();
@@ -397,12 +400,13 @@ public class TwitchUnofficialApi {
         }
 
         // Parse playlist
-        if (playlistString == null)
+        if (playlistString == null || playlistString.isEmpty())
             return null;
         // Cache and return
         cache.set(requestId, playlistString);
         response.type("audio/mpegurl");
-        return cleanMasterPlaylist(playlistString, fps, quality, model);
+        String cleanedPlaylist = cleanMasterPlaylist(playlistString, fps, quality, model);
+        return cleanedPlaylist.isEmpty() ? null : cleanedPlaylist;
     }
 
     /**
