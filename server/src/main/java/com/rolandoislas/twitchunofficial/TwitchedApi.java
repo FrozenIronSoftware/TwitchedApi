@@ -481,6 +481,8 @@ class TwitchedApi {
             return null;
         int sleep = 30;
         String sleepString = request.queryParamOrDefault("delay", "30");
+        UUID uuid = UUID.randomUUID();
+        Logger.debug("Starting /api/dev/stall for %d seconds with UUID %s", sleep, uuid.toString());
         try {
             sleep = Integer.parseInt(sleepString);
         }
@@ -493,6 +495,7 @@ class TwitchedApi {
         catch (InterruptedException e) {
             Logger.exception(e);
         }
+        Logger.debug("Finished /api/dev/stall for %d seconds with UUID %s", sleep, uuid.toString());
         return null;
     }
 
