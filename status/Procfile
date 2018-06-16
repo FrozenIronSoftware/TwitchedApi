@@ -1,0 +1,1 @@
+web: java -jar ./status/build/libs/status-*.jar -log FINEST
