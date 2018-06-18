@@ -2271,7 +2271,7 @@ public class TwitchUnofficialApi {
             throw halt(BAD_GATEWAY, "Bad Gateway: Could not connect to Twitch API");
         // Preload follows
         if (token != null)
-            if (users.size() == 1 && users.get(0).getId() != null)
+            if (users.size() == 1 && users.get(0).getId() != null && ids.size() == 0 && logins.size() == 0)
                 cacheFollows(users.get(0).getId(), FollowQueue.FollowType.CHANNEL, true);
         // Cache and return
         String json = gson.toJson(users);
