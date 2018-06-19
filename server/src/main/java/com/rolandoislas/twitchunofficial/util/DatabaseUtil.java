@@ -6,6 +6,7 @@ import org.sql2o.Connection;
 import org.sql2o.Query;
 import org.sql2o.Sql2o;
 import org.sql2o.Sql2oException;
+import org.sql2o.quirks.PostgresQuirks;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -17,6 +18,7 @@ public class DatabaseUtil {
     private static int connections;
     private static int MAX_CONNECTIONS =
             (int) StringUtil.parseLong(System.getenv().getOrDefault("SQL_CONNECTIONS", "5"));
+    private static String schema;
 
     /**
      * Get new sql instance with a parsed connection url
@@ -31,10 +33,14 @@ public class DatabaseUtil {
             Logger.warn("Could not parse mysql database connection string.");
             System.exit(1);
         }
-        String mysqlUrl = mysqlMatches.group(1) + mysqlMatches.group(4) + "?character_set_server=utf8mb4";
+        String mysqlUrl = mysqlMatches.group(1).replace("postgres", "postgresql") +
+                mysqlMatches.group(4);
+        if (Boolean.parseBoolean(System.getenv().getOrDefault("SQL_SSL", "true")))
+            mysqlUrl += "?sslmode=required";
         String mysqlUsername = mysqlMatches.group(2);
         String mysqlPassword = mysqlMatches.group(3);
-        return new Sql2o(mysqlUrl, mysqlUsername, mysqlPassword);
+        schema = System.getenv().getOrDefault("SQL_SCHEMA", "twitched");
+        return new Sql2o(mysqlUrl, mysqlUsername, mysqlPassword, new PostgresQuirks());
     }
 
     /**
@@ -104,11 +110,12 @@ public class DatabaseUtil {
         String toIdSql = "twitch_community_id = :twitch_community_id";
         if (toId == null || toId.isEmpty())
             toIdSql = "true";
-        String sqlIds = "select twitch_community_id from followed_communities where twitch_user_id = :twitch_user_id" +
-                " and %s and following = true limit :limit offset :offset;";
-        sqlIds = String.format(sqlIds, toIdSql);
+        String sqlIds = "select twitch_community_id from %s.followed_communities where" +
+                " twitch_user_id = :twitch_user_id and %s and following = true limit :limit offset :offset;";
+        sqlIds = String.format(sqlIds, schema, toIdSql);
         String communitySql = "community_id = %s";
-        StringBuilder sqlCommunities = new StringBuilder("select * from cached_communities where");
+        StringBuilder sqlCommunities = new StringBuilder(
+                String.format("select * from %s.cached_communities where", schema));
         Connection connection = null;
         try {
             connection = getTransaction();
@@ -159,12 +166,15 @@ public class DatabaseUtil {
      * @return success of set/delete
      */
     public static boolean setUserFollowCommunity(String id, String communityId, boolean setFollowing) {
-        String sqlSelect = "select twitch_user_id from followed_communities where twitch_user_id = :twitch_user_id" +
+        String sqlSelect = "select twitch_user_id from %s.followed_communities where twitch_user_id = :twitch_user_id" +
                 " and twitch_community_id = :twitch_community_id;";
-        String sqlUpdate = "update followed_communities set following = :following where" +
+        sqlSelect = String.format(sqlSelect, schema);
+        String sqlUpdate = "update %s.followed_communities set following = :following where" +
                 " twitch_user_id = :twitch_user_id and twitch_community_id = :twitch_community_id;";
-        String sqlInsert = "insert into followed_communities (twitch_user_id, twitch_community_id, following)" +
+        sqlUpdate = String.format(sqlUpdate, schema);
+        String sqlInsert = "insert into %s.followed_communities (twitch_user_id, twitch_community_id, following)" +
                 " values (:twitch_user_id, :twitch_community_id, :following);";
+        sqlInsert = String.format(sqlInsert, schema);
         Connection connection = null;
         try {
             connection = getTransaction();
@@ -204,13 +214,16 @@ public class DatabaseUtil {
      * @param community community
      */
     public static boolean cacheCommunity(Community community) {
-        String sqlSelect = "select community_id from cached_communities where community_id = :community_id;";
-        String sqlUpdate = "update cached_communities set name = :name, description = :description," +
+        String sqlSelect = "select community_id from %s.cached_communities where community_id = :community_id;";
+        sqlSelect = String.format(sqlSelect, schema);
+        String sqlUpdate = "update %s.cached_communities set name = :name, summary = :summary," +
                 " avatar_image_url = :avatar_image_url, modified = :modified, display_name = :display_name" +
                 " where community_id = :community_id;";
-        String sqlInsert = "insert into cached_communities (community_id, name, description, avatar_image_url," +
-                " modified, display_name) values (:community_id, :name, :description, :avatar_image_url, :modified," +
+        sqlUpdate = String.format(sqlUpdate, schema);
+        String sqlInsert = "insert into %s.cached_communities (community_id, name, summary, avatar_image_url," +
+                " modified, display_name) values (:community_id, :name, :summary, :avatar_image_url, :modified," +
                 " :display_name);";
+        sqlInsert = String.format(sqlInsert, schema);
         Connection connection = null;
         try {
             connection = getTransaction();
@@ -221,7 +234,7 @@ public class DatabaseUtil {
             if (communities.size() == 1) {
                 connection.createQuery(sqlUpdate, false)
                         .addParameter("name", community.getName())
-                        .addParameter("description", community.getDescription())
+                        .addParameter("summary", community.getSummary())
                         .addParameter("avatar_image_url", community.getAvatarImageUrl())
                         .addParameter("community_id", community.getId())
                         .addParameter("modified", System.currentTimeMillis())
@@ -232,7 +245,7 @@ public class DatabaseUtil {
             else {
                 connection.createQuery(sqlInsert, false)
                         .addParameter("name", community.getName())
-                        .addParameter("description", community.getDescription())
+                        .addParameter("summary", community.getSummary())
                         .addParameter("avatar_image_url", community.getAvatarImageUrl())
                         .addParameter("community_id", community.getId())
                         .addParameter("modified", System.currentTimeMillis())
@@ -257,7 +270,8 @@ public class DatabaseUtil {
      */
     @Nullable
     public static Community getCommunity(String id) {
-        String sql = "select * from cached_communities where community_id = :community_id";
+        String sql = "select * from %s.cached_communities where community_id = :community_id";
+        sql = String.format(sql, schema);
         Connection connection = null;
         try {
             connection = getConnection();

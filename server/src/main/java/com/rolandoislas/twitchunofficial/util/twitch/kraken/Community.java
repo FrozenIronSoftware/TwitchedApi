@@ -85,7 +85,7 @@ public class Community {
         return rulesHtml;
     }
 
-    private String getSummary() {
+    public String getSummary() {
         return summary;
     }
 

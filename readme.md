@@ -105,6 +105,24 @@ Default: TRUE
 
 If set to true, HTTP traffic will be redirected to HTTPS.
 
+### SQL_SSL
+
+_Optional_
+
+Values: TRUE | FALSE
+
+Default: TRUE
+
+If set to true, sql connections will required on the database connection.
+
+### SQL_SCHEMA
+
+_Optional_
+
+Default: twitched
+
+Main database scheme name.
+
 ```json
 {
   "ad_servers" : [
