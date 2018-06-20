@@ -7,11 +7,11 @@ package com.rolandoislas.twitchunofficial.util;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
-import com.rolandoislas.twitchunofficial.data.CachedStreams;
-import com.rolandoislas.twitchunofficial.data.Id;
+import com.rolandoislas.twitchunofficial.data.model.CachedStreams;
 import com.rolandoislas.twitchunofficial.data.model.FollowQueue;
-import com.rolandoislas.twitchunofficial.util.twitch.helix.Stream;
-import com.rolandoislas.twitchunofficial.util.twitch.helix.StreamUtil;
+import com.rolandoislas.twitchunofficial.data.model.Id;
+import com.rolandoislas.twitchunofficial.data.model.json.twitch.helix.Stream;
+import com.rolandoislas.twitchunofficial.data.model.json.twitch.helix.StreamUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import redis.clients.jedis.Jedis;

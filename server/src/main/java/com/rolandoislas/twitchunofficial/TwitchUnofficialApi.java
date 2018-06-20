@@ -12,16 +12,37 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
-import com.rolandoislas.twitchunofficial.data.CachedStreams;
-import com.rolandoislas.twitchunofficial.data.Id;
-import com.rolandoislas.twitchunofficial.data.Playlist;
-import com.rolandoislas.twitchunofficial.data.RokuQuality;
 import com.rolandoislas.twitchunofficial.data.annotation.Cached;
 import com.rolandoislas.twitchunofficial.data.annotation.NotCached;
+import com.rolandoislas.twitchunofficial.data.model.CachedStreams;
 import com.rolandoislas.twitchunofficial.data.model.FollowQueue;
 import com.rolandoislas.twitchunofficial.data.model.FollowedGamesWithRate;
+import com.rolandoislas.twitchunofficial.data.model.Id;
+import com.rolandoislas.twitchunofficial.data.model.Playlist;
+import com.rolandoislas.twitchunofficial.data.model.RokuQuality;
 import com.rolandoislas.twitchunofficial.data.model.TwitchCredentials;
 import com.rolandoislas.twitchunofficial.data.model.UsersWithRate;
+import com.rolandoislas.twitchunofficial.data.model.json.twitch.AppToken;
+import com.rolandoislas.twitchunofficial.data.model.json.twitch.Token;
+import com.rolandoislas.twitchunofficial.data.model.json.twitch.helix.Follow;
+import com.rolandoislas.twitchunofficial.data.model.json.twitch.helix.FollowList;
+import com.rolandoislas.twitchunofficial.data.model.json.twitch.helix.Game;
+import com.rolandoislas.twitchunofficial.data.model.json.twitch.helix.GameList;
+import com.rolandoislas.twitchunofficial.data.model.json.twitch.helix.GameViewComparator;
+import com.rolandoislas.twitchunofficial.data.model.json.twitch.helix.Pagination;
+import com.rolandoislas.twitchunofficial.data.model.json.twitch.helix.Stream;
+import com.rolandoislas.twitchunofficial.data.model.json.twitch.helix.StreamList;
+import com.rolandoislas.twitchunofficial.data.model.json.twitch.helix.StreamUtil;
+import com.rolandoislas.twitchunofficial.data.model.json.twitch.helix.StreamViewComparator;
+import com.rolandoislas.twitchunofficial.data.model.json.twitch.helix.User;
+import com.rolandoislas.twitchunofficial.data.model.json.twitch.helix.UserList;
+import com.rolandoislas.twitchunofficial.data.model.json.twitch.helix.UserName;
+import com.rolandoislas.twitchunofficial.data.model.json.twitch.kraken.Channel;
+import com.rolandoislas.twitchunofficial.data.model.json.twitch.kraken.ChannelList;
+import com.rolandoislas.twitchunofficial.data.model.json.twitch.kraken.Community;
+import com.rolandoislas.twitchunofficial.data.model.json.twitch.kraken.CommunityList;
+import com.rolandoislas.twitchunofficial.data.model.json.twitch.kraken.FollowedGameList;
+import com.rolandoislas.twitchunofficial.data.model.json.twitch.kraken.Preview;
 import com.rolandoislas.twitchunofficial.util.ApiCache;
 import com.rolandoislas.twitchunofficial.util.AuthUtil;
 import com.rolandoislas.twitchunofficial.util.FollowsCacher;
@@ -29,27 +50,6 @@ import com.rolandoislas.twitchunofficial.util.HeaderUtil;
 import com.rolandoislas.twitchunofficial.util.Logger;
 import com.rolandoislas.twitchunofficial.util.NotFoundException;
 import com.rolandoislas.twitchunofficial.util.StringUtil;
-import com.rolandoislas.twitchunofficial.util.twitch.AppToken;
-import com.rolandoislas.twitchunofficial.util.twitch.Token;
-import com.rolandoislas.twitchunofficial.util.twitch.helix.Follow;
-import com.rolandoislas.twitchunofficial.util.twitch.helix.FollowList;
-import com.rolandoislas.twitchunofficial.util.twitch.helix.Game;
-import com.rolandoislas.twitchunofficial.util.twitch.helix.GameList;
-import com.rolandoislas.twitchunofficial.util.twitch.helix.GameViewComparator;
-import com.rolandoislas.twitchunofficial.util.twitch.helix.Pagination;
-import com.rolandoislas.twitchunofficial.util.twitch.helix.Stream;
-import com.rolandoislas.twitchunofficial.util.twitch.helix.StreamList;
-import com.rolandoislas.twitchunofficial.util.twitch.helix.StreamUtil;
-import com.rolandoislas.twitchunofficial.util.twitch.helix.StreamViewComparator;
-import com.rolandoislas.twitchunofficial.util.twitch.helix.User;
-import com.rolandoislas.twitchunofficial.util.twitch.helix.UserList;
-import com.rolandoislas.twitchunofficial.util.twitch.helix.UserName;
-import com.rolandoislas.twitchunofficial.util.twitch.kraken.Channel;
-import com.rolandoislas.twitchunofficial.util.twitch.kraken.ChannelList;
-import com.rolandoislas.twitchunofficial.util.twitch.kraken.Community;
-import com.rolandoislas.twitchunofficial.util.twitch.kraken.CommunityList;
-import com.rolandoislas.twitchunofficial.util.twitch.kraken.FollowedGameList;
-import com.rolandoislas.twitchunofficial.util.twitch.kraken.Preview;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.maven.artifact.versioning.ComparableVersion;
 import org.jetbrains.annotations.Contract;
@@ -1954,7 +1954,7 @@ public class TwitchUnofficialApi {
         Webb webb = getWebbKraken();
         switch (type) {
             case "streams":
-                List<com.rolandoislas.twitchunofficial.util.twitch.kraken.Stream> streams = null;
+                List<com.rolandoislas.twitchunofficial.data.model.json.twitch.kraken.Stream> streams = null;
                 try {
                     String url = API_KRAKEN + "/search/streams";
                     Logger.verbose( "Rest Request to [%s]", url);
@@ -1965,9 +1965,9 @@ public class TwitchUnofficialApi {
                             .param("offset", offset)
                             .ensureSuccess()
                             .asString();
-                    com.rolandoislas.twitchunofficial.util.twitch.kraken.StreamList streamList =
+                    com.rolandoislas.twitchunofficial.data.model.json.twitch.kraken.StreamList streamList =
                             gson.fromJson(webbResponse.getBody(),
-                                    com.rolandoislas.twitchunofficial.util.twitch.kraken.StreamList.class);
+                                    com.rolandoislas.twitchunofficial.data.model.json.twitch.kraken.StreamList.class);
                     streams = streamList.getStreams();
                 }
                 catch (WebbException | JsonSyntaxException e) {
@@ -1976,7 +1976,7 @@ public class TwitchUnofficialApi {
                 }
                 if (streams == null)
                     throw halt(BAD_GATEWAY, "Failed to get streams");
-                for (com.rolandoislas.twitchunofficial.util.twitch.kraken.Stream stream : streams)
+                for (com.rolandoislas.twitchunofficial.data.model.json.twitch.kraken.Stream stream : streams)
                     userIds.add(String.valueOf(stream.getChannel().getId()));
                 if (userIds.size() > 0)
                     streamsHelix = getStreams(
@@ -2091,7 +2091,7 @@ public class TwitchUnofficialApi {
                 break;
             case "games":
                 // Search
-                List<com.rolandoislas.twitchunofficial.util.twitch.kraken.Game> gamesKraken = null;
+                List<com.rolandoislas.twitchunofficial.data.model.json.twitch.kraken.Game> gamesKraken = null;
                 try {
                     String url = API_KRAKEN + "/search/games";
                     Logger.verbose( "Rest Request to [%s]", url);
@@ -2100,9 +2100,9 @@ public class TwitchUnofficialApi {
                             .param("live", live)
                             .ensureSuccess()
                             .asString();
-                    com.rolandoislas.twitchunofficial.util.twitch.kraken.GameList gameList =
+                    com.rolandoislas.twitchunofficial.data.model.json.twitch.kraken.GameList gameList =
                             gson.fromJson(webbResponse.getBody(),
-                                    com.rolandoislas.twitchunofficial.util.twitch.kraken.GameList.class);
+                                    com.rolandoislas.twitchunofficial.data.model.json.twitch.kraken.GameList.class);
                     gamesKraken = gameList.getGames();
                 }
                 catch (WebbException | JsonSyntaxException e) {
@@ -2112,14 +2112,14 @@ public class TwitchUnofficialApi {
                 // Get games from the Helix endpoint
                 List<String> gameIds = new ArrayList<>();
                 if (gamesKraken != null)
-                    for (com.rolandoislas.twitchunofficial.util.twitch.kraken.Game game : gamesKraken)
+                    for (com.rolandoislas.twitchunofficial.data.model.json.twitch.kraken.Game game : gamesKraken)
                         gameIds.add(String.valueOf(game.getId()));
                 if (gameIds.size() > 0)
                     games = getGames(gameIds, null);
                 // Add viewers to helix data
                 if (games != null && gamesKraken != null) {
                     for (Game game : games)
-                        for (com.rolandoislas.twitchunofficial.util.twitch.kraken.Game gameKraken : gamesKraken)
+                        for (com.rolandoislas.twitchunofficial.data.model.json.twitch.kraken.Game gameKraken : gamesKraken)
                             if (String.valueOf(game.getId()).equals(String.valueOf(gameKraken.getId())))
                                 game.setViewers((int) gameKraken.getPopularity());
                     games.sort(new GameViewComparator().reversed());
@@ -2638,7 +2638,7 @@ public class TwitchUnofficialApi {
                     .ensureSuccess()
                     .asString();
             FollowedGameList followedGameList = gson.fromJson(webbResponse.getBody(), FollowedGameList.class);
-            for (com.rolandoislas.twitchunofficial.util.twitch.kraken.Game follow : followedGameList.getFollows()) {
+            for (com.rolandoislas.twitchunofficial.data.model.json.twitch.kraken.Game follow : followedGameList.getFollows()) {
                 Game game = new Game();
                 game.setId(String.valueOf(follow.getId()));
                 game.setName(follow.getName());

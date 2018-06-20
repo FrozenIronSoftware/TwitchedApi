@@ -1,6 +1,6 @@
 package com.rolandoislas.twitchunofficial.data.model;
 
-import com.rolandoislas.twitchunofficial.util.twitch.helix.Game;
+import com.rolandoislas.twitchunofficial.data.model.json.twitch.helix.Game;
 
 import java.util.List;
 

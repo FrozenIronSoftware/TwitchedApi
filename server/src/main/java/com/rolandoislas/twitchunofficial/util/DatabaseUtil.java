@@ -1,6 +1,6 @@
 package com.rolandoislas.twitchunofficial.util;
 
-import com.rolandoislas.twitchunofficial.util.twitch.kraken.Community;
+import com.rolandoislas.twitchunofficial.data.model.json.twitch.kraken.Community;
 import org.jetbrains.annotations.Nullable;
 import org.sql2o.Connection;
 import org.sql2o.Query;

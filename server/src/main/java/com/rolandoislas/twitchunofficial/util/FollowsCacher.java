@@ -6,10 +6,10 @@ import com.rolandoislas.twitchunofficial.TwitchUnofficialApi;
 import com.rolandoislas.twitchunofficial.data.model.FollowQueue;
 import com.rolandoislas.twitchunofficial.data.model.FollowedGamesWithRate;
 import com.rolandoislas.twitchunofficial.data.model.UsersWithRate;
-import com.rolandoislas.twitchunofficial.util.twitch.helix.Follow;
-import com.rolandoislas.twitchunofficial.util.twitch.helix.FollowList;
-import com.rolandoislas.twitchunofficial.util.twitch.helix.Game;
-import com.rolandoislas.twitchunofficial.util.twitch.helix.User;
+import com.rolandoislas.twitchunofficial.data.model.json.twitch.helix.Follow;
+import com.rolandoislas.twitchunofficial.data.model.json.twitch.helix.FollowList;
+import com.rolandoislas.twitchunofficial.data.model.json.twitch.helix.Game;
+import com.rolandoislas.twitchunofficial.data.model.json.twitch.helix.User;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;

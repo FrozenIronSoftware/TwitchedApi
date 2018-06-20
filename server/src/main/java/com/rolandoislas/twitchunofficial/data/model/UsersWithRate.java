@@ -1,6 +1,6 @@
 package com.rolandoislas.twitchunofficial.data.model;
 
-import com.rolandoislas.twitchunofficial.util.twitch.helix.User;
+import com.rolandoislas.twitchunofficial.data.model.json.twitch.helix.User;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
