@@ -100,6 +100,8 @@ public class TwitchUnofficialApi {
     private static Thread followsThread;
     private static TwitchCredentials twitchCredentials;
     private static final Map<String, ReentrantLock> hlsLocks = Collections.synchronizedMap(new WeakHashMap<>());
+    private static long lastAppTokenFetch = 0;
+    private static int appTokenFetchFailures = 0;
 
     /**
      * Send a JSON error message to the current requester
@@ -269,6 +271,17 @@ public class TwitchUnofficialApi {
         if (response == null)
             return 0;
         String limit = response.getHeaderField("RateLimit-Limit");
+        if (StringUtil.parseLong(limit) == 30 && System.currentTimeMillis() - lastAppTokenFetch >= 10000 &&
+                appTokenFetchFailures < 10) {
+            String appToken = getAppToken(twitchCredentials.getClientId(), twitchCredentials.getClientSecret());
+            lastAppTokenFetch = System.currentTimeMillis();
+            if (appToken == null)
+                appTokenFetchFailures++;
+            else {
+                twitchCredentials.setAppToken(appToken);
+                appTokenFetchFailures = 0;
+            }
+        }
         String remaining = response.getHeaderField("RateLimit-Remaining");
         String reset = response.getHeaderField("RateLimit-Reset");
         String log = String.format("Rate Limit:\n\tLimit: %s\n\tRemaining: %s,\n\tReset: %s",

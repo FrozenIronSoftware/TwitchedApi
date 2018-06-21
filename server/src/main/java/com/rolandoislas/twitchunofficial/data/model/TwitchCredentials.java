@@ -5,7 +5,7 @@ import org.jetbrains.annotations.Nullable;
 public class TwitchCredentials {
     private final String clientId;
     private final String clientSecret;
-    private final String appToken;
+    @Nullable private String appToken;
 
     public TwitchCredentials(String clientId, String clientSecret, @Nullable String appToken) {
         this.clientId = clientId;
@@ -21,7 +21,12 @@ public class TwitchCredentials {
         return clientSecret;
     }
 
+    @Nullable
     public String getAppToken() {
         return appToken;
+    }
+
+    public void setAppToken(@Nullable String appToken) {
+        this.appToken = appToken;
     }
 }
