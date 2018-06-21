@@ -361,7 +361,8 @@ class TwitchedApi {
                     .asString();
         }
         catch (WebbException e) {
-            Logger.exception(e);
+            if (e.getResponse().getStatusCode() != 401)
+                Logger.exception(e);
             return gson.toJson(validationList);
         }
         TokenValidation tokenValidation;
