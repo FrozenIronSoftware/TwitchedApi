@@ -36,7 +36,7 @@ public class DatabaseUtil {
         String mysqlUrl = mysqlMatches.group(1).replace("postgres", "postgresql") +
                 mysqlMatches.group(4);
         if (Boolean.parseBoolean(System.getenv().getOrDefault("SQL_SSL", "true")))
-            mysqlUrl += "?sslmode=required";
+            mysqlUrl += "?sslmode=require";
         String mysqlUsername = mysqlMatches.group(2);
         String mysqlPassword = mysqlMatches.group(3);
         schema = System.getenv().getOrDefault("SQL_SCHEMA", "twitched");
