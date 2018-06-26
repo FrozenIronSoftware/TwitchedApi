@@ -551,7 +551,6 @@ public class TwitchUnofficialApi {
             case "3900X": // Gilbert - Roku Express
             case "3710X": // Littlefield - Roku Express Plus
             case "3700X": // Littlefield - Roku Express
-            case "3600X": // Briscoe - Roku Streaming Stick
                 maxQuality30 = 1080;
                 maxQuality60 = 1080;
                 maxBitrate = 7 * ONE_MILLION;
@@ -569,6 +568,7 @@ public class TwitchUnofficialApi {
             case "3050X": // Giga - Roku 2 XD
             case "5000X": // Liberty - Roku TV - gh#4
             case "3800X": // Amarillo - Roku Streaming Stick - gh#23
+            case "3600X": // Briscoe - Roku Streaming Stick - gh#29
                 maxQuality30 = 1080;
                 maxQuality60 = 0;
                 maxBitrate = 7 * ONE_MILLION;
