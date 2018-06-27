@@ -72,7 +72,7 @@ public class TwitchUnofficial {
         }
         // Twitch details
         String twitchClientId = getenv("TWITCH_CLIENT_ID");
-        String twitchClientSecret = getenv("TWITCH_CLIENT_SECRET");
+        String twitchClientSecret = System.getenv("TWITCH_CLIENT_SECRET");
         // Redirect
         redirectToHttps = Boolean.parseBoolean(System.getenv().getOrDefault("REDIRECT_HTTP", "true"));
         // Set values

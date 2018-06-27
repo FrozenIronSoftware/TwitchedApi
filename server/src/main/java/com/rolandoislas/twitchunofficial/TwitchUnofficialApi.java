@@ -623,7 +623,7 @@ public class TwitchUnofficialApi {
      * @param twitchClientSecret secret
      */
     @NotCached
-    static void init(String twitchClientId, String twitchClientSecret) {
+    static void init(String twitchClientId, @Nullable String twitchClientSecret) {
         TwitchUnofficialApi.gson = new Gson();
         TwitchUnofficialApi.twitchCredentials = new TwitchCredentials(twitchClientId, twitchClientSecret,
                 getAppToken(twitchClientId, twitchClientSecret));
@@ -643,7 +643,9 @@ public class TwitchUnofficialApi {
      * @param twitchClientSecret secret
      */
     @Nullable
-    private static String getAppToken(String twitchClientId, String twitchClientSecret) {
+    private static String getAppToken(String twitchClientId, @Nullable String twitchClientSecret) {
+        if (twitchClientSecret == null || twitchClientSecret.isEmpty())
+            return null;
         // Construct template
         Webb webb = TwitchedApi.getWebb();
         // Request app token

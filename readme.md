@@ -60,7 +60,11 @@ The Twitch client ID that will be used to make request to the Twitch
  
 ### TWITCH_CLIENT_SECRET
 
+_Optional_
+
 Client secret used to obtain an app token from the Twitch API
+
+If no client secret is provided requests will not have an app access token and will be limited.
 
 ### TWITCH_NO_AUTH
 
