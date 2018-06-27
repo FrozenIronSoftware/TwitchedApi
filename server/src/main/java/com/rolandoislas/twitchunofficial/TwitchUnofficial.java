@@ -11,7 +11,6 @@ import com.rolandoislas.twitchunofficial.util.AuthUtil;
 import com.rolandoislas.twitchunofficial.util.DatabaseUtil;
 import com.rolandoislas.twitchunofficial.util.Logger;
 
-import java.util.Arrays;
 import java.util.logging.Level;
 
 import static spark.Spark.before;
@@ -28,16 +27,7 @@ public class TwitchUnofficial {
 
     public static void main(String[] args) {
         // Parse args
-        String logLevel = "INFO";
-        for (String arg : args) {
-            if (arg.equalsIgnoreCase("--no-auth"))
-                AuthUtil.setAuthenticate(false);
-            if (arg.equalsIgnoreCase("-log")) {
-                int logIndex = Arrays.asList(args).indexOf(arg);
-                if (logIndex + 1 < args.length)
-                    logLevel = args[logIndex + 1];
-            }
-        }
+        String logLevel = System.getenv().getOrDefault("LOG_LEVEL", "INFO");
         // No auth check
         if (System.getenv().getOrDefault("TWITCH_NO_AUTH", "false").equalsIgnoreCase("true"))
             AuthUtil.setAuthenticate(false);

@@ -98,6 +98,20 @@ Specify a list of ad servers that will be used when the ad server endpoint is ca
  object with the field ad_servers containing an array populated with one object per server. Each server object shoudl 
  contain a url string field and a countries array. Country strings are expected to be in ISO 3166-1 Alpha 2 format. 
  The country code "INT" is a special case that signifies that the server can be used internationally.
+ 
+```json
+{
+  "ad_servers" : [
+    {
+      "url": "http://vast_ad_server.example.com?tag=0001",
+      "countries": [
+        "INT",
+        "US"
+      ]
+    }
+  ]
+}
+```
 
 ### REDIRECT_HTTP
 
@@ -127,30 +141,12 @@ Default: twitched
 
 Main database scheme name.
 
-```json
-{
-  "ad_servers" : [
-    {
-      "url": "http://vast_ad_server.example.com?tag=0001",
-      "countries": [
-        "INT",
-        "US"
-      ]
-    }
-  ]
-}
-```
- 
-# Parameters
+### LOG_LEVEL
 
-CLI parameters
-
-### -log \<level\>
+Values: SEVERE WARNING INFO CONFIG FINE FINER FINEST
 
 Set the log level
 
 The allowed values are the same as java.util.logging levels.
-
-Values: SEVERE WARNING INFO CONFIG FINE FINER FINEST
 
 [Twitched]: https://www.twitched.org
