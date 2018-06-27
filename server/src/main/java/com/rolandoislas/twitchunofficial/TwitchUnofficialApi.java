@@ -1653,8 +1653,6 @@ public class TwitchUnofficialApi {
                     // Get streams for a sublist of 100 or less followers
                     List<String> followsSublist = followIds.subList(followIndex,
                             Math.min(followIds.size(), followIndex + 100));
-                    String first = "100";
-                    String after = getAfterFromOffset("0", first);
                     // Get live data
                     // Do not fetch if the rate limit is at half and the user follows more than 300 channels
                     // Allow fetching if the rate limit is at a fourth and the user follows less than or equal to 300
@@ -1663,20 +1661,18 @@ public class TwitchUnofficialApi {
                     shouldFetchLive = userFollows.getRateLimitRemaining() > RATE_LIMIT_MAX / 2 ||
                             (userFollows.getRateLimitRemaining() > RATE_LIMIT_MAX / 4 && userFollows.getTotal() <= 300);
                     @NotNull List<Stream> streamSublist =
-                            getStreams(after, null, null, first, null, null,
+                            getStreams(null, null, null, "100", null, null,
                                     null, followsSublist, null, twitchedVersion,
                                     shouldFetchLive);
                     // Add streams to array
                     streams.addAll(streamSublist);
                     // Add follows to offline list
-                    for (Stream stream : streamSublist)
-                        if (stream != null && stream.getUserId() != null)
-                            followIds.remove(stream.getUserId());
                     if (followIds.size() > 0) {
                         for (String followId : followIds)
                             for (Follow follow : userFollows.getFollows())
                                 if (followId != null && followId.equals(follow.getToId()) &&
-                                        !followsOffline.contains(follow))
+                                        !followsOffline.contains(follow) &&
+                                        !StreamUtil.streamListContainsId(streamSublist, followId))
                                     followsOffline.add(follow);
                     }
                     // Log that live data was not used for a request
