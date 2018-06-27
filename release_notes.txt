@@ -1,0 +1,15 @@
+[v1.5.2735]
+
+- Fix buffering bar displaying in the wrong position in some instances
+- Update UI to FHD
+- Check if streams are live before attempting to play
+- Fix menu selection 9-patch missing a corner
+- Add local search history
+- Improve emoticon load times
+- Emoticons will now retain their aspect ratio
+- Add local stream HLS playlist parsing
+- Disable chat on VODs (Live channel chat could be enabled if the right d-pad button were pressed twice quickly.)
+- Use community display name instead of the lowercase names
+- Add message when no stream title has been provided
+- Add Spanish translations
+- Add followed communities and games

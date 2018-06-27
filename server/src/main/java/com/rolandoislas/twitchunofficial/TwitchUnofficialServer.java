@@ -124,7 +124,22 @@ class TwitchUnofficialServer {
     static String getInfoIndex(@SuppressWarnings("unused") Request request,
                                @SuppressWarnings("unused") Response response) {
         Map<String, Object> model = new HashMap<>();
-        model.put("text", getPartialWithHtmlLineBreaks("license.txt", true));
+        // License
+        String[] license = getPartialWithHtmlLineBreaks("license.txt", true,
+                true).split("\n");
+        StringBuilder licenseStringBuilder = new StringBuilder();
+        int line = 0;
+        for (String licenseString : license) {
+            if (line == 0)
+                licenseStringBuilder.append(String.format("[%s]\n", licenseString));
+            else
+                licenseStringBuilder.append(String.format("%s\n", licenseString));
+            line++;
+        }
+        model.put("text_license", parseBrackets(licenseStringBuilder.toString()));
+        // Release Notes
+        model.put("text_release_notes", parseBrackets(getPartialWithHtmlLineBreaks("release_notes.txt",
+                false, true)));
         return new HandlebarsTemplateEngine().render(new ModelAndView(model, "info.hbs"));
     }
 
