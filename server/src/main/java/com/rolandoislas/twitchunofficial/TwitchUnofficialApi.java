@@ -197,15 +197,18 @@ public class TwitchUnofficialApi {
             return null;
         // Check cache
         String requestId = ApiCache.createKey("hls", username, AuthUtil.hashString(userToken, null));
-        ReentrantLock lock;
-        synchronized (hlsLocks) {
-            lock = hlsLocks.get(requestId);
-            if (lock == null) {
-                lock = new ReentrantLock();
-                hlsLocks.put(requestId, lock);
+        boolean shouldLock = userToken != null && !userToken.isEmpty();
+        ReentrantLock lock = null;
+        if (shouldLock) {
+            synchronized (hlsLocks) {
+                lock = hlsLocks.get(requestId);
+                if (lock == null) {
+                    lock = new ReentrantLock();
+                    hlsLocks.put(requestId, lock);
+                }
             }
+            lock.lock();
         }
-        lock.lock();
         try {
             String cachedResponse = cache.get(requestId);
             if (cachedResponse != null) {
@@ -260,7 +263,10 @@ public class TwitchUnofficialApi {
             return cleanedPlaylist.isEmpty() ? null : cleanedPlaylist;
         }
         finally {
-            lock.unlock();
+            if (shouldLock) {
+                assert lock.isHeldByCurrentThread();
+                lock.unlock();
+            }
         }
     }
 
