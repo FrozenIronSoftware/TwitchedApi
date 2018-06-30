@@ -252,7 +252,9 @@ public class TwitchUnofficialApi {
             if (playlistString == null || playlistString.isEmpty())
                 return null;
             // Cache and return
-            cache.set(requestId, playlistString);
+            // Do not cache playlist if the user token is not set
+            if (userToken != null && !userToken.isEmpty())
+                cache.set(requestId, playlistString);
             response.type("audio/mpegurl");
             String cleanedPlaylist = cleanMasterPlaylist(playlistString, fps, quality, model);
             return cleanedPlaylist.isEmpty() ? null : cleanedPlaylist;
@@ -423,7 +425,9 @@ public class TwitchUnofficialApi {
         if (playlistString == null || playlistString.isEmpty())
             return null;
         // Cache and return
-        cache.set(requestId, playlistString);
+        // Do not cache playlist if the user token is not set
+        if (userToken != null && !userToken.isEmpty())
+            cache.set(requestId, playlistString);
         response.type("audio/mpegurl");
         String cleanedPlaylist = cleanMasterPlaylist(playlistString, fps, quality, model);
         return cleanedPlaylist.isEmpty() ? null : cleanedPlaylist;
