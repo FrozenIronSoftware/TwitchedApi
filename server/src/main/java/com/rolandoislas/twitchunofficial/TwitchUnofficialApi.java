@@ -543,7 +543,7 @@ public class TwitchUnofficialApi {
             case "ATV":
                 maxQuality30 = 1080;
                 maxQuality60 = 1080;
-                maxBitrate = 7 * ONE_MILLION;
+                maxBitrate = 20 * ONE_MILLION;
                 break;
             // 720 30 FPS
             case "2700X": // Tyler - Roku LT
