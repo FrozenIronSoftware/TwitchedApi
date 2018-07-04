@@ -93,7 +93,8 @@ public class TwitchUnofficialApi {
     private static final String API_RAW = "https://api.twitch.tv/api";
     private static final String API_USHER = "https://usher.ttvnw.net";
     public static final int RATE_LIMIT_MAX = 120;
-    private static final String SUB_ONLY_VIDEO = "https://hls.twitched.org/sub_only_video_720/sub_only_video_720.m3u8";
+    private static final String SUB_ONLY_VIDEO =
+            "https://static.twitched.org/hls/sub_only_video_720/sub_only_video_720.m3u8";
     private static final String API_AUTH = "https://id.twitch.tv";
 
     static Gson gson;
