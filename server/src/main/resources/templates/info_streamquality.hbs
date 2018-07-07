@@ -1,0 +1,34 @@
+{{>partial/header.hbs append="Stream Quality" inc="partial/header_streamquality.hbs"
+        desc="Stream Qualities used by Twitched for various device models"}}
+
+{{>partial/nav.hbs}}
+
+<h1 class="title">Stream Quality</h1>
+<h2 class="sub-title">Stream Qualities used by Twitched for various device models</h2>
+
+<div class="text">
+    <div class="text-inner main-quality-container">
+        <input id="quality-search" type="text" placeholder="Search">
+        <div id="quality-container">
+            <div id="qualities" style="padding: 10px 0 10px 0;"></div>
+        </div>
+        <p id="message" class="hidden"></p>
+        <div id="quality-dummy-container" class="hidden">
+            {{>partial/streamquality_quality.hbs}}
+        </div>
+    </div>
+</div>
+
+<script>
+    var qualitiesJson = '{{{qualities}}}';
+    var qualities = [];
+    try {
+        qualities = JSON.parse(qualitiesJson);
+    }
+    catch (e) {
+        console.log(e);
+    }
+</script>
+<script src="/js/streamquality.js"></script>
+
+{{>partial/footer.hbs}}

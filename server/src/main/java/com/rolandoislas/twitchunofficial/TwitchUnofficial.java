@@ -10,6 +10,9 @@ import com.rolandoislas.twitchunofficial.util.ApiCache;
 import com.rolandoislas.twitchunofficial.util.AuthUtil;
 import com.rolandoislas.twitchunofficial.util.DatabaseUtil;
 import com.rolandoislas.twitchunofficial.util.Logger;
+import com.rolandoislas.twitchunofficial.util.admin.TwitchedAdminServer;
+import com.rolandoislas.twitchunofficial.util.admin.TwitchedGenHashServer;
+import com.rolandoislas.twitchunofficial.util.admin.TwitchedStreamQualityServer;
 
 import java.util.logging.Level;
 
@@ -147,6 +150,10 @@ public class TwitchUnofficial {
                 get("/unfollow", TwitchedApi::unfollowCommunity);
             });
             get("/config", TwitchedApi::getTwitchedConfig);
+            path("/qualities", () -> {
+                get("", TwitchedApi::getStreamQualitiesForModels);
+                post("", TwitchedApi::postStreamQualitiesForModels);
+            });
         });
         // Web
         get("/", TwitchUnofficialServer::getIndex);
@@ -158,10 +165,27 @@ public class TwitchUnofficial {
             get("", TwitchUnofficialServer::getInfoIndex);
             get("/oss", TwitchUnofficialServer::getInfoOss);
             get("/privacy", TwitchUnofficialServer::getInfoPrivacy);
+            get("/streamquality", TwitchUnofficialServer::getInfoStreamQuality);
         });
         get("/extension", TwitchUnofficialServer::getExtensionIndex);
         get("/support", TwitchUnofficialServer::getSupportIndex);
         get("/app", TwitchUnofficialServer::getAppIndex);
+        // Admin
+        path("/admin", () -> {
+            get("/login", TwitchedAdminServer::getLoginPage);
+            get("/logout", TwitchedAdminServer::getLogoutPage);
+            path("/genhash", () -> {
+                get("", TwitchedGenHashServer::getIndex);
+                post("", TwitchedGenHashServer::postCredentials);
+            });
+            path("/streamquality", () -> {
+                get("", TwitchedStreamQualityServer::getIndex);
+            });
+            // API
+            path("/api", () -> {
+                post("/login", TwitchedAdminServer::postLoginPage);
+            });
+        });
     }
 
     /**

@@ -1,0 +1,195 @@
+#quality-container {
+    width: 100%;
+    height: auto;
+}
+
+#qualities {
+    width: 100%;
+    height: auto;
+}
+
+.quality {
+    width: 100%;
+    background: rgb(229, 229, 229);
+    border: 2px solid rgb(93, 93, 93);
+    padding: 15px;
+    margin: 0 0 5px -15px;
+    height: 120px;
+}
+
+.quality-checkbox-container {
+    float: left;
+    margin: 10px 0 0 40px;
+    cursor: pointer;
+    width: 85px;
+    height: 25px;
+}
+
+.quality-checkbox {
+    -webkit-appearance: none;
+    background: rgb(191, 132, 135);
+    width: 85px;
+    height: 25px;
+    float: left;
+    position: absolute;
+    margin: 0 0 0 0;
+    z-index: 1;
+    border: 0;
+    cursor: pointer;
+}
+
+.quality-checkbox:checked {
+    background: rgb(140, 191, 158);
+}
+
+.quality-text {
+    z-index: 2;
+    position: relative;
+    user-select: none;
+    color: rgb(0, 0, 0);
+    font-size: 20px;
+    font-family: monospace;
+    text-align: center;
+    display: block;
+}
+
+.quality-text-small {
+    font-size: 9px;
+    line-height: 25px;
+}
+
+.p30, .p60, .comment-container {
+    clear: both;
+}
+
+.quality-comment {
+    margin: 10px 0 0 0;
+    background: transparent;
+    border: 0;
+    color: rgba(0, 0, 0, 0.6);
+    width: 100%;
+    font-family: monospace;
+}
+
+.quality-comment:focus {
+    background: rgb(255, 255, 255);
+    color: rgb(0, 0, 0);;
+}
+
+.model {
+    background: rgba(255, 255, 255, 0);
+    border: 0;
+    font-size: 25px;
+    font-family: monospace;
+    width: 20%;
+}
+
+.model:focus {
+    background: rgb(255, 255, 255);
+}
+
+.quality-control-container {
+    width: 56%;
+    margin: 0 auto;
+}
+
+.quality-control-button {
+    width: 49%;
+    margin: 0 0 0 1%;
+    height: 50px;
+    display: block;
+    font-size: 40px;
+    line-height: 50px;
+    text-align: center;
+    cursor: pointer;
+    float: left;
+    -webkit-appearance: button;
+}
+
+.quality-remove {
+    float: right;
+    margin: -13px -9px 0 0;
+    cursor: pointer;
+}
+
+#message {
+    margin: 70px auto 0 auto !important;
+}
+
+.main-quality-container {
+    width: 50%;
+    min-width: 408px;
+}
+
+#quality-search {
+    width: 100%;
+    height: 35px;
+    margin: 10px 0 0 0;
+    font-size: 30px;
+}
+
+/**
+ * Firefox
+ */
+
+@supports (-moz-appearance:none) {
+    .quality-checkbox {
+        margin: 0 0 0 -22px;
+        width: auto;
+    }
+
+    .quality {
+        margin: 0 0 5px -10px;
+    }
+}
+
+/*
+ * Responsive
+ */
+
+@media only screen and (max-width: 1249px) {
+    .quality {
+        height: 155px;
+    }
+}
+
+@media only screen and (max-width: 999px) {
+    .quality {
+        height: 190px;
+    }
+}
+
+@media only screen and (max-width: 980px) {
+    .main-quality-container {
+        width: 80%;
+    }
+
+    .quality {
+        height: 120px;
+    }
+}
+
+@media only screen and (max-width: 781px) {
+    .quality {
+        height: 155px;
+    }
+}
+
+@media only screen and (max-width: 624px) {
+    .quality {
+        height: 190px;
+    }
+}
+
+@media only screen and (max-width: 624px) {
+    .quality {
+        padding: 15px 0;
+        margin: 0 0 5px 0;
+        border-left: 0;
+        border-right: 0;
+    }
+
+    .quality-remove {
+        margin: -13px 8px 0 0;
+    }
+}

@@ -1,0 +1,43 @@
+{{>partial/header.hbs append="Stream Quality" inc="admin/partial/header_streamquality.hbs"}}
+
+{{>partial/nav.hbs}}
+
+<h1 class="title timeburnerbold">Stream Quality</h1>
+<h2 class="sub-title">Set stream quality for device models</h2>
+
+<div class="text">
+    <div class="text-inner main-quality-container">
+        <!-- Quality Container -->
+        <h3>Qualities</h3>
+        <div id="quality-container">
+            <div id="qualities"></div>
+            <div class="quality-control-container">
+                <input id="button-add" type="button" class="quality-control-button" value="Add" disabled="disabled"/>
+                <input id="button-save" type="button" class="quality-control-button" value="Save" disabled="disabled"/>
+            </div>
+        </div>
+        <p id="message" class="hidden"></p>
+        <div id="quality-dummy-container" class="hidden">
+            {{>partial/streamquality_quality.hbs}}
+        </div>
+        <!-- Quality Backup -->
+        <h3 class="clear">Backup</h3>
+        <div id="backup">
+            <h4>Import</h4>
+            <form id="backup-import">
+                <input type="file" name="file" accept="application/json">
+                <input type="submit" name="submit" value="Import">
+            </form>
+            <h4>Export</h4>
+            <input id="backup-export" type="button" value="Export">
+            <a id="backup-export-anchor" class="hidden"></a>
+        </div>
+    </div>
+</div>
+
+<script>
+    var clientId = "{{client_id}}";
+</script>
+<script src="/admin/js/streamquality.js"></script>
+
+{{>partial/footer.hbs}}

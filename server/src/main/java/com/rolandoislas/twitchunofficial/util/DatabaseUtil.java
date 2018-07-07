@@ -1,5 +1,7 @@
 package com.rolandoislas.twitchunofficial.util;
 
+import com.rolandoislas.twitchunofficial.data.model.StreamQuality;
+import com.rolandoislas.twitchunofficial.data.model.UserDatabaseCredentials;
 import com.rolandoislas.twitchunofficial.data.model.json.twitch.kraken.Community;
 import org.jetbrains.annotations.Nullable;
 import org.sql2o.Connection;
@@ -291,5 +293,174 @@ public class DatabaseUtil {
             return null;
         }
         return null;
+    }
+
+    /**
+     * Get stored admin user credentials for a username
+     * @param username user to fetch data for
+     * @return user data or null if not found
+     */
+    @Nullable
+    public static UserDatabaseCredentials getAdminUserData(String username) {
+        String sql = "select * from %s.admin_users where username = :username";
+        sql = String.format(sql, schema);
+        Connection connection = null;
+        try {
+            connection = getConnection();
+            List<UserDatabaseCredentials> userDatabaseCredentials = connection.createQuery(sql, false)
+                    .addParameter("username", username)
+                    .executeAndFetch(UserDatabaseCredentials.class);
+            releaseConnection(connection);
+            if (userDatabaseCredentials.size() == 1)
+                return userDatabaseCredentials.get(0);
+            return null;
+        }
+        catch (Sql2oException e) {
+            Logger.exception(e);
+            releaseConnection(connection);
+            return null;
+        }
+    }
+
+    /**
+     * Get stream qualities
+     * @return list of stream qualities or null on error
+     */
+    @Nullable
+    public static List<StreamQuality> getStreamQualities() {
+        String sql = "select * from %s.stream_qualities";
+        sql = String.format(sql, schema);
+        Connection connection = null;
+        try {
+            connection = getConnection();
+            List<StreamQuality> streamQualities = connection.createQuery(sql, false)
+                    .addColumnMapping("240p30", "_240p30")
+                    .addColumnMapping("240p60", "_240p60")
+                    .addColumnMapping("480p30", "_480p30")
+                    .addColumnMapping("480p60", "_480p60")
+                    .addColumnMapping("720p30", "_720p30")
+                    .addColumnMapping("720p60", "_720p60")
+                    .addColumnMapping("1080p30", "_1080p30")
+                    .addColumnMapping("1080p60", "_1080p60")
+                    .addColumnMapping("only_source_60", "onlySource60")
+                    .executeAndFetch(StreamQuality.class);
+            releaseConnection(connection);
+            return streamQualities;
+        }
+        catch (Sql2oException e) {
+            Logger.exception(e);
+            releaseConnection(connection);
+            return null;
+        }
+    }
+
+    /**
+     * Set stream qualities
+     * @param streamQualities stream qualities
+     */
+    public static void setStreamQualities(List<StreamQuality> streamQualities) throws IllegalArgumentException {
+        String sqlSelect = "select * from %s.stream_qualities;";
+        sqlSelect = String.format(sqlSelect, schema);
+        String sqlInsert = "insert into %s.stream_qualities (model, bitrate, \"240p30\", \"240p60\", \"480p30\"," +
+                " \"480p60\", \"720p30\", \"720p60\", \"1080p30\", \"1080p60\", only_source_60, comment) values" +
+                " (:model, :bitrate, :_240_30," +
+                " :_240_60, :_480_30, :_480_60, :_720_30, :_720_60, :_1080_30, :_1080_60, :only_source_60, :comment);";
+        sqlInsert = String.format(sqlInsert, schema);
+        String sqlUpdate = "update %s.stream_qualities set bitrate = :bitrate, \"240p30\" = :_240_30," +
+                " \"240p60\" = :_240_60, \"480p30\" = :_480_30, \"480p60\" = :_480_60, \"720p30\" = :_720_30," +
+                " \"720p60\" = :_720_60, \"1080p30\" = :_1080_30, \"1080p60\" = :_1080_60," +
+                " only_source_60 = :only_source_60, comment = :comment where model = :model;";
+        sqlUpdate = String.format(sqlUpdate, schema);
+        String sqlRemoveNot = "model <> %s";
+        String sqlRemove = "delete from %s.stream_qualities where";
+        sqlRemove = String.format(sqlRemove, schema);
+        Connection connection = null;
+        try {
+            connection = getTransaction();
+            // Get all qualities
+            List<StreamQuality> existingQualities = connection.createQuery(sqlSelect, false)
+                    .addColumnMapping("240p30", "_240p30")
+                    .addColumnMapping("240p60", "_240p60")
+                    .addColumnMapping("480p30", "_480p30")
+                    .addColumnMapping("480p60", "_480p60")
+                    .addColumnMapping("720p30", "_720p30")
+                    .addColumnMapping("720p60", "_720p60")
+                    .addColumnMapping("1080p30", "_1080p30")
+                    .addColumnMapping("1080p60", "_1080p60")
+                    .addColumnMapping("only_source_60", "onlySource60")
+                    .executeAndFetch(StreamQuality.class);
+            // Remove
+            List<String> modelsToNotRemove = new ArrayList<>();
+            StringBuilder sqlRemoveBuilder = new StringBuilder(sqlRemove);
+            int streamQualityIndex = 1;
+            for (StreamQuality streamQuality : streamQualities) {
+                modelsToNotRemove.add(streamQuality.getModel());
+                if (streamQualityIndex == 1)
+                    sqlRemoveBuilder.append(" ");
+                else
+                    sqlRemoveBuilder.append(" and ");
+                sqlRemoveBuilder
+                        .append(String.format(sqlRemoveNot, ":p"))
+                        .append(String.valueOf(streamQualityIndex));
+                streamQualityIndex++;
+            }
+            sqlRemoveBuilder.append(";");
+            connection.createQuery(sqlRemoveBuilder.toString(), false)
+                    .withParams(modelsToNotRemove.toArray())
+                    .executeUpdate();
+            // Update/Insert qualities
+            for (StreamQuality streamQuality : streamQualities) {
+                if (!streamQuality.validate())
+                    throw new IllegalArgumentException("Stream quality did not validate: Name: " +
+                            String.valueOf(streamQuality.getModel()));
+                boolean exists = false;
+                for (StreamQuality existingQuality : existingQualities) {
+                    if (existingQuality.getModel().equals(streamQuality.getModel())) {
+                        exists = true;
+                        break;
+                    }
+                }
+                // Update
+                if (exists) {
+                    connection.createQuery(sqlUpdate, false)
+                            .addParameter("model", streamQuality.getModel())
+                            .addParameter("bitrate", streamQuality.getBitrate())
+                            .addParameter("_240_30", streamQuality.get240p30())
+                            .addParameter("_240_60", streamQuality.get240p60())
+                            .addParameter("_480_30", streamQuality.get480p30())
+                            .addParameter("_480_60", streamQuality.get480p60())
+                            .addParameter("_720_30", streamQuality.get720p30())
+                            .addParameter("_720_60", streamQuality.get720p60())
+                            .addParameter("_1080_30", streamQuality.get1080p30())
+                            .addParameter("_1080_60", streamQuality.get1080p60())
+                            .addParameter("only_source_60", streamQuality.getOnlySource60())
+                            .addParameter("comment", streamQuality.getComment())
+                            .executeUpdate();
+                }
+                // Insert
+                else {
+                    connection.createQuery(sqlInsert, false)
+                            .addParameter("model", streamQuality.getModel())
+                            .addParameter("bitrate", streamQuality.getBitrate())
+                            .addParameter("_240_30", streamQuality.get240p30())
+                            .addParameter("_240_60", streamQuality.get240p60())
+                            .addParameter("_480_30", streamQuality.get480p30())
+                            .addParameter("_480_60", streamQuality.get480p60())
+                            .addParameter("_720_30", streamQuality.get720p30())
+                            .addParameter("_720_60", streamQuality.get720p60())
+                            .addParameter("_1080_30", streamQuality.get1080p30())
+                            .addParameter("_1080_60", streamQuality.get1080p60())
+                            .addParameter("only_source_60", streamQuality.getOnlySource60())
+                            .addParameter("comment", streamQuality.getComment())
+                            .executeUpdate();
+                }
+            }
+            connection.commit();
+            releaseConnection(connection);
+        }
+        catch (Sql2oException e) {
+            Logger.exception(e);
+            releaseConnection(connection);
+        }
     }
 }

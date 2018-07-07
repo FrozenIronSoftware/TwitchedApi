@@ -1,0 +1,25 @@
+{{>partial/header.hbs append="GenHash" inc="admin/partial/header.hbs"}}
+
+{{>partial/nav.hbs}}
+
+<h1 class="title timeburnerbold">GenHash</h1>
+<h2 class="sub-title">Generate a bcrypt hash for a password</h2>
+
+<div class="text">
+    <div class="text-inner">
+        {{#if generated}}
+            <div>
+                <p>Hash: {{hash}}</p>
+            </div>
+        {{else}}
+            <form id="login" method="post">
+                <input type="password" class="login" name="password" placeholder="Password" required="required"
+                       autocomplete="current-password"/>
+                <br>
+                <input type="submit" class="link-submit" value="Submit" />
+            </form>
+        {{/if}}
+    </div>
+</div>
+
+{{>partial/footer.hbs}}

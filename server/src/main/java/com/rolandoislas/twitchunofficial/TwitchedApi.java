@@ -9,10 +9,12 @@ import com.goebl.david.Webb;
 import com.goebl.david.WebbException;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
+import com.google.gson.reflect.TypeToken;
 import com.rolandoislas.twitchunofficial.data.Constants;
 import com.rolandoislas.twitchunofficial.data.annotation.Cached;
 import com.rolandoislas.twitchunofficial.data.annotation.NotCached;
 import com.rolandoislas.twitchunofficial.data.model.FollowQueue;
+import com.rolandoislas.twitchunofficial.data.model.StreamQuality;
 import com.rolandoislas.twitchunofficial.data.model.json.cloudflare.CfVisitor;
 import com.rolandoislas.twitchunofficial.data.model.json.twitch.AccessToken;
 import com.rolandoislas.twitchunofficial.data.model.json.twitch.TokenValidation;
@@ -28,7 +30,9 @@ import com.rolandoislas.twitchunofficial.util.DatabaseUtil;
 import com.rolandoislas.twitchunofficial.util.HeaderUtil;
 import com.rolandoislas.twitchunofficial.util.Logger;
 import com.rolandoislas.twitchunofficial.util.StringUtil;
+import com.rolandoislas.twitchunofficial.util.admin.TwitchedAdminServer;
 import org.apache.maven.artifact.versioning.ComparableVersion;
+import org.eclipse.jetty.http.HttpStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import spark.Request;
@@ -49,7 +53,7 @@ import static com.rolandoislas.twitchunofficial.TwitchUnofficialApi.checkAuth;
 import static com.rolandoislas.twitchunofficial.TwitchUnofficialApi.gson;
 import static com.rolandoislas.twitchunofficial.TwitchUnofficialApi.halt;
 
-class TwitchedApi {
+public class TwitchedApi {
     private static final String OAUTH_CALLBACK_PATH = "/link/complete";
     private static Random random = new Random();
 
@@ -410,7 +414,7 @@ class TwitchedApi {
      * @return enabled
      */
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-    private static boolean isDevApiEnabled() {
+    public static boolean isDevApiEnabled() {
         return System.getenv().getOrDefault("DEV_API", "").equalsIgnoreCase("true");
     }
 
@@ -620,5 +624,59 @@ class TwitchedApi {
     static String getTwitchedConfig(Request request, Response response) {
         checkAuth(request);
         return System.getenv().getOrDefault("TWITCHED_CONFIG", "{}");
+    }
+
+    /**
+     * Fetch and return stream qualities for models
+     * @param request request
+     * @param response response
+     * @return json array of model qualities
+     */
+    static String getStreamQualitiesForModels(Request request, Response response) {
+        checkAuth(request);
+        return gson.toJson(getStreamQualities());
+    }
+
+    /**
+     * Handle posted stream qualities
+     * @param request request
+     * @param response response
+     * @return empty json object with 200 status code on success
+     */
+    static String postStreamQualitiesForModels(Request request, Response response) {
+        checkAuth(request);
+        TwitchedAdminServer.checkAuth(request, response, true);
+        String qualitiesJson = request.body();
+        try {
+            List<StreamQuality> streamQualities = gson.fromJson(qualitiesJson,
+                    new TypeToken<List<StreamQuality>>() {}.getType());
+            DatabaseUtil.setStreamQualities(streamQualities);
+        }
+        catch (JsonSyntaxException e) {
+            throw halt(HttpStatus.BAD_REQUEST_400, "");
+        }
+        return "{}";
+    }
+
+    /**
+     * Get stream qualities
+     * Checks redis cache first then polls database
+     */
+    @Cached
+    static List<StreamQuality> getStreamQualities() {
+        String cacheId = ApiCache.createKey("streamquality");
+        String cachedData = cache.get(cacheId);
+        if (cachedData != null) {
+            try {
+                return gson.fromJson(cachedData, new TypeToken<List<StreamQuality>>(){}.getType());
+            }
+            catch (JsonSyntaxException ignore) {}
+        }
+        List<StreamQuality> streamQualities = DatabaseUtil.getStreamQualities();
+        try {
+            cache.set(cacheId, gson.toJson(streamQualities));
+        }
+        catch (JsonSyntaxException ignore) {}
+        return streamQualities;
     }
 }

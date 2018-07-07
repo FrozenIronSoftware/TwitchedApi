@@ -22,8 +22,6 @@
  */
 * {
     margin: 0;
-    padding: 0;
-    border: 0;
 }
 
 body {
@@ -129,7 +127,7 @@ hr {
 }
 
 .info-link {
-    width: 21%;
+    width: 13%;
     height: auto;
     margin: 1% 0 0 1%;
     background: rgb(185, 185, 185);
@@ -139,6 +137,14 @@ hr {
 
 .info-link:hover {
     background: rgb(146, 146, 146);
+}
+
+.hidden {
+    display: none;
+ }
+
+.clear {
+    clear: both;
 }
 
 /**
@@ -263,6 +269,7 @@ hr {
     display: block;
     padding-top: 20px;
     text-transform: uppercase;
+    border-color: rgb(31, 31, 31);
 }
 
 .link-submit {
@@ -274,6 +281,7 @@ hr {
     line-height: 50px;
     text-align: center;
     cursor: pointer;
+    -webkit-appearance: button;
 }
 
 .error {
@@ -282,6 +290,15 @@ hr {
     margin: 20px auto !important;
     text-align: center;
     background: rgb(171, 144, 150);
+    color: rgb(0, 0, 0);
+}
+
+.success {
+    width: 600px;
+    font-family: sans-serif;
+    margin: 20px auto !important;
+    text-align: center;
+    background: rgb(104, 171, 120);
     color: rgb(0, 0, 0);
 }
 
@@ -352,6 +369,7 @@ hr {
         position: absolute;
         width: 127%;
         background: rgb(232, 232, 232);
+        z-index: 100;
     }
 
     .nav ul li {

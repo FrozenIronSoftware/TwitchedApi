@@ -21,6 +21,7 @@ public class Playlist {
     private List<String> lines;
     private int quality;
     private int bitrate;
+    private boolean source;
 
     public Playlist(String lineOne, String lineTwo, String lineThree) {
         // Set closed caption to none
@@ -31,6 +32,7 @@ public class Playlist {
         lines.add(lineTwo);
         lines.add(lineThree);
         audioOnly = lineOne.contains("audio") || lineTwo.contains("audio");
+        source = lineOne.contains("source");
         // Quality
         Pattern qualityPattern = Pattern.compile(".*NAME=\"(\\d+)p?(\\d*).*\".*");
         Matcher qualityMatcher = qualityPattern.matcher(lineOne);
@@ -92,5 +94,13 @@ public class Playlist {
 
     public int getBitrate() {
         return bitrate;
+    }
+
+    /**
+     * Check if this stream represents a source stream
+     * @return is source stream
+     */
+    public boolean isSource() {
+        return source;
     }
 }

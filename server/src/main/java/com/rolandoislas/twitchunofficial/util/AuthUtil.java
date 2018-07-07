@@ -16,6 +16,7 @@ import java.util.List;
 
 
 public class AuthUtil {
+    public static final int BCRYPT_ROUNDS = 15;
     private static List<String> ALLOWED_IDS;
     private static boolean authenticate;
 
@@ -93,5 +94,13 @@ public class AuthUtil {
         String hash = Hashing.sha1().hashString(raw, Charsets.UTF_8).toString();
         hash = Hashing.sha1().hashString(hash + salt, Charsets.UTF_8).toString();
         return hash;
+    }
+
+    /**
+     * Return whether or not authentication checks should be performed
+     * @return do authenticate
+     */
+    public static boolean shouldAuthenticate() {
+        return AuthUtil.authenticate;
     }
 }

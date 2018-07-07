@@ -6,6 +6,7 @@
 package com.rolandoislas.twitchunofficial;
 
 import com.google.common.collect.Lists;
+import com.google.gson.JsonSyntaxException;
 import com.rolandoislas.twitchunofficial.data.annotation.NotCached;
 import org.jetbrains.annotations.Nullable;
 import spark.ModelAndView;
@@ -296,5 +297,21 @@ class TwitchUnofficialServer {
         String queryAppend = queryString != null ? "?" + queryString : "";
         String pathString = path != null ? path : "";
         return String.format("%s://%s%s%s%s", scheme, hostString.toString(), portString, pathString, queryAppend);
+    }
+
+    /**
+     * Get the stream quality page
+     * @param request request
+     * @param response response
+     * @return stream quality page
+     */
+    static String getInfoStreamQuality(Request request, Response response) {
+        Map<String, Object> model = new HashMap<>();
+        try {
+            String qualities = TwitchUnofficialApi.gson.toJson(TwitchedApi.getStreamQualities());
+            model.put("qualities", qualities);
+        }
+        catch (JsonSyntaxException ignore) {}
+        return new HandlebarsTemplateEngine().render(new ModelAndView(model, "info_streamquality.hbs"));
     }
 }

@@ -27,6 +27,7 @@ allprojects {
         orgJsonVersion = "20180130"
         sql2oVersion = "1.5.4"
         postgresqlVersion = "42.2.2"
+        jbcryptVersion = "0.4"
     }
 
     repositories {
@@ -49,6 +50,7 @@ project(":server") {
         compile "org.json:json:$orgJsonVersion"
         compile "org.sql2o:sql2o:$sql2oVersion"
         compile "org.postgresql:postgresql:$postgresqlVersion"
+        compile "org.mindrot:jbcrypt:$jbcryptVersion"
     }
 }
 

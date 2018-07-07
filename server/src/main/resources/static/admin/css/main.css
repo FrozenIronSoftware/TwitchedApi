@@ -1,0 +1,23 @@
+.login {
+    width: 35%;
+    display: block;
+    margin: 3px auto 0 auto;
+    padding: 10px;
+}
+
+#login {
+    padding: 20px 0 20px 0;
+}
+
+#overlay {
+    width: 100%;
+    height: 100%;
+}
+
+.message-container {
+    padding: 10px 0;
+}
+
+#message {
+    padding: 10px;
+}

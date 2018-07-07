@@ -1,0 +1,50 @@
+{{>partial/header.hbs append="Admin Login" inc="admin/partial/header.hbs"}}
+
+{{>partial/nav.hbs}}
+
+<h1 class="title timeburnerbold">Admin Login</h1>
+<h2 class="sub-title">Administrator Login</h2>
+
+{{#if admin}}
+    <div class="text">
+        <div class="text-inner">
+            <div class="message-container">
+                <p id="message" class="success">Already Logged In</p>
+            </div>
+        </div>
+    </div>
+{{else if logout}}
+    <div class="text">
+        <div class="text-inner">
+            <div class="message-container">
+                <p id="message" class="success">Successfully Logged Out</p>
+            </div>
+        </div>
+    </div>
+{{else}}
+    <div class="text">
+        <div class="text-inner">
+            <form id="login">
+                <input type="text" class="login" name="username" placeholder="Username" required="required"
+                       autocomplete="username"/>
+                <input type="password" class="login" name="password" placeholder="Password" required="required"
+                       autocomplete="current-password"/>
+                <br>
+                <input type="submit" class="link-submit" value="Submit" />
+            </form>
+        </div>
+    </div>
+
+    <div class="text">
+        <div class="text-inner">
+            <div class="message-container">
+                <p id="message" class="hidden">Logging In</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="/admin/js/login.js"></script>
+
+{{/if}}
+
+{{>partial/footer.hbs}}
