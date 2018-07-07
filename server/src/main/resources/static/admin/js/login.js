@@ -59,7 +59,7 @@
                     break;
             }
         });
-        request.open("POST", "/admin/api/login", true, username, password);
+        request.open("POST", "/admin/api/login", true);
         request.setRequestHeader("Content-Type", "application/json");
         request.send(JSON.stringify({
             username: username,
