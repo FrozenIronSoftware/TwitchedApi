@@ -651,6 +651,8 @@ public class TwitchedApi {
             List<StreamQuality> streamQualities = gson.fromJson(qualitiesJson,
                     new TypeToken<List<StreamQuality>>() {}.getType());
             DatabaseUtil.setStreamQualities(streamQualities);
+            String cacheId = ApiCache.createKey("streamquality");
+            cache.remove(cacheId);
         }
         catch (JsonSyntaxException e) {
             throw halt(HttpStatus.BAD_REQUEST_400, "");
