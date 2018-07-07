@@ -1,5 +1,7 @@
 package com.rolandoislas.twitchunofficial.util.admin;
 
+import com.google.common.hash.Hashing;
+import com.google.gson.JsonSyntaxException;
 import com.rolandoislas.twitchunofficial.data.model.UserDatabaseCredentials;
 import com.rolandoislas.twitchunofficial.data.model.json.twitched.admin.AuthenticationData;
 import com.rolandoislas.twitchunofficial.util.AuthUtil;
@@ -59,7 +61,13 @@ public class TwitchedAdminServer {
      */
     public static String postLoginPage(Request request, Response response) {
         // Parse passed data
-        AuthenticationData authenticationData = gson.fromJson(request.body(), AuthenticationData.class);
+        AuthenticationData authenticationData;
+        try {
+            authenticationData = gson.fromJson(request.body(), AuthenticationData.class);
+        }
+        catch (JsonSyntaxException e) {
+            throw halt(HttpStatus.BAD_REQUEST_400);
+        }
         if (authenticationData.getUsername() == null || authenticationData.getUsername().isEmpty() ||
                 authenticationData.getPassword() == null || authenticationData.getPassword().isEmpty())
             throw halt(HttpStatus.BAD_REQUEST_400);
@@ -71,7 +79,8 @@ public class TwitchedAdminServer {
                 userDatabaseCredentials.getUsername() == null || userDatabaseCredentials.getUsername().isEmpty())
             throw halt(HttpStatus.INTERNAL_SERVER_ERROR_500);
         // Compare data
-        if (!BCrypt.checkpw(authenticationData.getPassword(), userDatabaseCredentials.getHash()))
+        if (!BCrypt.checkpw(Hashing.sha256().hashString(authenticationData.getPassword()).toString(),
+                userDatabaseCredentials.getHash()))
             throw halt(HttpStatus.UNAUTHORIZED_401);
         // Set authenticated session
         Session session = request.session();

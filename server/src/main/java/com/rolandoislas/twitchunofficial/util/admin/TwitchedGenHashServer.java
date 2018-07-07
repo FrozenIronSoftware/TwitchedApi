@@ -1,7 +1,9 @@
 package com.rolandoislas.twitchunofficial.util.admin;
 
+import com.google.common.hash.Hashing;
 import com.rolandoislas.twitchunofficial.TwitchedApi;
 import com.rolandoislas.twitchunofficial.util.AuthUtil;
+import com.rolandoislas.twitchunofficial.util.Logger;
 import org.eclipse.jetty.http.HttpStatus;
 import org.mindrot.jbcrypt.BCrypt;
 import spark.ModelAndView;
@@ -9,6 +11,8 @@ import spark.Request;
 import spark.Response;
 import spark.template.handlebars.HandlebarsTemplateEngine;
 
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -47,12 +51,19 @@ public class TwitchedGenHashServer {
                 throw halt(HttpStatus.BAD_REQUEST_400);
             String key = split[0];
             String value = split[1];
-            if (key.equals("password"))
-                password = value;
+            if (key.equals("password")) {
+                try {
+                    password = URLDecoder.decode(value, "utf-8");
+                }
+                catch (UnsupportedEncodingException e) {
+                    Logger.exception(e);
+                }
+            }
         }
         if (password == null || password.isEmpty() || password.length() > 500)
             throw halt(HttpStatus.BAD_REQUEST_400);
-        String hash = BCrypt.hashpw(password, BCrypt.gensalt(AuthUtil.BCRYPT_ROUNDS));
+        String hash = BCrypt.hashpw(Hashing.sha256().hashString(password).toString(),
+                BCrypt.gensalt(AuthUtil.BCRYPT_ROUNDS));
         Map<String, Object> model = new HashMap<>();
         model.put("hash", hash);
         model.put("generated", true);
