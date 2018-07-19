@@ -623,7 +623,28 @@ public class TwitchedApi {
      */
     static String getTwitchedConfig(Request request, Response response) {
         checkAuth(request);
-        return System.getenv().getOrDefault("TWITCHED_CONFIG", "{}");
+        // Check cache
+        String cacheId = ApiCache.createKey("config");
+        String cachedData = cache.get(cacheId);
+        if (cachedData != null)
+            return cachedData;
+        // Load
+        String configJson = System.getenv().getOrDefault("TWITCHED_CONFIG", "{}");
+        JsonObject config;
+        try {
+            config = gson.fromJson(configJson, JsonObject.class);
+        }
+        catch (JsonSyntaxException e) {
+            config = new JsonObject();
+        }
+        try {
+            config.add("stream_qualities", gson.toJsonTree(TwitchedApi.getStreamQualities()));
+        }
+        catch (JsonSyntaxException ignore) {}
+        // Cache and return
+        String configString = config.toString();
+        cache.set(cacheId, configString);
+        return configString;
     }
 
     /**
