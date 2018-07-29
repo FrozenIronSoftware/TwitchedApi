@@ -318,6 +318,13 @@ public class TwitchedApi {
             ret.addProperty("message", "Missing refresh token or scope");
             return ret.toString();
         }
+        if (TwitchUnofficialApi.getTwitchCredentials().getClientSecret() == null ||
+                TwitchUnofficialApi.getTwitchCredentials().getClientSecret().isEmpty()) {
+            ret.addProperty("error", true);
+            ret.addProperty("message", "Server error: missing client secret. Tokens cannot be refreshed" +
+                    "or obtained.");
+            return ret.toString();
+        }
         String url = "https://id.twitch.tv/oauth2/token?client_id=%s&client_secret=%s&grant_type=%s&refresh_token=%s" +
                 "&scope=%s";
         try {
@@ -525,7 +532,7 @@ public class TwitchedApi {
      * @param response response
      * @return json
      */
-    static String getFollowedCommunities(Request request, spark.Response response) {
+    static String getFollowedCommunities(Request request, @SuppressWarnings("unused") spark.Response response) {
         checkAuth(request);
         // Params
         String limit = request.queryParamOrDefault("limit", "20");
@@ -558,7 +565,7 @@ public class TwitchedApi {
      * @return json
      */
     @NotNull
-    static String followCommunity(Request request, spark.Response response) {
+    static String followCommunity(Request request, @SuppressWarnings("unused") spark.Response response) {
         return setFollowCommunity(request, true);
     }
 
@@ -611,7 +618,7 @@ public class TwitchedApi {
      * @param response response
      * @return json
      */
-    static String unfollowCommunity(Request request, spark.Response response) {
+    static String unfollowCommunity(Request request, @SuppressWarnings("unused") spark.Response response) {
         return setFollowCommunity(request, false);
     }
 
@@ -621,7 +628,7 @@ public class TwitchedApi {
      * @param response response
      * @return json
      */
-    static String getTwitchedConfig(Request request, Response response) {
+    static String getTwitchedConfig(Request request, @SuppressWarnings("unused") Response response) {
         checkAuth(request);
         // Check cache
         String cacheId = ApiCache.createKey("config");
@@ -653,7 +660,7 @@ public class TwitchedApi {
      * @param response response
      * @return json array of model qualities
      */
-    static String getStreamQualitiesForModels(Request request, Response response) {
+    static String getStreamQualitiesForModels(Request request, @SuppressWarnings("unused") Response response) {
         checkAuth(request);
         return gson.toJson(getStreamQualities());
     }
