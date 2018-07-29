@@ -5,6 +5,8 @@ import com.google.gson.JsonSyntaxException;
 import com.rolandoislas.twitchunofficial.TwitchUnofficialApi;
 import com.rolandoislas.twitchunofficial.data.model.FollowQueue;
 import com.rolandoislas.twitchunofficial.data.model.FollowedGamesWithRate;
+import com.rolandoislas.twitchunofficial.data.model.QueueItem;
+import com.rolandoislas.twitchunofficial.data.model.StreamStatusQueue;
 import com.rolandoislas.twitchunofficial.data.model.UsersWithRate;
 import com.rolandoislas.twitchunofficial.data.model.json.twitch.helix.Follow;
 import com.rolandoislas.twitchunofficial.data.model.json.twitch.helix.FollowList;
@@ -27,6 +29,8 @@ public class FollowsCacher implements Runnable {
     @SuppressWarnings("FieldCanBeLocal")
     private boolean running = false;
     private Gson gson = new Gson();
+    private List<String> queuedStreamIds = new ArrayList<>();
+    private List<String> queuedStreamLogins = new ArrayList<>();
 
     @Override
     public void run() {
@@ -34,9 +38,6 @@ public class FollowsCacher implements Runnable {
         while (running) {
             try {
                 cacheFollows();
-            }
-            catch (InterruptedException e) {
-                Logger.exception(e);
             }
             // Empty queue, wait and try again
             catch (NoSuchElementException e) {
@@ -47,6 +48,10 @@ public class FollowsCacher implements Runnable {
                     Logger.exception(e);
                 }
             }
+            // Catch all errors. The cacher should never die.
+            catch (Exception e) {
+                Logger.exception(e);
+            }
         }
     }
 
@@ -55,19 +60,55 @@ public class FollowsCacher implements Runnable {
      */
     private void cacheFollows() throws InterruptedException, NoSuchElementException {
         // Get follows for id
-        FollowQueue followQueue = TwitchUnofficialApi.followIdsToCache.element();
-        String fromId = followQueue.getUserId();
-        if (fromId != null && followQueue.getFollowType() != null) {
-            switch (followQueue.getFollowType()) {
-                case CHANNEL:
-                    getFollowsForId(fromId);
+        QueueItem queueItem = TwitchUnofficialApi.followIdsToCache.element();
+        if (queueItem instanceof FollowQueue) {
+            FollowQueue followQueue = (FollowQueue) queueItem;
+            String fromId = followQueue.getUserId();
+            if (fromId != null && followQueue.getFollowType() != null) {
+                switch (followQueue.getFollowType()) {
+                    case CHANNEL:
+                        getFollowsForId(fromId);
+                        break;
+                    case GAME:
+                        getFollowedGamesForId(fromId);
+                        break;
+                }
+            }
+        }
+        else if (queueItem instanceof StreamStatusQueue) {
+            StreamStatusQueue statusQueue = (StreamStatusQueue) queueItem;
+            switch (statusQueue.getType()) {
+                case ID:
+                    if (!queuedStreamIds.contains(statusQueue.getUserIdentifier()))
+                        queuedStreamIds.add(statusQueue.getUserIdentifier());
                     break;
-                case GAME:
-                    getFollowedGamesForId(fromId);
+                case LOGIN:
+                    if (!queuedStreamLogins.contains(statusQueue.getUserIdentifier()))
+                        queuedStreamLogins.add(statusQueue.getUserIdentifier());
                     break;
+            }
+            if (queuedStreamIds.size() + queuedStreamLogins.size() == 100) {
+                try {
+                    cacheStreamStatus(queuedStreamIds, queuedStreamLogins);
+                }
+                finally {
+                    queuedStreamIds.clear();
+                    queuedStreamLogins.clear();
+                }
             }
         }
         TwitchUnofficialApi.followIdsToCache.remove();
+    }
+
+    /**
+     * Request and cache streams
+     * @param ids stream ids
+     * @param logins stream logins
+     */
+    private void cacheStreamStatus(List<String> ids, List<String> logins) {
+        Logger.debug("FollowCacher: Requesting status for streams");
+        TwitchUnofficialApi.getStreams(null, null, null, "100", null,
+                null, null, ids, logins, null, true);
     }
 
     /**

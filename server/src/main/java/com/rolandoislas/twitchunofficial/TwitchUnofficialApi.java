@@ -19,7 +19,9 @@ import com.rolandoislas.twitchunofficial.data.model.FollowQueue;
 import com.rolandoislas.twitchunofficial.data.model.FollowedGamesWithRate;
 import com.rolandoislas.twitchunofficial.data.model.Id;
 import com.rolandoislas.twitchunofficial.data.model.Playlist;
+import com.rolandoislas.twitchunofficial.data.model.QueueItem;
 import com.rolandoislas.twitchunofficial.data.model.StreamQuality;
+import com.rolandoislas.twitchunofficial.data.model.StreamStatusQueue;
 import com.rolandoislas.twitchunofficial.data.model.TwitchCredentials;
 import com.rolandoislas.twitchunofficial.data.model.UsersWithRate;
 import com.rolandoislas.twitchunofficial.data.model.json.twitch.AppToken;
@@ -81,7 +83,7 @@ import java.util.regex.Pattern;
 import static com.rolandoislas.twitchunofficial.TwitchUnofficial.cache;
 
 public class TwitchUnofficialApi {
-    public static final Queue<FollowQueue> followIdsToCache = new ConcurrentLinkedQueue<>();
+    public static final Queue<QueueItem> followIdsToCache = new ConcurrentLinkedQueue<>();
     private static final Pattern DURATION_REGEX = Pattern.compile("(?:(\\d+)d)?(?:(\\d+)h)?(?:(\\d+)m)?(?:(\\d+)s)");
     private static final String IMAGE_SIZE_REGEX = "-\\d+x\\d+\\.";
     static final int BAD_REQUEST = 400;
@@ -840,8 +842,16 @@ public class TwitchUnofficialApi {
         requestParams.add(HeaderUtil.extractVersion(request));
         String requestId = ApiCache.createKey("helix/streams", requestParams);
         String cachedResponse = cache.get(requestId);
-        if (cachedResponse != null)
+        if (cachedResponse != null) {
+            // If this is a single stream status, add it to the cacher to update the status when there is time
+            if (userIds.size() + userLogins.size() == 1) {
+                if (userIds.size() == 1)
+                    addStreamToStatusUpdateQueue(userIds.get(0), StreamStatusQueue.Type.ID);
+                else if (userLogins.size() == 1)
+                    addStreamToStatusUpdateQueue(userLogins.get(0), StreamStatusQueue.Type.LOGIN);
+            }
             return cachedResponse;
+        }
 
         // Request live
         List<Stream> streams = getStreams(
@@ -861,6 +871,24 @@ public class TwitchUnofficialApi {
         String json = gson.toJson(streams);
         cache.set(requestId, json);
         return json;
+    }
+
+    /**
+     * Add a streamer id or login to the status update queue
+     * @param userIdentifier user id or login
+     * @param type identifer type
+     */
+    private static void addStreamToStatusUpdateQueue(String userIdentifier, StreamStatusQueue.Type type) {
+        StreamStatusQueue item = new StreamStatusQueue(userIdentifier, type);
+        synchronized (followIdsToCache) {
+            if (!followIdsToCache.contains(item)) {
+                Logger.debug("Adding stream with id %s to the status update queue.", userIdentifier);
+                if (!followIdsToCache.offer(item))
+                    Logger.debug("Failed to add stream with id %s to the status update queue.");
+            }
+            else
+                Logger.debug("Stream with id %s already queued in the update queue.", userIdentifier);
+        }
     }
 
     /**
@@ -900,7 +928,7 @@ public class TwitchUnofficialApi {
      */
     @NotNull
     @Cached
-    private static List<Stream> getStreams(
+    public static List<Stream> getStreams(
             @Nullable String after,
             @Nullable String before,
             @Nullable List<String> communities,

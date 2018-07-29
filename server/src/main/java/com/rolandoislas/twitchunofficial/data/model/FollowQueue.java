@@ -4,7 +4,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Objects;
 
-public class FollowQueue {
+public class FollowQueue implements QueueItem {
     private final FollowType type;
     private String userId;
 
