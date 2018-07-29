@@ -1,7 +1,7 @@
 [v1.6 Beta]
 
 - Update stream status more frequently
-- Fix streams hanging on loading screen if they ar offline
+- Fix streams hanging on the loading screen if they are offline
 - Fix an issue where emotes could be out of order
 - Update stream quality settings
 
