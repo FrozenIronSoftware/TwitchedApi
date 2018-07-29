@@ -696,6 +696,8 @@ public class TwitchedApi {
             catch (JsonSyntaxException ignore) {}
         }
         List<StreamQuality> streamQualities = DatabaseUtil.getStreamQualities();
+        if (streamQualities == null)
+            streamQualities = new ArrayList<>();
         try {
             cache.set(cacheId, gson.toJson(streamQualities));
         }
