@@ -1,3 +1,10 @@
+[v1.6 Beta]
+
+- Update stream status more frequently
+- Fix streams hanging on loading screen if they ar offline
+- Fix an issue where emotes could be out of order
+- Update stream quality settings
+
 [v1.5.2735]
 
 - Fix buffering bar displaying in the wrong position in some instances
