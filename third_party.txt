@@ -1,5 +1,9 @@
 The Twitched website/API may use or contain portions of the following libraries, subject to the below licenses.
 
+[OpenJDK]
+
+Licensed under the GNU General Public License, version 2, with the Classpath Exception
+
 [Spark]
 
 ====
