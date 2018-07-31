@@ -941,6 +941,7 @@ public class TwitchUnofficialApi {
             @Nullable ComparableVersion version,
             @Nullable Boolean shouldFetchLive) {
         List<Stream> streams = new ArrayList<>();
+        CachedStreams cachedStreams = new CachedStreams();
         if ((userIdsParam != null && userIdsParam.size() > 0) ||
                 (userLoginsParam != null && userLoginsParam.size() > 0)) {
             // Check cache
@@ -950,7 +951,7 @@ public class TwitchUnofficialApi {
             if (userLoginsParam != null) {
                 allIds.addAll(getUserIds(userLoginsParam).values());
             }
-            CachedStreams cachedStreams = cache.getStreams(allIds);
+            cachedStreams = cache.getStreams(allIds);
             if (version != null && version.compareTo(new ComparableVersion("1.4.2400")) == 0) {
                 for (Stream stream : cachedStreams.getStreams()) {
                     UserName username = stream.getUserName();
@@ -1051,6 +1052,8 @@ public class TwitchUnofficialApi {
                 }
             }
         }
+        // Cache ensuring cached streams are not recached
+        offlineAndOnlineStreams.removeAll(cachedStreams.getStreams());
         cache.cacheStreams(offlineAndOnlineStreams);
 
         return streams;
