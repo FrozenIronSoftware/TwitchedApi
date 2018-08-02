@@ -787,19 +787,22 @@ public class TwitchUnofficialApi {
             if (keyValue.length > 2 || keyValue.length < 1)
                 throw halt(BAD_REQUEST, "Bad query string");
             if (keyValue.length > 1) {
+                String key = keyValue[0];
                 String value = keyValue[1];
                 try {
+                    key = URLDecoder.decode(key, "utf-8");
                     value = URLDecoder.decode(value, "utf-8");
                 }
                 catch (UnsupportedEncodingException e) {
                     Logger.exception(e);
                     throw halt(SERVER_ERROR, "Failed to decode params");
                 }
-                if (!userIds.contains(value) && keyValue[0].equals("user_id"))
+                key = key.replace("[", "").replace("]", "");
+                if (!userIds.contains(value) && key.equals("user_id"))
                     userIds.add(value);
-                else if (!userLogins.contains(value) && keyValue[0].equals("user_login"))
+                else if (!userLogins.contains(value) && key.equals("user_login"))
                     userLogins.add(value);
-                else if (!languages.contains(value) && keyValue[0].equals("language"))
+                else if (!languages.contains(value) && key.equals("language"))
                     languages.add(value);
             }
         }
