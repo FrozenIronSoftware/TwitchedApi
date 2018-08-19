@@ -815,7 +815,7 @@ public class TwitchUnofficialApi {
         if (afterFromOffset != null)
             after = afterFromOffset;
         // Ignore languages if the limit is 1
-        if (first.equals("1") && userIds.size() <= 1 && userLogins.size() <= 1)
+        if (first.equals("1") || userIds.size() + userLogins.size() == 1)
             languages.clear();
         // Add en-gb
         if (languages.contains("en") && !languages.contains("en-gb"))
