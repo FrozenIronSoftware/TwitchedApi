@@ -1,9 +1,15 @@
-[v1.6 Beta]
+[v1.6.2910]
 
 - Update stream status more frequently
 - Fix streams hanging on the loading screen if they are offline
 - Fix an issue where emotes could be out of order
-- Update stream quality settings
+- Update stream quality settings for Roku models
+- Fix errors when starting streams
+- Fix chat not being authenticated on launch
+- Chang automatic quality change to have a 30 second delay
+- Disable game posters on the game tab
+- Allow start menu to be selected
+- Add the "all" option to the language menu
 
 [v1.5.2735]
 
