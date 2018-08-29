@@ -250,7 +250,7 @@ public class TwitchUnofficialApi {
             } catch (WebbException e) {
                 if (e.getResponse().getStatusCode() != 404) {
                     Logger.warn("Request failed: " + e.getMessage());
-                    Logger.extra("Request Body: " + String.valueOf(e.getResponse().getErrorBody()));
+                    System.out.println("Request Body: " + String.valueOf(e.getResponse().getErrorBody()));
                     Logger.exception(e);
                 }
             }
