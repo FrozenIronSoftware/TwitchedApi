@@ -6,7 +6,7 @@
 - Update stream quality settings for Roku models
 - Fix errors when starting streams
 - Fix chat not being authenticated on launch
-- Chang automatic quality change to have a 30 second delay
+- Change automatic quality change to have a 30 second delay
 - Disable game posters on the game tab
 - Allow start menu to be selected
 - Add the "all" option to the language menu
