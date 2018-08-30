@@ -631,7 +631,8 @@ public class TwitchedApi {
     static String getTwitchedConfig(Request request, @SuppressWarnings("unused") Response response) {
         checkAuth(request);
         // Check cache
-        String cacheId = ApiCache.createKey("config");
+        ComparableVersion version = HeaderUtil.extractVersion(request);
+        String cacheId = ApiCache.createKey("config", version.toString());
         String cachedData = cache.get(cacheId);
         if (cachedData != null)
             return cachedData;
@@ -648,6 +649,12 @@ public class TwitchedApi {
             config.add("stream_qualities", gson.toJsonTree(TwitchedApi.getStreamQualities()));
         }
         catch (JsonSyntaxException ignore) {}
+        // 1.5 force remote HLS
+        if (version.compareTo(new ComparableVersion("1.6")) < 0) {
+            if (config.has("force_remote_hls"))
+                config.remove("force_remote_hls");
+            config.addProperty("force_remote_hls", true);
+        }
         // Cache and return
         String configString = config.toString();
         cache.set(cacheId, configString);
