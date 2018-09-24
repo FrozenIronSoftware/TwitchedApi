@@ -149,4 +149,14 @@ Set the log level
 
 The allowed values are the same as java.util.logging levels.
 
+### TWITCHED_CONFIG
+
+JSON object with Twitched configuration settings for apps.
+
+```json
+{
+  "force_remote_hls": false
+}
+```
+
 [Twitched]: https://www.twitched.org
