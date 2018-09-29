@@ -2612,16 +2612,18 @@ public class TwitchUnofficialApi {
                     .ensureSuccess()
                     .asString();
             FollowedGameList followedGameList = gson.fromJson(webbResponse.getBody(), FollowedGameList.class);
-            for (com.rolandoislas.twitchunofficial.data.model.json.twitch.kraken.Game follow : followedGameList.getFollows()) {
-                Game game = new Game();
-                game.setId(String.valueOf(follow.getId()));
-                game.setName(follow.getName());
-                Preview boxArt = follow.getBox();
-                if (boxArt != null) {
-                    game.setBoxArtUrl(boxArt.getTemplate());
+            if (followedGameList.getFollows() != null) {
+                for (com.rolandoislas.twitchunofficial.data.model.json.twitch.kraken.Game follow : followedGameList.getFollows()) {
+                    Game game = new Game();
+                    game.setId(String.valueOf(follow.getId()));
+                    game.setName(follow.getName());
+                    Preview boxArt = follow.getBox();
+                    if (boxArt != null) {
+                        game.setBoxArtUrl(boxArt.getTemplate());
+                    }
+                    game.setViewers(follow.getPopularity());
+                    followedGames.add(game);
                 }
-                game.setViewers(follow.getPopularity());
-                followedGames.add(game);
             }
         }
         catch (WebbException | JsonSyntaxException e) {
