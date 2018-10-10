@@ -646,7 +646,15 @@ public class TwitchedApi {
             config = new JsonObject();
         }
         try {
-            config.add("stream_qualities", gson.toJsonTree(TwitchedApi.getStreamQualities()));
+            List<StreamQuality> qualities = TwitchedApi.getStreamQualities();
+            List<StreamQuality> allQualities = TwitchedApi.getStreamQualities();
+            // Add EU duplicates
+            for (StreamQuality streamQuality : qualities) {
+                streamQuality.setId(streamQuality.getId() + 1000);
+                streamQuality.setModel(streamQuality.getModel().replace("X", "EU"));
+                allQualities.add(streamQuality);
+            }
+            config.add("stream_qualities", gson.toJsonTree(allQualities));
         }
         catch (JsonSyntaxException ignore) {}
         // 1.5 force remote HLS

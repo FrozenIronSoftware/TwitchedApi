@@ -167,4 +167,16 @@ public class StreamQuality {
         }
         return true;
     }
+
+    public void setModel(String model) {
+        this.model = model;
+    }
+
+    public long getId() {
+        return id;
+    }
+
+    public void setId(long id) {
+        this.id = id;
+    }
 }
