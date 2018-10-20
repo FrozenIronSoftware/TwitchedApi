@@ -9,6 +9,8 @@ import com.goebl.david.Response;
 import com.goebl.david.Webb;
 import com.goebl.david.WebbException;
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
@@ -1012,10 +1014,10 @@ public class TwitchUnofficialApi {
                     .asString();
             logTwitchRateLimit(response);
             try {
-                StreamList streamList = gson.fromJson(response.getBody(), StreamList.class);
+                StreamList streamList = parseStreamListJson(response.getBody());
                 streams.addAll(streamList.getStreams());
             }
-            catch (JsonSyntaxException e) {
+            catch (JsonSyntaxException | IllegalStateException e) {
                 Logger.exception(e);
                 throw halt(BAD_GATEWAY, e.getMessage());
             }
@@ -1061,6 +1063,29 @@ public class TwitchUnofficialApi {
         cache.cacheStreams(offlineAndOnlineStreams);
 
         return streams;
+    }
+
+    /**
+     * Parse a stream list json object from Twitch
+     * - The user_name field is removed
+     * @param body json objet
+     * @return stream list
+     * @throws JsonSyntaxException gson failure
+     * @throws IllegalArgumentException parse failure
+     */
+    @NotNull
+    private static StreamList parseStreamListJson(String body) throws JsonSyntaxException, IllegalStateException {
+        JsonObject streamListJsonObject = gson.fromJson(body, JsonObject.class);
+        if (streamListJsonObject.has("data")) {
+            JsonArray streamListJsonArray = streamListJsonObject.get("data").getAsJsonArray();
+            for (JsonElement streamElement : streamListJsonArray) {
+                JsonObject streamObject = streamElement.getAsJsonObject();
+                if (streamObject.has("user_name"))
+                    streamObject.remove("user_name");
+            }
+            return gson.fromJson(streamListJsonObject.toString(), StreamList.class);
+        }
+        throw new JsonSyntaxException("Stream list object failed to parse");
     }
 
     /**
@@ -2402,7 +2427,7 @@ public class TwitchUnofficialApi {
                     .ensureSuccess()
                     .asString();
             logTwitchRateLimit(response);
-            StreamList streamList = gson.fromJson(response.getBody(), StreamList.class);
+            StreamList streamList = parseStreamListJson(response.getBody());
             videos = streamList.getStreams();
             // Convert the duration string to seconds
             for (Stream video : videos) {
@@ -2427,7 +2452,7 @@ public class TwitchUnofficialApi {
                 video.setDurationSeconds(durationSeconds);
             }
         }
-        catch (WebbException | JsonSyntaxException e) {
+        catch (WebbException | JsonSyntaxException | IllegalStateException e) {
             Logger.warn("Request failed: " + e.getMessage());
             Logger.exception(e);
         }
