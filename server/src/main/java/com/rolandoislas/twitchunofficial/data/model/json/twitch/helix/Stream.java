@@ -48,6 +48,7 @@ public class Stream {
     @SerializedName("duration_seconds")
     private long durationSeconds;
     private boolean online = true;
+    private boolean encrypted;
 
     // Get/Set
 
@@ -145,5 +146,13 @@ public class Stream {
 
     public String getTitle() {
         return title;
+    }
+
+    public void setEncrypted(boolean encrypted) {
+        this.encrypted = encrypted;
+    }
+
+    public boolean isEncrypted() {
+        return encrypted;
     }
 }

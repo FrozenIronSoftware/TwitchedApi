@@ -1030,6 +1030,7 @@ public class TwitchUnofficialApi {
 
         // Add user names and game names to data
         addNamesToStreams(streams, version);
+        addEncryptedStatusToStreams(streams);
 
         // Cache streams
         ArrayList<Stream> offlineAndOnlineStreams =
@@ -1063,6 +1064,23 @@ public class TwitchUnofficialApi {
         cache.cacheStreams(offlineAndOnlineStreams);
 
         return streams;
+    }
+
+    /**
+     * Sets streams encrypted status to true for stream that require widevine
+     * TODO Poll the GQL Twitch endpoint to determine if the stream is encrypted
+     * @param streams streams to check
+     */
+    private static void addEncryptedStatusToStreams(List<Stream> streams) {
+        for (Stream stream : streams) {
+            // Prime Video
+            if (stream.getUserId() != null && stream.getUserId().equals("168843586")) {
+                // NFL stream
+                if (stream.getTitle() != null && stream.getTitle().toUpperCase().contains("NFL")) {
+                    stream.setEncrypted(true);
+                }
+            }
+        }
     }
 
     /**
