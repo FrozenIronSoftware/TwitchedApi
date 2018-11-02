@@ -380,6 +380,12 @@ public class ApiCache {
                 if (stream == null || ((stream.getUserId() == null || stream.getUserName() == null ||
                         stream.getUserName().getLogin() == null) && stream.isOnline()))
                     continue;
+                if (stream.getUserId() != null && stream.getUserId().equals("168843586") && stream.getTitle() != null
+                        && stream.getTitle().toUpperCase().contains("NFL")) {
+                    stream.setOnline(false);
+                    stream.setTitle("DRM Stream | " + stream.getTitle());
+                    stream.setType("DRM Stream");
+                }
                 String json = gson.toJson(stream);
                 String id = String.format("%s%s", STREAM_PREFIX, stream.getUserId());
                 redis.setex(id, TIMEOUT, json);

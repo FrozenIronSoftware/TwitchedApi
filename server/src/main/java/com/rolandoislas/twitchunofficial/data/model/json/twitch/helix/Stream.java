@@ -142,4 +142,8 @@ public class Stream {
     public String getThumbnailUrl() {
         return thumbnailUrl;
     }
+
+    public String getTitle() {
+        return title;
+    }
 }
