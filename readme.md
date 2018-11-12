@@ -159,4 +159,12 @@ JSON object with Twitched configuration settings for apps.
 }
 ```
 
+### BIF_QUEUE_ID
+
+Queue id to use. Only one consumer is expected.
+    
+### GOOGLE_STORAGE_CREDENTIALS
+
+Google JSON credentials
+
 [Twitched]: https://www.twitched.org
