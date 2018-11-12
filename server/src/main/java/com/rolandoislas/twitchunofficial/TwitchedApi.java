@@ -35,6 +35,7 @@ import org.apache.maven.artifact.versioning.ComparableVersion;
 import org.eclipse.jetty.http.HttpStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import redis.clients.jedis.Jedis;
 import spark.Request;
 import spark.Response;
 import spark.Spark;
@@ -43,6 +44,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Random;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -55,6 +57,7 @@ import static com.rolandoislas.twitchunofficial.TwitchUnofficialApi.halt;
 
 public class TwitchedApi {
     private static final String OAUTH_CALLBACK_PATH = "/link/complete";
+    private static final String STATIC_BUCKET_URL = "https://static.twitched.org/";
     private static Random random = new Random();
 
     /**
@@ -725,5 +728,33 @@ public class TwitchedApi {
         }
         catch (JsonSyntaxException ignore) {}
         return streamQualities;
+    }
+
+    /**
+     * Get the Roku BIF url
+     * @param request request
+     * @param response response
+     * @return Roku BIF url
+     */
+    @NotNull
+    @Cached
+    static String getBifUrl(@NotNull Request request, Response response) {
+        String id = request.splat()[0];
+        String quality = request.splat()[1].toLowerCase(Locale.US).replace(".bif", "");
+        if (!quality.equals("sd") && !quality.equals("hd") && !quality.equals("fhd"))
+            throw halt(HttpStatus.BAD_REQUEST_400, "Invalid quality");
+        if (StringUtil.parseLong(id) == 0)
+            throw halt(HttpStatus.BAD_REQUEST_400, "Invalid id");
+        String cacheId = ApiCache.createKey(ApiCache.BIF_PREFIX, id);
+        String cachedData = cache.get(cacheId);
+        if (!Boolean.parseBoolean(cachedData)) {
+            try (Jedis jedis = cache.getAuthenticatedJedis()) {
+                List<String> queuedIds = jedis.lrange(TwitchUnofficial.queueId, 0, 100);
+                if (queuedIds.size() < 100 && !queuedIds.contains(cacheId))
+                    jedis.lpush(TwitchUnofficial.queueId, id);
+            }
+        }
+        response.redirect(String.format("%sbif/%s/%s.bif", STATIC_BUCKET_URL, id, quality));
+        return "";
     }
 }

@@ -31,6 +31,7 @@ public class ApiCache {
     private static final int TIMEOUT = 60 * 10; // Seconds before a cache value should be considered invalid
     public static final int TIMEOUT_HOUR = 60 * 60;
     public static final int TIMEOUT_DAY = 24 * 60 * 60; // 1 Day
+    public static final int TIMEOUT_WEEK = TIMEOUT_DAY * 7; // week
     @SuppressWarnings("unused")
     private static final String USER_NAME_FIELD_PREFIX = "_u_";
     @SuppressWarnings("unused")
@@ -44,6 +45,7 @@ public class ApiCache {
     private static final String USER_ID_PREFIX = "_ui_";
     private static final String FOLLOW_GAME_PREFIX = "_fg_";
     private static final String FOLLOW_TIME_GAME_PREFIX = "_ftg_";
+    public static final String BIF_PREFIX = "_b_";
     private final String redisPassword;
     private final Gson gson;
     private JedisPool redisPool;
@@ -88,7 +90,7 @@ public class ApiCache {
         return value;
     }
 
-    private Jedis getAuthenticatedJedis() {
+    public Jedis getAuthenticatedJedis() {
         Jedis jedis = redisPool.getResource();
         if (!redisPassword.isEmpty())
         jedis.auth(redisPassword);

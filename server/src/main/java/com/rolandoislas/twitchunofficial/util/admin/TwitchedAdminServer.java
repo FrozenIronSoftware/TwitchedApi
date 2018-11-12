@@ -1,5 +1,6 @@
 package com.rolandoislas.twitchunofficial.util.admin;
 
+import com.google.common.base.Charsets;
 import com.google.common.hash.Hashing;
 import com.google.gson.JsonSyntaxException;
 import com.rolandoislas.twitchunofficial.data.model.UserDatabaseCredentials;
@@ -79,7 +80,7 @@ public class TwitchedAdminServer {
                 userDatabaseCredentials.getUsername() == null || userDatabaseCredentials.getUsername().isEmpty())
             throw halt(HttpStatus.INTERNAL_SERVER_ERROR_500);
         // Compare data
-        if (!BCrypt.checkpw(Hashing.sha256().hashString(authenticationData.getPassword()).toString(),
+        if (!BCrypt.checkpw(Hashing.sha256().hashString(authenticationData.getPassword(), Charsets.UTF_8).toString(),
                 userDatabaseCredentials.getHash()))
             throw halt(HttpStatus.UNAUTHORIZED_401);
         // Set authenticated session

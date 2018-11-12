@@ -9,6 +9,7 @@ import com.rolandoislas.twitchunofficial.data.Constants;
 import com.rolandoislas.twitchunofficial.util.ApiCache;
 import com.rolandoislas.twitchunofficial.util.AuthUtil;
 import com.rolandoislas.twitchunofficial.util.DatabaseUtil;
+import com.rolandoislas.twitchunofficial.util.GoogleStorage;
 import com.rolandoislas.twitchunofficial.util.Logger;
 import com.rolandoislas.twitchunofficial.util.admin.TwitchedAdminServer;
 import com.rolandoislas.twitchunofficial.util.admin.TwitchedGenHashServer;
@@ -26,7 +27,9 @@ import static spark.Spark.staticFiles;
 public class TwitchUnofficial {
 
     public static ApiCache cache;
+    static GoogleStorage storage;
     static boolean redirectToHttps;
+    static String queueId;
 
     public static void main(String[] args) {
         // Parse args
@@ -68,6 +71,18 @@ public class TwitchUnofficial {
         String twitchClientSecret = System.getenv("TWITCH_CLIENT_SECRET");
         // Redirect
         redirectToHttps = Boolean.parseBoolean(System.getenv().getOrDefault("REDIRECT_HTTP", "true"));
+        // Google Storage Credentials
+        String googleStorageCredentials = System.getenv("GOOGLE_STORAGE_CREDENTIALS");
+        if (googleStorageCredentials == null || googleStorageCredentials.isEmpty()) {
+            Logger.warn("Missing env: GOOGLE_STORAGE_CREDENTIALS");
+            System.exit(1);
+        }
+        // Queue id
+        queueId = System.getenv("BIF_QUEUE_ID");
+        if (queueId == null || queueId.isEmpty()) {
+            Logger.warn("Missing env: BIF_QUEUE_ID");
+            System.exit(1);
+        }
         // Set values
         port(port);
         staticFiles.location("/static/");
@@ -75,6 +90,7 @@ public class TwitchUnofficial {
         TwitchUnofficial.cache = new ApiCache(redisServer);
         TwitchUnofficialApi.init(twitchClientId, twitchClientSecret);
         DatabaseUtil.setServer(sqlServer);
+        storage = new GoogleStorage(cache);
         // Global page rules
         before(TwitchUnofficialServer::handleGlobalPageRules);
         // API
@@ -154,6 +170,7 @@ public class TwitchUnofficial {
                 get("", TwitchedApi::getStreamQualitiesForModels);
                 post("", TwitchedApi::postStreamQualitiesForModels);
             });
+            get("/bif/*/*", TwitchedApi::getBifUrl);
         });
         // Web
         get("/", TwitchUnofficialServer::getIndex);

@@ -462,30 +462,9 @@ public class TwitchUnofficialApi {
         // Determine max quality
         StreamQuality maxQuality = getMaxQualityForModel(quality, fps, model);
         // Parse lines
-        List<String> playlist = new ArrayList<>();
-        List<Playlist> playlists = new ArrayList<>();
-        String[] playlistSplit = playlistString.split("\r?\n");
-        for (int lineIndex = 0; lineIndex < playlistSplit.length; lineIndex++) {
-            String line = playlistSplit[lineIndex];
-            // Not media line
-            if (!line.startsWith("#EXT-X-MEDIA")) {
-                playlist.add(line);
-            }
-            // Media line
-            else {
-                // EOF - add line but do not force add others
-                if (lineIndex + 2 >= playlistSplit.length) {
-                    playlist.add(line);
-                }
-                // Add line and two after it to playlists list
-                else {
-                    Playlist stream = new Playlist(line, playlistSplit[lineIndex + 1], playlistSplit[lineIndex + 2]);
-                    playlists.add(stream);
-                    lineIndex += 2;
-                }
-            }
-
-        }
+        Map<String, Object> parsedPlaylist = playlistStringToList(playlistString);
+        List<String> playlist = (List<String>) parsedPlaylist.get("lines");
+        List<Playlist> playlists = (List<Playlist>) parsedPlaylist.get("playlists");
         // Add compatible playlists
         boolean addedPlaylist = false;
         // Create a sublist of playlists that match or are below the requested quality
@@ -521,6 +500,42 @@ public class TwitchUnofficialApi {
         for (String line : playlist)
             cleanedPlaylist.append(line).append("\r\n");
         return cleanedPlaylist.toString();
+    }
+
+    /**
+     * Parses a playlist string into individual streams
+     * @param playlistString raw m3u8 playlist
+     * @return map with the key "lines" set to the header lines of the playlist in a string list
+     * and key "playlists" set to a string array of playlists
+     */
+    public static Map<String, Object> playlistStringToList(@NotNull String playlistString) {
+        List<String> playlist = new ArrayList<>();
+        List<Playlist> playlists = new ArrayList<>();
+        String[] playlistSplit = playlistString.split("\r?\n");
+        for (int lineIndex = 0; lineIndex < playlistSplit.length; lineIndex++) {
+            String line = playlistSplit[lineIndex];
+            // Not media line
+            if (!line.startsWith("#EXT-X-MEDIA")) {
+                playlist.add(line);
+            }
+            // Media line
+            else {
+                // EOF - add line but do not force add others
+                if (lineIndex + 2 >= playlistSplit.length) {
+                    playlist.add(line);
+                }
+                // Add line and two after it to playlists list
+                else {
+                    Playlist stream = new Playlist(line, playlistSplit[lineIndex + 1], playlistSplit[lineIndex + 2]);
+                    playlists.add(stream);
+                    lineIndex += 2;
+                }
+            }
+        }
+        Map<String, Object> map = new HashMap<>();
+        map.put("lines", playlist);
+        map.put("playlists", playlists);
+        return map;
     }
 
     /**

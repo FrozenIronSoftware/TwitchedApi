@@ -28,6 +28,8 @@ allprojects {
         sql2oVersion = "1.5.4"
         postgresqlVersion = "42.2.2"
         jbcryptVersion = "0.4"
+        cloudStorage = "1.51.0"
+        ffmpegCliVersion = "0.6.2"
     }
 
     repositories {
@@ -51,11 +53,19 @@ project(":server") {
         compile "org.sql2o:sql2o:$sql2oVersion"
         compile "org.postgresql:postgresql:$postgresqlVersion"
         compile "org.mindrot:jbcrypt:$jbcryptVersion"
+        compile "com.google.cloud:google-cloud-storage:$cloudStorage"
     }
 }
 
 project(":status") {
     dependencies {
         compile project(":server")
+    }
+}
+
+project(":bif") {
+    dependencies {
+        compile project(":server")
+        compile "net.bramp.ffmpeg:ffmpeg:$ffmpegCliVersion"
     }
 }

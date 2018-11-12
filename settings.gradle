@@ -1,3 +1,3 @@
 rootProject.name = 'Twitched'
 
-include "server", "status"
+include "server", "status", "bif"

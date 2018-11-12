@@ -1,5 +1,6 @@
 package com.rolandoislas.twitchunofficial.util.admin;
 
+import com.google.common.base.Charsets;
 import com.google.common.hash.Hashing;
 import com.rolandoislas.twitchunofficial.TwitchedApi;
 import com.rolandoislas.twitchunofficial.util.AuthUtil;
@@ -62,7 +63,7 @@ public class TwitchedGenHashServer {
         }
         if (password == null || password.isEmpty() || password.length() > 500)
             throw halt(HttpStatus.BAD_REQUEST_400);
-        String hash = BCrypt.hashpw(Hashing.sha256().hashString(password).toString(),
+        String hash = BCrypt.hashpw(Hashing.sha256().hashString(password, Charsets.UTF_8).toString(),
                 BCrypt.gensalt(AuthUtil.BCRYPT_ROUNDS));
         Map<String, Object> model = new HashMap<>();
         model.put("hash", hash);

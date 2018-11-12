@@ -1,0 +1,1 @@
+worker: java -jar ./bif/build/libs/bif-*.jar -log FINEST
