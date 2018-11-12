@@ -747,7 +747,7 @@ public class TwitchedApi {
             throw halt(HttpStatus.BAD_REQUEST_400, "Invalid id");
         String cacheId = ApiCache.createKey(ApiCache.BIF_PREFIX, id);
         String cachedData = cache.get(cacheId);
-        if (!Boolean.parseBoolean(cachedData)) {
+        if (!StringUtil.parseBoolean(cachedData)) {
             try (Jedis jedis = cache.getAuthenticatedJedis()) {
                 List<String> queuedIds = jedis.lrange(TwitchUnofficial.queueId, 0, 100);
                 if (queuedIds.size() < 100 && !queuedIds.contains(cacheId))

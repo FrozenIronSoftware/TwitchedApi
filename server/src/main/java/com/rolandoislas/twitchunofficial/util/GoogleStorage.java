@@ -66,7 +66,7 @@ public class GoogleStorage {
         String cacheId = ApiCache.createKey(ApiCache.BIF_PREFIX, id);
         String cachedData = redis.get(cacheId);
         if (cachedData != null)
-            return Boolean.parseBoolean(cachedData);
+            return StringUtil.parseBoolean(cachedData);
         try {
             Blob blob = bifBucket.get(String.format("bif/%s/%s.bif", id, "sd"));
             boolean exists = blob != null;
