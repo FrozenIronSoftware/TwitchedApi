@@ -20,9 +20,11 @@ public class BifRequestConsumer {
         if (id == null)
             return;
         if (storage.containsBif(id)) {
+            Logger.debug("Ignoring already generated BIF for ID: %s", id);
             removeId(id);
             return;
         }
+        Logger.debug("Processing BIF for ID: %s", id);
         bifTool.generateAndStoreBif(id);
         removeId(id);
     }

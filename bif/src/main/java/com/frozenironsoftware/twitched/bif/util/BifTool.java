@@ -51,21 +51,28 @@ public class BifTool {
     void generateAndStoreBif(String id) {
         cleanTempDirectory();
         createTempDirectory();
+        Logger.debug("Downloading stream with ID: %s", id);
         List<Path> streamParts = downloadStream(id);
         if (streamParts.size() == 0) {
+            Logger.debug("Stream not downloaded: %s", id);
             cleanTempDirectory();
             return;
         }
+        Logger.debug("Generating frames for stream with ID: %s", id);
         Frames frames = generateFrames(streamParts);
         if (frames == null) {
+            Logger.debug("Frames not generated for stream with ID: %s", id);
             cleanTempDirectory();
             return;
         }
+        Logger.debug("Generating BIFs for stream with ID: %s", id);
         Path fhdBif = generateBif(frames.getFhdFrames(), FHD_SIZE.getName());
         Path hdBif = generateBif(frames.getHdFrames(), HD_SIZE.getName());
         Path sdBif = generateBif(frames.getSdFrames(), SD_SIZE.getName());
+        Logger.debug("Uploading BIFs for stream with ID: %s", id);
         storage.storeBif(sdBif, hdBif, fhdBif, id);
         cleanTempDirectory();
+        Logger.debug("BIF processed ID: %s", id);
     }
 
     /**
