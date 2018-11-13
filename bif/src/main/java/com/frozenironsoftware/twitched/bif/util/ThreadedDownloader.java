@@ -60,8 +60,10 @@ public class ThreadedDownloader {
                 if (downloader == null || !downloader.isAlive()) {
                     if (downloader != null && !downloader.isSuccess()) {
                         reset();
-                        continue;
+                        break;
                     }
+                    if (downloads.size() == 0)
+                        break;
                     Download download = downloads.get(0);
                     downloads.remove(0);
                     downloadThreads[threadIndex] = new Downloader(download);
