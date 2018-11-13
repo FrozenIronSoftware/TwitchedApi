@@ -21,12 +21,10 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.net.SocketException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -39,10 +37,13 @@ public class BifTool {
     private static final Size SD_SIZE = new Size(240, 135, "sd");
     private static final int FRAME_TIME = 60;
     private static final int BIF_FRAME_INTERVAL = 10;
+    private static final int MAX_DOWNLOAD_THREADS = 10;
     private final GoogleStorage storage;
+    private final ThreadedDownloader downloader;
 
     BifTool(GoogleStorage storage) {
         this.storage = storage;
+        this.downloader = new ThreadedDownloader(MAX_DOWNLOAD_THREADS);
     }
 
     /**
@@ -84,11 +85,6 @@ public class BifTool {
      */
     @Nullable
     private Path generateBif(List<Path> frames, String name) {
-        List<Byte> bif = new ArrayList<>();
-        // Magic Number
-        Collections.addAll(bif, new Byte[]{(byte)0x89, 0x42, 0x49, 0x46, 0x0d, 0x0a, 0x1a, 0x0a});
-        // Version
-        Collections.addAll(bif, new Byte[]{0, 0, 0, 0});
         Path outputPath = TEMP_PATH.resolve("bif").resolve(name + ".bif");
         FileOutputStream outputStream;
         try {
@@ -286,6 +282,7 @@ public class BifTool {
         int streamPartIndex = 0;
         List<Path> paths = new ArrayList<>();
         int skipInterval = 0;
+        downloader.reset();
         for (String line : playlistString.split("\r?\n")) {
             if (!line.trim().startsWith("#") && !line.trim().isEmpty()) {
                 if (skipInterval == 0)
@@ -294,46 +291,8 @@ public class BifTool {
                     streamPartIndex++;
                     continue;
                 }
-                Response<byte[]> response = null;
-                int maxRetries = 10;
-                int retries = maxRetries;
-                do {
-                    try {
-                        response = webb.get(streamPartDir.toString() + line)
-                                .ensureSuccess()
-                                .retry(10, true)
-                                .asBytes();
-                        retries = 0;
-                    }
-                    catch (WebbException e) {
-                        Logger.exception(e);
-                        if (e.getCause() instanceof SocketException) {
-                            try {
-                                Thread.sleep((maxRetries - retries + 1) * 2500);
-                            }
-                            catch (InterruptedException ie) {
-                                Logger.exception(ie);
-                            }
-                            retries--;
-                        }
-                        else
-                            retries = 0;
-                    }
-                    catch (Exception e) {
-                        Logger.exception(e);
-                        retries = 0;
-                    }
-                } while (retries > 0);
-                if (response == null || response.getBody() == null)
-                    return new ArrayList<>();
                 Path outPath = TEMP_PATH.resolve("download").resolve(streamPartIndex + ".ts").toAbsolutePath();
-                try {
-                    Files.write(outPath, response.getBody());
-                }
-                catch (IOException e) {
-                    Logger.exception(e);
-                    return new ArrayList<>();
-                }
+                downloader.addDownload(streamPartDir.toString() + line, outPath);
                 paths.add(outPath);
                 streamPartIndex++;
             }
@@ -349,7 +308,10 @@ public class BifTool {
                 }
             }
         }
-        return paths;
+        downloader.waitForCompletion();
+        if (downloader.didComplete())
+            return paths;
+        return new ArrayList<>();
     }
 
     /**
