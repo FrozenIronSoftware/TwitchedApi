@@ -21,6 +21,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.SocketException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -294,15 +295,35 @@ public class BifTool {
                     continue;
                 }
                 Response<byte[]> response = null;
-                try {
-                     response = webb.get(streamPartDir.toString() + line)
-                            .ensureSuccess()
-                            .retry(3, true)
-                            .asBytes();
-                }
-                catch (WebbException e) {
-                    Logger.exception(e);
-                }
+                int maxRetries = 10;
+                int retries = maxRetries;
+                do {
+                    try {
+                        response = webb.get(streamPartDir.toString() + line)
+                                .ensureSuccess()
+                                .retry(10, true)
+                                .asBytes();
+                        retries = 0;
+                    }
+                    catch (WebbException e) {
+                        Logger.exception(e);
+                        if (e.getCause() instanceof SocketException) {
+                            try {
+                                Thread.sleep((maxRetries - retries + 1) * 2500);
+                            }
+                            catch (InterruptedException ie) {
+                                Logger.exception(ie);
+                            }
+                            retries--;
+                        }
+                        else
+                            retries = 0;
+                    }
+                    catch (Exception e) {
+                        Logger.exception(e);
+                        retries = 0;
+                    }
+                } while (retries > 0);
                 if (response == null || response.getBody() == null)
                     return new ArrayList<>();
                 Path outPath = TEMP_PATH.resolve("download").resolve(streamPartIndex + ".ts").toAbsolutePath();
