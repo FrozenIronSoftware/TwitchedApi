@@ -753,6 +753,8 @@ public class TwitchedApi {
                 if (queuedIds.size() < 100 && !queuedIds.contains(cacheId))
                     jedis.lpush(TwitchUnofficial.queueId, id);
             }
+            response.redirect(String.format("%sbif/generating/%s.bif", STATIC_BUCKET_URL, quality));
+            return "";
         }
         response.redirect(String.format("%sbif/%s/%s.bif", STATIC_BUCKET_URL, id, quality));
         return "";
