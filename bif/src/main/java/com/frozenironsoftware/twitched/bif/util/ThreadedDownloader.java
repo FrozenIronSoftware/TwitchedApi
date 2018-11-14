@@ -60,7 +60,7 @@ public class ThreadedDownloader {
                 if (downloader == null || !downloader.isAlive()) {
                     if (downloader != null && !downloader.isSuccess()) {
                         reset();
-                        break;
+                        return;
                     }
                     if (downloads.size() == 0)
                         break;
