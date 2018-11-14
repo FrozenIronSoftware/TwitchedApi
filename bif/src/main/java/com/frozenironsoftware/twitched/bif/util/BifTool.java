@@ -249,8 +249,15 @@ public class BifTool {
         if (!(((List<?>)playlistsObject).get(0) instanceof Playlist))
             return new ArrayList<>();
         List<Playlist> playlists = (List<Playlist>) playlistsObject;
-        Playlist playlist = playlists.get(0);
-        if (playlist.getLines().size() < 3)
+        Playlist playlist = null;
+        for (Playlist loopPlaylist : playlists) {
+            if (!loopPlaylist.isVideo())
+                continue;
+            playlist = loopPlaylist;
+            if (loopPlaylist.isQualityOrLower(FHD_SIZE.getHeight()))
+                break;
+        }
+        if (playlist == null || playlist.getLines().size() < 3)
             return new ArrayList<>();
         String playlistUrl = playlist.getLines().get(2);
         return downloadAllStreamParts(playlistUrl, downloadDir);
