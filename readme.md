@@ -174,6 +174,8 @@ Google JSON credentials
 By default tests for the Roku BIF generator will attempt to download a
  Twitch VOD to the temp directory. If the argument `-DBIF_CLEAR_CACHE=true`
  is not passed to gradle, the VOD will not be re-downloaded if it present
+ Twitch VOD to the temp directory. If the env var `BIF_CLEAR_CACHE`
+ is not set to true, the VOD will not be re-downloaded if one is present
  on disk, This is useful for running performance tests back-to-back.
 
 [Twitched]: https://www.twitched.org
