@@ -14,6 +14,8 @@ import com.rolandoislas.twitchunofficial.util.GoogleStorage;
 import com.rolandoislas.twitchunofficial.util.Logger;
 import net.bramp.ffmpeg.FFmpeg;
 import net.bramp.ffmpeg.builder.FFmpegBuilder;
+import net.coobird.thumbnailator.Thumbnails;
+import net.coobird.thumbnailator.name.Rename;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -32,16 +34,16 @@ import java.util.regex.Pattern;
 
 public class BifTool {
     private static final Path TEMP_PATH = Paths.get("/tmp/twitch_roku_bif/");
-    private static final Size FHD_SIZE = new Size(640, 360, "fhd");
-    private static final Size HD_SIZE = new Size(430, 242, "hd");
-    private static final Size SD_SIZE = new Size(240, 135, "sd");
+    public static final Size FHD_SIZE = new Size(640, 360, "fhd");
+    public static final Size HD_SIZE = new Size(430, 242, "hd");
+    public static final Size SD_SIZE = new Size(240, 135, "sd");
     private static final int FRAME_TIME = 60;
     private static final int BIF_FRAME_INTERVAL = 10;
     private static final int MAX_DOWNLOAD_THREADS = 10;
-    private final GoogleStorage storage;
+    @Nullable private final GoogleStorage storage;
     private final ThreadedDownloader downloader;
 
-    BifTool(GoogleStorage storage) {
+    public BifTool(@Nullable GoogleStorage storage) {
         this.storage = storage;
         this.downloader = new ThreadedDownloader(MAX_DOWNLOAD_THREADS);
     }
@@ -54,14 +56,14 @@ public class BifTool {
         cleanTempDirectory();
         createTempDirectory();
         Logger.debug("Downloading stream with ID: %s", id);
-        List<Path> streamParts = downloadStream(id);
+        List<Path> streamParts = downloadStream(id, TEMP_PATH.resolve("download"));
         if (streamParts.size() == 0) {
             Logger.debug("Stream not downloaded: %s", id);
             cleanTempDirectory();
             return;
         }
         Logger.debug("Generating frames for stream with ID: %s", id);
-        Frames frames = generateFrames(streamParts);
+        Frames frames = generateFrames(streamParts, TEMP_PATH.resolve("frame"));
         if (frames == null) {
             Logger.debug("Frames not generated for stream with ID: %s", id);
             cleanTempDirectory();
@@ -72,7 +74,8 @@ public class BifTool {
         Path hdBif = generateBif(frames.getHdFrames(), HD_SIZE.getName());
         Path sdBif = generateBif(frames.getSdFrames(), SD_SIZE.getName());
         Logger.debug("Uploading BIFs for stream with ID: %s", id);
-        storage.storeBif(sdBif, hdBif, fhdBif, id);
+        if (storage != null)
+            storage.storeBif(sdBif, hdBif, fhdBif, id);
         cleanTempDirectory();
         Logger.debug("BIF processed ID: %s", id);
     }
@@ -144,13 +147,8 @@ public class BifTool {
      * @return frames object containing all paths to the different types of frames or null on error
      */
     @Nullable
-    private Frames generateFrames(List<Path> streamParts) {
-        List<Path> fhdFrames = generateFrames(streamParts, FHD_SIZE);
-        List<Path> hdFrames = generateFrames(streamParts, HD_SIZE);
-        List<Path> sdFrames = generateFrames(streamParts, SD_SIZE);
-        if (fhdFrames.size() == 0 || hdFrames.size() == 0 || sdFrames.size() == 0)
-            return null;
-        return new Frames(fhdFrames, hdFrames, sdFrames);
+    private Frames generateFrames(List<Path> streamParts, Path frameDir) {
+        return generateFramesFfmpeg(streamParts, frameDir);
     }
 
     /**
@@ -159,7 +157,7 @@ public class BifTool {
      * @param size size of screenshot
      * @return paths of output frames. The list will be empty if no frames were generated or an error occurred
      */
-    private List<Path> generateFrames(@NotNull List<Path> streamParts, Size size) {
+    private List<Path> generateFrames(@NotNull List<Path> streamParts, Size size, Path frameDir) {
         List<Path> frames = new ArrayList<>();
         try {
             FFmpeg ffmpeg = new FFmpeg("ffmpeg");
@@ -168,7 +166,7 @@ public class BifTool {
                 if (outputNamePath == null)
                     return new ArrayList<>();
                 String outputName = outputNamePath.toString().replace(".ts", ".jpg");
-                Path outputPath = TEMP_PATH.resolve("frame").resolve(size.getName()).resolve(outputName)
+                Path outputPath = frameDir.resolve(size.getName()).resolve(outputName)
                         .toAbsolutePath();
                 FFmpegBuilder builder = ffmpeg.builder()
                         .addInput(streamPart.toAbsolutePath().toString())
@@ -217,9 +215,11 @@ public class BifTool {
     /**
      * Download a stream to a temporary directory
      * @param id twitch stream id
+     * @param downloadDir Directory where all stream parts should be stored. This does not ensure the directory has been
+     *                    created.
      * @return paths to download stream parts
      */
-    private List<Path> downloadStream(String id) {
+    public List<Path> downloadStream(String id, Path downloadDir) {
         Webb webb = Webb.create();
         String playlistString = null;
         try {
@@ -233,10 +233,13 @@ public class BifTool {
             playlistString = response.getBody();
         }
         catch (WebbException e) {
+            e.printStackTrace();
             Logger.exception(e);
         }
-        if (playlistString == null || playlistString.isEmpty())
+        if (playlistString == null || playlistString.isEmpty()) {
+            Logger.debug("Downloaded empty primary playlist string");
             return new ArrayList<>();
+        }
         Map<String, Object> parsedPlaylist = TwitchUnofficialApi.playlistStringToList(playlistString);
         Object playlistsObject = parsedPlaylist.get("playlists");
         if (!(playlistsObject instanceof List<?>))
@@ -250,15 +253,17 @@ public class BifTool {
         if (playlist.getLines().size() < 3)
             return new ArrayList<>();
         String playlistUrl = playlist.getLines().get(2);
-        return downloadAllStreamParts(playlistUrl);
+        return downloadAllStreamParts(playlistUrl, downloadDir);
     }
 
     /**
      * Download all the parts of the stream
      * @param playlistUrl url of playlist containing the .ts parts
+     * @param downloadDir Download directory where all stream parts will be downloaded. This will fail if the directory
+     *                    does not exist.
      * @return path of all downloaded parts
      */
-    private List<Path> downloadAllStreamParts(@NotNull String playlistUrl) {
+    private List<Path> downloadAllStreamParts(@NotNull String playlistUrl, Path downloadDir) {
         StringBuilder streamPartDir = new StringBuilder();
         String[] streamUrlSplit = playlistUrl.split("/");
         for (int splitIndex = 0; splitIndex < streamUrlSplit.length; splitIndex++) {
@@ -277,8 +282,10 @@ public class BifTool {
         catch (WebbException e) {
             Logger.exception(e);
         }
-        if (playlistString == null || playlistString.isEmpty())
+        if (playlistString == null || playlistString.isEmpty()) {
+            Logger.debug("Downloaded empty secondary playlist string");
             return new ArrayList<>();
+        }
         int streamPartIndex = 0;
         List<Path> paths = new ArrayList<>();
         int skipInterval = 0;
@@ -291,7 +298,7 @@ public class BifTool {
                     streamPartIndex++;
                     continue;
                 }
-                Path outPath = TEMP_PATH.resolve("download").resolve(streamPartIndex + ".ts").toAbsolutePath();
+                Path outPath = downloadDir.resolve(streamPartIndex + ".ts").toAbsolutePath();
                 downloader.addDownload(streamPartDir.toString() + line, outPath);
                 paths.add(outPath);
                 streamPartIndex++;
@@ -314,28 +321,72 @@ public class BifTool {
         return new ArrayList<>();
     }
 
-    /**
-     * Delete all files in the temp directory
-     * @param dir directory to delete
-     */
-    private void cleanTempDirectory(@NotNull File dir) {
-        File[] contents = dir.listFiles();
-        if (contents == null)
-            return;
-        for (File file : contents) {
-            if (file.isDirectory())
-                cleanTempDirectory(file);
-            else if (!file.delete())
-                Logger.debug("Failed to delete: ", file.getAbsolutePath());
-        }
-        if (!dir.delete())
-            Logger.debug("Failed to delete: ", dir.getAbsolutePath());
-    }
+
 
     /**
      * Delete all files in the temp directory
      */
     private void cleanTempDirectory() {
-        cleanTempDirectory(TEMP_PATH.toFile());
+        FileUtil.cleanDirectory(TEMP_PATH.toFile());
+    }
+
+    /**
+     * Generate frames with FFMPEG only
+     * @param streamParts stream parts paths
+     * @param frameDir frame output directory
+     * @return frames generated
+     */
+    public Frames generateFramesFfmpeg(List<Path> streamParts, Path frameDir) {
+        List<Path> fhdFrames = generateFrames(streamParts, FHD_SIZE, frameDir);
+        List<Path> hdFrames = generateFrames(streamParts, HD_SIZE, frameDir);
+        List<Path> sdFrames = generateFrames(streamParts, SD_SIZE, frameDir);
+        if (fhdFrames.size() == 0 || hdFrames.size() == 0 || sdFrames.size() == 0)
+            return null;
+        return new Frames(fhdFrames, hdFrames, sdFrames);
+    }
+
+    /**
+     * Generate frames with FFMPEG for FHD then use ImageMagick to resize for HD and SD
+     * @param streamParts stream parts paths
+     * @param frameDir frame output directory
+     * @return frames generated
+     */
+    public Frames generateFramesResize(List<Path> streamParts, Path frameDir) {
+        List<Path> fhdFrames = generateFrames(streamParts, FHD_SIZE, frameDir);
+        List<Path> hdFrames = resizeFrames(fhdFrames, HD_SIZE, frameDir);
+        List<Path> sdFrames = resizeFrames(fhdFrames, SD_SIZE, frameDir);
+        if (fhdFrames.size() == 0 || hdFrames.size() == 0 || sdFrames.size() == 0)
+            return null;
+        return new Frames(fhdFrames, hdFrames, sdFrames);
+    }
+
+    /**
+     * Resize frames with image magick
+     * @param frames frame image paths
+     * @param size size to resize to
+     * @param frameDir output directory
+     * @return array of frame paths. It will be empty if an error occurred
+     */
+    private List<Path> resizeFrames(@NotNull List<Path> frames, @NotNull Size size, @NotNull Path frameDir) {
+        List<Path> generatedFrames = new ArrayList<>();
+        File[] input = new File[frames.size()];
+        Path outputDir = frameDir.resolve(size.getName());
+        for (int frameIndex = 0; frameIndex < frames.size(); frameIndex++) {
+            Path framePath = frames.get(frameIndex);
+            input[frameIndex] = framePath.toFile();
+            generatedFrames.add(outputDir.resolve(framePath.getFileName()));
+        }
+        try {
+            Thumbnails.of(input)
+                    .size(size.getWidth(), size.getHeight())
+                    .outputFormat("jpg")
+                    .outputQuality(0.7)
+                    .toFiles(outputDir.toFile(), Rename.NO_CHANGE);
+        }
+        catch (IOException e) {
+            Logger.exception(e);
+            return new ArrayList<>();
+        }
+        return generatedFrames;
     }
 }

@@ -167,4 +167,13 @@ Queue id to use. Only one consumer is expected.
 
 Google JSON credentials
 
+## Tests
+
+### Roku BIF Generator Tests
+
+By default tests for the Roku BIF generator will attempt to download a
+ Twitch VOD to the temp directory. If the argument `-DBIF_CLEAR_CACHE=true`
+ is not passed to gradle, the VOD will not be re-downloaded if it present
+ on disk, This is useful for running performance tests back-to-back.
+
 [Twitched]: https://www.twitched.org

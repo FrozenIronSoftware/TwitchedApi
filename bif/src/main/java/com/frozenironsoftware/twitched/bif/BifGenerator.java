@@ -12,6 +12,15 @@ public class BifGenerator {
     public static String queueId;
     public static String twitchedClientId;
 
+    static {
+        // Twitched client id
+        twitchedClientId = System.getenv("TWITCHED_CLIENT_ID");
+        if (twitchedClientId == null || twitchedClientId.isEmpty()) {
+            Logger.warn("Missing env: TWITCHED_CLIENT_ID");
+            System.exit(1);
+        }
+    }
+
     public static void main(String[] args) throws InterruptedException {
         Logger.setLevel(Level.ALL);
         Logger.info("%s version %s starting", Constants.NAME, Constants.VERSION);
@@ -28,12 +37,6 @@ public class BifGenerator {
         queueId = System.getenv("BIF_QUEUE_ID");
         if (queueId == null || queueId.isEmpty()) {
             Logger.warn("Missing env: BIF_QUEUE_ID");
-            System.exit(1);
-        }
-        // Twitched client id
-        twitchedClientId = System.getenv("TWITCHED_CLIENT_ID");
-        if (twitchedClientId == null || twitchedClientId.isEmpty()) {
-            Logger.warn("Missing env: TWITCHED_CLIENT_ID");
             System.exit(1);
         }
         // Google Storage Credentials

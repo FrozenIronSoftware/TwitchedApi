@@ -19,3 +19,12 @@ jar {
     }
     from {configurations.compile.collect {zipTree(it)}}
 }
+
+test {
+    boolean clearCache = Boolean.parseBoolean(System.getenv().getOrDefault("BIF_CLEAR_CACHE", "false"))
+    systemProperty("BIF_CLEAR_CACHE", clearCache)
+    String twitchedClientId = System.getenv("TWITCHED_CLIENT_ID")
+    if (twitchedClientId == null || twitchedClientId.isEmpty())
+        println("Missing TWITCHED_CLIENT_ID env var")
+    systemProperty("TWITCHED_CLIENT_ID", twitchedClientId)
+}

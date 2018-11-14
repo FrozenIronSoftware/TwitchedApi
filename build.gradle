@@ -30,6 +30,8 @@ allprojects {
         jbcryptVersion = "0.4"
         cloudStorage = "1.51.0"
         ffmpegCliVersion = "0.6.2"
+        junitVersion = "4.12"
+        thumbnailatorVersion = "0.4.8"
     }
 
     repositories {
@@ -67,5 +69,7 @@ project(":bif") {
     dependencies {
         compile project(":server")
         compile "net.bramp.ffmpeg:ffmpeg:$ffmpegCliVersion"
+        compile "net.coobird:thumbnailator:$thumbnailatorVersion"
+        testCompile "junit:junit:$junitVersion"
     }
 }
