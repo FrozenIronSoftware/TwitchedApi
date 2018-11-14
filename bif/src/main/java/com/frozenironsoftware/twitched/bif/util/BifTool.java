@@ -148,7 +148,7 @@ public class BifTool {
      */
     @Nullable
     private Frames generateFrames(List<Path> streamParts, Path frameDir) {
-        return generateFramesFfmpeg(streamParts, frameDir);
+        return generateFramesResize(streamParts, frameDir);
     }
 
     /**
@@ -343,6 +343,7 @@ public class BifTool {
      * @param frameDir frame output directory
      * @return frames generated
      */
+    @Deprecated
     public Frames generateFramesFfmpeg(List<Path> streamParts, Path frameDir) {
         List<Path> fhdFrames = generateFrames(streamParts, FHD_SIZE, frameDir);
         List<Path> hdFrames = generateFrames(streamParts, HD_SIZE, frameDir);
