@@ -158,6 +158,8 @@ public class BifTool {
      * @return paths of output frames. The list will be empty if no frames were generated or an error occurred
      */
     private List<Path> generateFrames(@NotNull List<Path> streamParts, Size size, Path frameDir) {
+        if (streamParts.size() == 0)
+            return new ArrayList<>();
         List<Path> frames = new ArrayList<>();
         try {
             FFmpeg ffmpeg = new FFmpeg("ffmpeg");
@@ -376,6 +378,8 @@ public class BifTool {
      * @return array of frame paths. It will be empty if an error occurred
      */
     private List<Path> resizeFrames(@NotNull List<Path> frames, @NotNull Size size, @NotNull Path frameDir) {
+        if (frames.size() == 0)
+            return new ArrayList<>();
         List<Path> generatedFrames = new ArrayList<>();
         File[] input = new File[frames.size()];
         Path outputDir = frameDir.resolve(size.getName());
