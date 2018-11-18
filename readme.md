@@ -167,6 +167,22 @@ Queue id to use. Only one consumer is expected.
 
 Google JSON credentials
 
+### REDIS_SECURE
+
+If set to TRUE, the Redis connection will be made over TLS
+
+### REDIS_KEY
+
+Literal `\n` characters will be replaced with new lines.
+
+Redis TLS key
+
+### REDIS_CERT
+
+Literal `\n` characters will be replaced with new lines.
+
+Redis TLS certificate
+
 ## Tests
 
 ### Roku BIF Generator Tests

@@ -32,6 +32,7 @@ allprojects {
         ffmpegCliVersion = "0.6.2"
         junitVersion = "4.12"
         thumbnailatorVersion = "0.4.8"
+        envKeystoreVersion = "1.0.7"
     }
 
     repositories {
@@ -56,6 +57,7 @@ project(":server") {
         compile "org.postgresql:postgresql:$postgresqlVersion"
         compile "org.mindrot:jbcrypt:$jbcryptVersion"
         compile "com.google.cloud:google-cloud-storage:$cloudStorage"
+        compile "com.heroku.sdk:env-keystore:$envKeystoreVersion"
     }
 }
 

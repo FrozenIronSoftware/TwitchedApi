@@ -7,6 +7,7 @@ package com.rolandoislas.twitchunofficial.util;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
+import com.heroku.sdk.EnvKeyStore;
 import com.rolandoislas.twitchunofficial.data.model.CachedStreams;
 import com.rolandoislas.twitchunofficial.data.model.FollowQueue;
 import com.rolandoislas.twitchunofficial.data.model.Id;
@@ -20,7 +21,18 @@ import redis.clients.jedis.JedisPoolConfig;
 import redis.clients.jedis.Protocol;
 import redis.clients.util.JedisURIHelper;
 
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.TrustManagerFactory;
+import java.io.IOException;
+import java.math.BigInteger;
 import java.net.URI;
+import java.security.KeyManagementException;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -59,19 +71,57 @@ public class ApiCache {
         else
             poolConfig.setMaxTotal(1);
         // Create the pool
+        boolean useSsl = Boolean.parseBoolean(System.getenv().getOrDefault("REDIS_SECURE", "true"));
+        if (useSsl)
+            redisServer = redisServer.replace("redis://", "rediss://");
         URI uri = URI.create(redisServer);
         if (JedisURIHelper.isValid(uri)) {
             String host = uri.getHost();
             int port = uri.getPort();
             redisPassword = JedisURIHelper.getPassword(uri);
-            redisPool = new JedisPool(poolConfig, host, port, Protocol.DEFAULT_TIMEOUT, redisPassword,
-                    Protocol.DEFAULT_DATABASE, null);
+            if (!useSsl) {
+                Logger.warn("Connecting to Redis without SSL");
+                redisPool = new JedisPool(poolConfig, host, port, Protocol.DEFAULT_TIMEOUT, redisPassword,
+                        Protocol.DEFAULT_DATABASE, null);
+            }
+            else {
+                try {
+                    SSLSocketFactory sslSocketFactory = getSocketFactory();
+                    SSLParameters sslParameters = new SSLParameters();
+                    redisPool = new JedisPool(poolConfig, uri, sslSocketFactory, sslParameters, null);
+                }
+                catch (CertificateException | NoSuchAlgorithmException | KeyStoreException | IOException |
+                        KeyManagementException e) {
+                    Logger.exception(e);
+                    redisPool = new JedisPool();
+                }
+            }
         }
         else {
             redisPool = new JedisPool();
             redisPassword = "";
         }
         gson = new Gson();
+    }
+
+    /**
+     * Create a socket factory with the env var trusted cert
+     * @return socket factory that trusts the env var
+     */
+    private SSLSocketFactory getSocketFactory() throws CertificateException, NoSuchAlgorithmException,
+            KeyStoreException, IOException, KeyManagementException {
+        String key = System.getenv().getOrDefault("REDIS_KEY", "")
+                .replace("\\n", "\n");
+        String cert = System.getenv().getOrDefault("REDIS_CERT", "")
+                .replace("\\n", "\n");
+        EnvKeyStore keyStore = EnvKeyStore.createFromPEMStrings(key, cert,
+                new BigInteger(130, new SecureRandom()).toString(32));
+        String algorithm = TrustManagerFactory.getDefaultAlgorithm();
+        TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(algorithm);
+        trustManagerFactory.init(keyStore.keyStore());
+        SSLContext sslContext = SSLContext.getInstance("TLS");
+        sslContext.init(null, trustManagerFactory.getTrustManagers(), new SecureRandom());
+        return sslContext.getSocketFactory();
     }
 
     /**
