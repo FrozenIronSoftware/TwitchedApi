@@ -1,7 +1,3 @@
-apply plugin: "java"
-apply plugin: "project-report"
-apply plugin: "de.fuerstenau.buildconfig"
-
 sourceCompatibility = 1.8
 sourceSets.main.java.srcDirs = ["src/main/java"]
 

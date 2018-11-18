@@ -6,6 +6,7 @@ buildscript {
     }
     dependencies {
         classpath "gradle.plugin.de.fuerstenau:BuildConfigPlugin:1.1.8"
+        classpath "com.github.jengelman.gradle.plugins:shadow:4.0.2"
     }
 }
 
@@ -13,8 +14,11 @@ buildscript {
 allprojects {
     apply plugin: "idea"
     apply plugin: "java"
+    apply plugin: "project-report"
+    apply plugin: "de.fuerstenau.buildconfig"
+    apply plugin: "com.github.johnrengelman.shadow"
 
-    version = "1.5"
+    version = "1.7"
 
     ext {
         gsonVersion = "2.8.1"
