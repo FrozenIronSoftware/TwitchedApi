@@ -110,11 +110,9 @@ public class ApiCache {
      */
     private SSLSocketFactory getSocketFactory() throws CertificateException, NoSuchAlgorithmException,
             KeyStoreException, IOException, KeyManagementException {
-        String key = System.getenv().getOrDefault("REDIS_KEY", "")
+        String cert = System.getenv().getOrDefault("REDIS_TRUST", "")
                 .replace("\\n", "\n");
-        String cert = System.getenv().getOrDefault("REDIS_CERT", "")
-                .replace("\\n", "\n");
-        EnvKeyStore keyStore = EnvKeyStore.createFromPEMStrings(key, cert,
+        EnvKeyStore keyStore = EnvKeyStore.createFromPEMStrings(cert,
                 new BigInteger(130, new SecureRandom()).toString(32));
         String algorithm = TrustManagerFactory.getDefaultAlgorithm();
         TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(algorithm);

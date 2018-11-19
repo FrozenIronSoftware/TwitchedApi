@@ -171,17 +171,11 @@ Google JSON credentials
 
 If set to TRUE, the Redis connection will be made over TLS
 
-### REDIS_KEY
+### REDIS_TRUST
 
 Literal `\n` characters will be replaced with new lines.
 
-Redis TLS key
-
-### REDIS_CERT
-
-Literal `\n` characters will be replaced with new lines.
-
-Redis TLS certificate
+Redis TLS server certificate
 
 ## Tests
 
