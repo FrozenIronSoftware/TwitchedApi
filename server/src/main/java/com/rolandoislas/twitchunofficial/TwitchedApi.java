@@ -741,6 +741,7 @@ public class TwitchedApi {
     static String getBifUrl(@NotNull Request request, Response response) {
         String id = request.splat()[0];
         String quality = request.splat()[1].toLowerCase(Locale.US).replace(".bif", "");
+        quality = "sd"; // force SD to reduce bandwidth costs
         if (!quality.equals("sd") && !quality.equals("hd") && !quality.equals("fhd"))
             throw halt(HttpStatus.BAD_REQUEST_400, "Invalid quality");
         if (StringUtil.parseLong(id) == 0)
