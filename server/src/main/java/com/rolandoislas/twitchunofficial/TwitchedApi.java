@@ -754,7 +754,18 @@ public class TwitchedApi {
                 if (queuedIds.size() < 100 && !queuedIds.contains(cacheId))
                     jedis.lpush(TwitchUnofficial.queueId, id);
             }
-            response.redirect(String.format("%sbif/generating/%s.bif", STATIC_BUCKET_URL, quality));
+
+            long duration = TwitchUnofficialApi.getVodDuration(id);
+            final int HOUR = 60 * 60;
+            int durationHourRounded = 1;
+            for (int hour = 1; hour <= 48; hour++) {
+                durationHourRounded = hour;
+                if (duration <= HOUR * hour)
+                    break;
+            }
+
+            response.redirect(String.format("%sbif/generating/%s_%d.bif", STATIC_BUCKET_URL, quality,
+                    durationHourRounded));
             return "";
         }
         response.redirect(String.format("%sbif/%s/%s.bif", STATIC_BUCKET_URL, id, quality));

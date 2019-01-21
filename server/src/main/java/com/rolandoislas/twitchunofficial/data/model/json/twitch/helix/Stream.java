@@ -155,4 +155,8 @@ public class Stream {
     public boolean isEncrypted() {
         return encrypted;
     }
+
+    public long getDurationSeconds() {
+        return durationSeconds;
+    }
 }

@@ -2420,7 +2420,7 @@ public class TwitchUnofficialApi {
             @Nullable String period,
             @Nullable String sort,
             @Nullable String type,
-            @NotNull ComparableVersion version) {
+            @Nullable ComparableVersion version) {
         // Rest template
         Webb webb;
         if (getTwitchCredentials().getAppToken() != null)
@@ -2491,7 +2491,7 @@ public class TwitchUnofficialApi {
         }
         if (videos != null) {
             addNamesToStreams(videos);
-            if (version.compareTo(new ComparableVersion("1.5")) >= 0) {
+            if (version == null || version.compareTo(new ComparableVersion("1.5")) >= 0) {
                 for (Stream video : videos) {
                     if (video.getThumbnailUrl() != null && !video.getThumbnailUrl().isEmpty()) {
                         video.setThumbnailUrl(video.getThumbnailUrl().replace("%{width}", "{width}")
@@ -2870,5 +2870,34 @@ public class TwitchUnofficialApi {
         String json = status.toString();
         cache.set(cacheId, json, ApiCache.TIMEOUT_HOUR);
         return json;
+    }
+
+    /**
+     * Get the duration of a vod in seconds
+     * @param id vod id
+     * @return 0 on error or seconds of the vod
+     */
+    @Cached
+    static long getVodDuration(String id) {
+        String cacheId = ApiCache.createKey("vodDuration", id);
+        String durationString = cache.get(cacheId);
+        long duration = 0;
+        if (durationString != null) {
+            duration = StringUtil.parseLong(durationString);
+        }
+        if (duration != 0)
+            return duration;
+
+        // Live request
+        List<Stream> videos = getVideos(Collections.singletonList(id), null, null, null,
+                null, null, null, null, null , null, null);
+        if (videos == null || videos.size() != 1)
+            return 0;
+
+        // Cache
+        Stream video = videos.get(0);
+        cache.set(cacheId, String.valueOf(video.getDurationSeconds()), ApiCache.TIMEOUT_DAY);
+
+        return video.getDurationSeconds();
     }
 }
