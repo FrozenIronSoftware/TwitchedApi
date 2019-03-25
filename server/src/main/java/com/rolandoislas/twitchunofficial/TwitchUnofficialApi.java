@@ -183,6 +183,25 @@ public class TwitchUnofficialApi {
         if (idSplit.length < 1)
             return null;
         String username = idSplit[0];
+        response.type("audio/mpegurl");
+        return getHlsData(fps, quality, model, userToken, username);
+    }
+
+    /**
+     * Get stream HLS master playlist
+     * @param fps fps of the stream
+     * @param quality quality of the stream (e.g. 720 1080)
+     * @param model Roku model (e.g. 7000X)
+     * @param userToken User token of an authenticated user to fetch the stream as. This user does not need to match
+     *                  the provided username parameter.
+     * @param username User name of the stream to fetch.
+     * @return Master playlist
+     */
+    @Cached
+    @Nullable
+    private static String getHlsData(int fps, String quality, String model, @Nullable String userToken,
+                             String username) {
+
         if (username.startsWith(":")) {
             String userId = username.replaceFirst(":", "");
             Map<String, User> cachedUsers = getCachedUsers(Collections.singletonList(userId));
@@ -217,7 +236,6 @@ public class TwitchUnofficialApi {
         try {
             String cachedResponse = cache.get(requestId);
             if (cachedResponse != null) {
-                response.type("audio/mpegurl");
                 String cachedPlaylist = cleanMasterPlaylist(cachedResponse, fps, quality, model);
                 return cachedPlaylist.isEmpty() ? null : cachedPlaylist;
             }
@@ -264,7 +282,6 @@ public class TwitchUnofficialApi {
             // Do not cache playlist if the user token is not set
             if (userToken != null && !userToken.isEmpty())
                 cache.set(requestId, playlistString);
-            response.type("audio/mpegurl");
             String cleanedPlaylist = cleanMasterPlaylist(playlistString, fps, quality, model);
             return cleanedPlaylist.isEmpty() ? null : cleanedPlaylist;
         }
@@ -274,6 +291,16 @@ public class TwitchUnofficialApi {
                 lock.unlock();
             }
         }
+    }
+
+    /**
+     * Return HLS playlists for a stream
+     * @return HLS playlists
+     */
+    public static List<Playlist> getHlsPlaylists(String login) {
+        String playlistString = getHlsData(60, "1080", "ATV", null, login);
+        Map<String, Object> parsedPlaylist = playlistStringToList(playlistString);
+        return (List<Playlist>) parsedPlaylist.get("playlists");
     }
 
     /**
@@ -472,19 +499,6 @@ public class TwitchUnofficialApi {
         for (Playlist stream : playlists)
             if (maxQuality.meetsQuality(stream) && stream.isVideo())
                 playlistsMeetingQuality.add(stream);
-        // If no playlists match the quality, add the smallest
-        /*if (playlistsMeetingQuality.size() == 0) {
-            Playlist smallest = null;
-            for (Playlist stream : playlists) {
-                if (!stream.isVideo())
-                    continue;
-                if ((smallest == null || smallest.getQuality() > stream.getQuality()) &&
-                        maxQuality.meetsQuality(stream))
-                    smallest = stream;
-            }
-            if (smallest != null)
-                playlistsMeetingQuality.add(smallest);
-        }*/
         // Add streams to the master playlist
         for (Playlist stream : playlistsMeetingQuality) {
             if (stream.isVideo()) {

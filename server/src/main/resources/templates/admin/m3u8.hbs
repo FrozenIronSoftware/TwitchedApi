@@ -1,0 +1,26 @@
+{{>partial/header.hbs append="M3U8" inc="admin/partial/header.hbs"}}
+
+{{>partial/nav.hbs}}
+
+<h1 class="title timeburnerbold">M3U8</h1>
+<h2 class="sub-title">Get M3U8 links for a stream</h2>
+
+<div class="text">
+    <div class="text-inner">
+        <form id="login" method="post">
+            <input type="text" class="login" name="login" placeholder="Stream" required="required" />
+            <br>
+            <input type="submit" class="link-submit" value="Submit" />
+        </form>
+        {{#if generated}}
+            <h3>{{login}}</h3>
+            <div>
+                {{#each generated}}
+                    <p>{{@key}}: <a href="{{this}}">{{this}}</a></p>
+                {{/each}}
+            </div>
+        {{/if}}
+    </div>
+</div>
+
+{{>partial/footer.hbs}}

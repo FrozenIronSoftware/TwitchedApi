@@ -11,6 +11,7 @@ import com.rolandoislas.twitchunofficial.util.AuthUtil;
 import com.rolandoislas.twitchunofficial.util.DatabaseUtil;
 import com.rolandoislas.twitchunofficial.util.GoogleStorage;
 import com.rolandoislas.twitchunofficial.util.Logger;
+import com.rolandoislas.twitchunofficial.util.admin.TwitchM3U8Server;
 import com.rolandoislas.twitchunofficial.util.admin.TwitchedAdminServer;
 import com.rolandoislas.twitchunofficial.util.admin.TwitchedGenHashServer;
 import com.rolandoislas.twitchunofficial.util.admin.TwitchedStreamQualityServer;
@@ -197,6 +198,10 @@ public class TwitchUnofficial {
             });
             path("/streamquality", () -> {
                 get("", TwitchedStreamQualityServer::getIndex);
+            });
+            path("/m3u8", () -> {
+                get("", TwitchM3U8Server::getIndex);
+                post("", TwitchM3U8Server::postStream);
             });
             // API
             path("/api", () -> {
