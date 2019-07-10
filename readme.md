@@ -2,6 +2,10 @@
 
 API that powers the [Twitched] Roku app.
 
+# License
+
+GPLv2. See license.txt
+
 # Installing/Running
 
 This web applet is powered by the Gradle build system and designed to
@@ -188,4 +192,4 @@ By default tests for the Roku BIF generator will attempt to download a
  is not set to true, the VOD will not be re-downloaded if one is present
  on disk, This is useful for running performance tests back-to-back.
 
-[Twitched]: https://www.twitched.org
+[Twitched]: https://github.com/FrozenIronSoftware/Twitched
